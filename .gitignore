@@ -1,0 +1,15 @@
+# Claude Code — personal, machine-local overrides (never commit)
+.claude/settings.local.json
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+secrets/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
