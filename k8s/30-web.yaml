@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cerebro-web
+  namespace: cerebro
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cerebro-web
+  template:
+    metadata:
+      labels:
+        app: cerebro-web
+    spec:
+      containers:
+        - name: web
+          image: cerebro-web:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          env:
+            # Server-side calls stay inside the cluster.
+            - name: INTERNAL_API_BASE_URL
+              value: http://cerebro-api:8000
+            # Browser calls go through the ingress on the same host, so the
+            # session cookie is first-party. See 40-ingress.yaml.
+            - name: NEXT_PUBLIC_API_BASE_URL
+              value: ""
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cerebro-web
+  namespace: cerebro
+spec:
+  selector:
+    app: cerebro-web
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000

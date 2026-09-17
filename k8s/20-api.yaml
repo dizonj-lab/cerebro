@@ -1,0 +1,92 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cerebro-api
+  namespace: cerebro
+type: Opaque
+stringData:
+  # Replace with a generated 32+ character secret before any shared deployment:
+  #   kubectl -n cerebro create secret generic cerebro-api \
+  #     --from-literal=CEREBRO_JWT_SECRET="$(openssl rand -hex 32)"
+  CEREBRO_JWT_SECRET: replace-me-with-a-generated-32-byte-secret
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cerebro-api
+  namespace: cerebro
+data:
+  CEREBRO_ENVIRONMENT: production
+  CEREBRO_CORS_ORIGINS: http://cerebro.localhost
+  CEREBRO_COOKIE_SECURE: "false"   # set true once served over HTTPS
+  CEREBRO_COOKIE_SAMESITE: lax
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cerebro-api
+  namespace: cerebro
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cerebro-api
+  template:
+    metadata:
+      labels:
+        app: cerebro-api
+    spec:
+      # Schema is applied before the API accepts traffic.
+      initContainers:
+        - name: migrate
+          image: cerebro-api:0.1.0
+          imagePullPolicy: IfNotPresent
+          command: ["alembic", "upgrade", "head"]
+          env:
+            - name: CEREBRO_DATABASE_URL
+              value: postgresql+psycopg://cerebro:cerebro_dev_password@cerebro-postgres:5432/cerebro
+      containers:
+        - name: api
+          image: cerebro-api:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: cerebro-api
+            - secretRef:
+                name: cerebro-api
+          env:
+            - name: CEREBRO_DATABASE_URL
+              value: postgresql+psycopg://cerebro:cerebro_dev_password@cerebro-postgres:5432/cerebro
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8000
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cerebro-api
+  namespace: cerebro
+spec:
+  selector:
+    app: cerebro-api
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000

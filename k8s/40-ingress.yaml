@@ -1,0 +1,29 @@
+# Single host for web and API.
+#
+# This matters for authentication: the session cookie is host-only, so serving
+# /api from the same origin as the app keeps it first-party and removes the
+# need for cross-origin cookie handling.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cerebro
+  namespace: cerebro
+spec:
+  rules:
+    - host: cerebro.localhost
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: cerebro-api
+                port:
+                  number: 8000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: cerebro-web
+                port:
+                  number: 3000

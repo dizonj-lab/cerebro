@@ -1,56 +1,78 @@
 # CLAUDE.md
 
 Project guidance for Claude Code. Keep this file short and factual — it is
-loaded into context on every session, so it costs tokens on every turn.
-
-> This file was scaffolded before the codebase existed. Fill in the `TODO`
-> markers as the project takes shape, and delete anything that stops being true.
+loaded into context on every session.
 
 ## Project
 
-**cerebro** — TODO: one or two sentences on what this project is and who uses it.
+**CEREBRO** — a Digital Knowledge Twin. It turns personal knowledge and
+experiences into a connected, private, searchable store: Capture → Connect →
+Reason → Recall.
 
-- Language / runtime: TODO
-- Package manager: TODO
-- Entry point: TODO
+- Frontend: Next.js 16 (App Router), React 19, TypeScript, Tailwind v4 — `frontend/`
+- Backend: FastAPI, SQLAlchemy 2, Alembic, Python 3.11 — `backend/`
+- Database: PostgreSQL 16
+- Deployment: Kubernetes, namespace `cerebro` — `k8s/`
+
+React never connects to PostgreSQL directly. All data access goes through the API.
 
 ## Commands
 
-Replace these with the real ones once tooling is in place. Claude prefers
-commands listed here over guessing.
-
-| Purpose      | Command |
-| ------------ | ------- |
-| Install deps | `TODO`  |
-| Run locally  | `TODO`  |
-| Test         | `TODO`  |
-| Test (single)| `TODO`  |
-| Lint         | `TODO`  |
-| Format       | `TODO`  |
-| Typecheck    | `TODO`  |
-| Build        | `TODO`  |
+| Purpose       | Command                                                    |
+| ------------- | ---------------------------------------------------------- |
+| Backend deps  | `cd backend && uv pip install -e ".[dev]"`                 |
+| Migrate       | `cd backend && alembic upgrade head`                       |
+| Run API       | `cd backend && uvicorn app.main:app --reload --port 8000`  |
+| Backend tests | `cd backend && pytest -q`                                  |
+| Frontend deps | `cd frontend && npm install`                               |
+| Run web       | `cd frontend && npm run dev`                               |
+| Typecheck     | `cd frontend && npm run typecheck`                         |
+| Lint          | `cd frontend && npm run lint`                              |
+| Build         | `cd frontend && npm run build`                             |
+| E2E tests     | `cd frontend && npm run test:e2e` (both servers must be up) |
 
 ## Layout
 
 ```
-.
-├── CLAUDE.md          # this file
-├── .claude/           # Claude Code project config (see .claude/README.md)
-└── readme.md
+backend/app/{api,core,db,models,schemas,services}   FastAPI application
+backend/alembic/                                    migrations
+backend/tests/                                      pytest, real PostgreSQL
+frontend/src/app/                                   routes: /, /login, /signup, /construct
+frontend/src/components/{ui,brand,auth,construct}/  primitives → components
+frontend/src/lib/                                   api client, server session, cn
+frontend/e2e/                                       Playwright journey + UI suites
+k8s/                                                manifests, namespace cerebro
+docs/                                               architecture, contracts, state
 ```
-
-TODO: describe the real source directories as they are added.
 
 ## Conventions
 
-- TODO: naming, module boundaries, error handling, logging.
-- TODO: test layout and what must be covered.
-- Commit messages: TODO (e.g. Conventional Commits).
+- Design tokens live in `frontend/src/app/globals.css`. Never hard-code a colour
+  in a component; add or use a token.
+- Components layer strictly: tokens → `components/ui` primitives → CEREBRO
+  components → pages. Do not style a page independently.
+- Auth logic stays out of presentation components — use `lib/api.ts` (browser)
+  or `lib/session.ts` (server).
+- Backend: HTTP concerns in `app/api`, business logic in `app/services`,
+  reusable primitives in `app/core`. Services take a `Session`, not a `Request`.
+- Tests run against real PostgreSQL and a real browser. Do not introduce mocks
+  for either.
 
 ## Things to know
 
-Non-obvious constraints that are easy to get wrong — migrations that must run in
-order, a service that must be up for tests, a generated file that must never be
-hand-edited. Add them here as you hit them.
-
-- TODO
+- **Use `localhost`, never `127.0.0.1`.** They are different cookie hosts and
+  different CORS origins; mixing them breaks sign-in with a CORS error and no
+  session cookie.
+- The session is a JWT in an **httpOnly** cookie (`cerebro_session`). It is not
+  readable from JavaScript by design — do not add a client-side token store.
+- `/construct` is protected twice: `src/proxy.ts` checks the cookie exists,
+  `src/app/construct/layout.tsx` validates it against the API. The layout is the
+  authority; the proxy only prevents a flash of protected UI.
+- Email uniqueness is enforced by the unique index, and duplicates are caught
+  via `IntegrityError` — never by a prior `SELECT`, which races.
+- Login returns one message for unknown-email and wrong-password. Keep it that
+  way; it is deliberate anti-enumeration behaviour with a test asserting it.
+- The API refuses to start outside development unless `CEREBRO_JWT_SECRET` is
+  set to 32+ characters.
+- Sidebar items other than Dashboard are inert placeholders for future work
+  packages. Do not wire them up without an explicit work package.

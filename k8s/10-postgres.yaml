@@ -1,0 +1,80 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cerebro-postgres
+  namespace: cerebro
+type: Opaque
+stringData:
+  # Local development values. Replace before any shared deployment.
+  POSTGRES_DB: cerebro
+  POSTGRES_USER: cerebro
+  POSTGRES_PASSWORD: cerebro_dev_password
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cerebro-postgres
+  namespace: cerebro
+spec:
+  clusterIP: None
+  selector:
+    app: cerebro-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: cerebro-postgres
+  namespace: cerebro
+spec:
+  serviceName: cerebro-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cerebro-postgres
+  template:
+    metadata:
+      labels:
+        app: cerebro-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: cerebro-postgres
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "cerebro", "-d", "cerebro"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "cerebro", "-d", "cerebro"]
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi
