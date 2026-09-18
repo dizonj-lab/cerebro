@@ -6,9 +6,23 @@ PostgreSQL 16, Python 3.11+, Node 22+.
 
 ## Database
 
+Create the role **before** the databases, and make it the owner. Order matters:
+since PostgreSQL 15 the `public` schema no longer grants `CREATE` to everyone,
+so a database owned by someone else makes `alembic upgrade head` fail with
+`permission denied for schema public`.
+
 ```bash
-createdb cerebro && createdb cerebro_test
 psql -c "CREATE ROLE cerebro WITH LOGIN PASSWORD 'cerebro_dev_password';"
+createdb -O cerebro cerebro
+createdb -O cerebro cerebro_test
+```
+
+Run these as a superuser (on most installs, `sudo -u postgres <command>`).
+
+Verify before going further:
+
+```bash
+PGPASSWORD=cerebro_dev_password psql -h localhost -U cerebro -d cerebro -c "SELECT current_user;"
 ```
 
 ## Backend
