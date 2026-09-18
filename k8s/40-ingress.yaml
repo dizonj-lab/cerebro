@@ -1,18 +1,28 @@
-# Single host for web and API.
+# OPTIONAL — a friendly hostname instead of a port-forward.
 #
-# This matters for authentication: the session cookie is host-only, so serving
-# /api from the same origin as the app keeps it first-party and removes the
-# need for cross-origin cookie handling.
+# The app does not depend on this. The web pod proxies /api to the API service
+# itself (frontend/next.config.ts), so everything including sign-in works over:
+#
+#   make port-forward   ->  http://localhost:3000
+#
+# Apply this only if you want http://cerebro.localhost. It needs an ingress
+# controller. On Docker Desktop:
+#   kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.11.2/deploy/static/provider/cloud/deploy.yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: cerebro
   namespace: cerebro
+  labels:
+    app.kubernetes.io/name: cerebro
+    app.kubernetes.io/part-of: cerebro
 spec:
+  ingressClassName: nginx
   rules:
     - host: cerebro.localhost
       http:
         paths:
+          # More specific path first: /api must not be swallowed by /.
           - path: /api
             pathType: Prefix
             backend:

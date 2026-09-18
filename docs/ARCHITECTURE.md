@@ -8,7 +8,7 @@ described here.
 ```
 Browser
    │
-   │  HTTP (same origin in Kubernetes, via ingress)
+   │  HTTP — one origin only, /api included
    ▼
 cerebro-web ──────────────► cerebro-api ──────────────► PostgreSQL
 Next.js 16 (App Router)     FastAPI                     users table
@@ -21,17 +21,28 @@ React never touches PostgreSQL. All data access is through the API.
 
 There are two distinct callers of the API, and they authenticate the same way:
 
-1. **Browser → API.** Client components call `src/lib/api.ts`, which sends
-   `credentials: "include"` so the session cookie travels with the request.
+1. **Browser → web origin.** Client components call `src/lib/api.ts` with a
+   relative path and `credentials: "include"`. Next.js rewrites `/api/:path*` to
+   `INTERNAL_API_BASE_URL` (`next.config.ts`), so the request never leaves the
+   origin the page was served from.
 2. **Next.js server → API.** `src/lib/session.ts` reads the cookie via
    `next/headers` and forwards it to `/api/auth/me`. This is what the protected
    layout uses, and it is the authoritative check.
 
-In Kubernetes both paths resolve to the same host through the ingress, so the
-session cookie stays first-party. In local development the API is on port 8000
-and the app on port 3000; cookies ignore ports, so a cookie set by
-`localhost:8000` is sent to `localhost:3000`. Use `localhost` consistently —
-`127.0.0.1` is a different cookie host and a different CORS origin.
+Because the browser only ever sees one origin, the session cookie is always
+first-party and CORS never applies — in development, compose and Kubernetes
+alike. It also means the stack runs without an ingress controller: a port-forward
+to `cerebro-web` is a complete, working deployment.
+
+Two configuration values, easy to confuse:
+
+| Variable                   | Read at  | Meaning                               |
+| -------------------------- | -------- | ------------------------------------- |
+| `INTERNAL_API_BASE_URL`    | runtime  | Where the web server reaches the API  |
+| `NEXT_PUBLIC_API_BASE_URL` | **build**| Browser-visible base; empty = same origin |
+
+A `NEXT_PUBLIC_*` value set in a Kubernetes Deployment has no effect: it is
+baked into the browser bundle when the image is built.
 
 ## Access control
 

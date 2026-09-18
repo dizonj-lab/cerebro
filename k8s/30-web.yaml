@@ -3,41 +3,59 @@ kind: Deployment
 metadata:
   name: cerebro-web
   namespace: cerebro
+  labels:
+    app.kubernetes.io/name: cerebro-web
+    app.kubernetes.io/part-of: cerebro
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: cerebro-web
+      app.kubernetes.io/name: cerebro-web
   template:
     metadata:
       labels:
-        app: cerebro-web
+        app.kubernetes.io/name: cerebro-web
+        app.kubernetes.io/part-of: cerebro
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
       containers:
         - name: web
           image: cerebro-web:0.1.0
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 3000
+            - name: http
+              containerPort: 3000
           env:
-            # Server-side calls stay inside the cluster.
+            # Server-side rendering calls the API over in-cluster DNS; this
+            # traffic never leaves the namespace.
             - name: INTERNAL_API_BASE_URL
               value: http://cerebro-api:8000
-            # Browser calls go through the ingress on the same host, so the
-            # session cookie is first-party. See 40-ingress.yaml.
-            - name: NEXT_PUBLIC_API_BASE_URL
-              value: ""
+            #
+            # NOTE: NEXT_PUBLIC_API_BASE_URL is deliberately absent. It is
+            # inlined into the browser bundle at BUILD time, so setting it here
+            # would have no effect. The image is built with it empty, making
+            # browser requests same-origin and routed by the ingress below.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          startupProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 3
+            failureThreshold: 20
           readinessProbe:
             httpGet:
               path: /
-              port: 3000
-            initialDelaySeconds: 5
+              port: http
             periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /
-              port: 3000
-            initialDelaySeconds: 20
+              port: http
             periodSeconds: 20
           resources:
             requests:
@@ -51,10 +69,13 @@ kind: Service
 metadata:
   name: cerebro-web
   namespace: cerebro
+  labels:
+    app.kubernetes.io/name: cerebro-web
+    app.kubernetes.io/part-of: cerebro
 spec:
   selector:
-    app: cerebro-web
+    app.kubernetes.io/name: cerebro-web
   ports:
     - name: http
       port: 3000
-      targetPort: 3000
+      targetPort: http

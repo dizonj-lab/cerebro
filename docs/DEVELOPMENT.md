@@ -52,9 +52,11 @@ npm run dev          # http://localhost:3000
 `frontend/.env.local`:
 
 ```
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 INTERNAL_API_BASE_URL=http://127.0.0.1:8000
 ```
+
+The browser calls `/api` on the web origin and Next.js proxies it to the API, so
+there is no browser-visible API URL to configure and no CORS to get wrong.
 
 Checks: `npm run typecheck`, `npm run lint`, `npm run build`.
 
@@ -74,27 +76,56 @@ downloading a build:
 CHROMIUM_PATH=/opt/pw-browsers/chromium npm run test:e2e
 ```
 
-## Use `localhost`, not `127.0.0.1`
+## Containers
 
-They are different cookie hosts and different CORS origins. Mixing them makes
-sign-in fail with a CORS error and no session cookie. The API's allowed origin
-is `http://localhost:3000` by default (`CEREBRO_CORS_ORIGINS`).
+Two paths. Kubernetes is the primary target; compose is the quicker one.
 
-## Kubernetes
+### Kubernetes
 
 ```bash
-docker build -t cerebro-api:0.1.0 backend
-docker build -t cerebro-web:0.1.0 frontend
-kubectl apply -k k8s/
+make up          # build images, load them into the cluster, deploy, wait
+make port-forward
 ```
 
-Set a real JWT secret before anything shared:
+Then open <http://localhost:3000>. No ingress controller needed: the web pod
+proxies `/api` to the API service, so a port-forward is a complete deployment.
+
+Optional friendlier hostname, if you have ingress-nginx:
+
+```bash
+kubectl apply -f k8s/40-ingress.yaml   # already included in `make deploy`
+# open http://cerebro.localhost
+```
+
+Other targets: `make status`, `make logs`, `make down`, and `make validate`
+(renders the manifests and schema-checks them without a cluster).
+
+### Docker Compose
+
+```bash
+make compose-up      # or: docker compose up --build
+```
+
+Open <http://localhost:3000>. `make compose-down` removes the database volume.
+
+### Secrets
+
+The committed manifests carry development values. Replace them before anything
+shared:
 
 ```bash
 kubectl -n cerebro create secret generic cerebro-api \
   --from-literal=CEREBRO_JWT_SECRET="$(openssl rand -hex 32)" \
+  --from-literal=CEREBRO_DATABASE_URL="postgresql+psycopg://cerebro:<pw>@cerebro-postgres:5432/cerebro" \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
-The manifests have not been applied from the development container — it has no
-Docker daemon and no cluster. See `docs/CURRENT-STATE.md`.
+The API refuses to start outside development unless `CEREBRO_JWT_SECRET` is at
+least 32 characters and not the built-in default.
+
+### Not verified here
+
+The images have never been built and the manifests have never been applied: the
+development container has no Docker daemon and no cluster. They are rendered and
+schema-validated against Kubernetes 1.31 (`make validate`), which catches
+structural errors but not runtime ones. See `docs/CURRENT-STATE.md`.

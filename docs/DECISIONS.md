@@ -25,12 +25,22 @@ validates it against `/api/auth/me`. The proxy prevents a flash of protected UI;
 the layout is the authority. Relying on the proxy alone would accept a forged
 cookie.
 
-## D4 — Single origin in Kubernetes
+## D4 — Single origin everywhere, via a Next.js rewrite
 
-The ingress serves the app and `/api` from one host so the session cookie is
-first-party and no cross-origin cookie handling is needed. Locally this means
-using `localhost` for both services — `127.0.0.1` is a different cookie host and
-a different CORS origin, and mixing them silently breaks sign-in.
+Next.js proxies `/api/:path*` to `INTERNAL_API_BASE_URL`, so the browser only
+ever talks to the origin that served the page.
+
+This replaced an earlier design where the browser called the API directly and an
+ingress was responsible for presenting one host. That version had three problems:
+it needed CORS configured correctly, it made the session cookie's first-party
+status depend on deployment topology, and it silently broke when the app was
+opened on `127.0.0.1` rather than `localhost` — a different cookie host *and* a
+different CORS origin.
+
+With the proxy, all three disappear. Verified by running the full end-to-end
+suite against both `localhost:3000` and `127.0.0.1:3000`: 31/31 on each, where
+the latter previously failed outright. The ingress became optional — a plain
+`kubectl port-forward` to the web service is now a complete deployment.
 
 ## D5 — One light theme, no dark mode
 
@@ -80,3 +90,15 @@ the mark is used as an image; the wordmark, tagline and pillars are rendered as
 text. This keeps them crisp at every size, lets them inherit the ink colour
 token, keeps them selectable and searchable, and means the header can show a
 compact mark + wordmark where the full lockup would be illegible at 64px.
+
+## D11 — `NEXT_PUBLIC_API_BASE_URL` must be empty in container images
+
+`NEXT_PUBLIC_*` values are inlined into the browser bundle when the image is
+built; they are not read at runtime. An earlier version of the web Deployment
+set it as a runtime environment variable, which did nothing, and the Dockerfile
+defaulted it to `/`, which produced `//api/auth/login` — a protocol-relative URL
+that a browser resolves to a host literally named `api`.
+
+The default is now empty (same origin), and `src/lib/api.ts` strips trailing
+slashes so no configured value can reproduce the bug. Verified by building with
+the variable empty and grepping the emitted bundle for the inlined path.

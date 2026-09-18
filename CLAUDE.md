@@ -26,6 +26,8 @@ React never connects to PostgreSQL directly. All data access goes through the AP
 | Backend tests | `cd backend && pytest -q`                                  |
 | Frontend deps | `cd frontend && npm install`                               |
 | Run web       | `cd frontend && npm run dev`                               |
+| Whole stack   | `make up` (Kubernetes) or `make compose-up` (Docker)       |
+| Validate k8s  | `make validate`                                            |
 | Typecheck     | `cd frontend && npm run typecheck`                         |
 | Lint          | `cd frontend && npm run lint`                              |
 | Build         | `cd frontend && npm run build`                             |
@@ -60,9 +62,12 @@ docs/                                               architecture, contracts, sta
 
 ## Things to know
 
-- **Use `localhost`, never `127.0.0.1`.** They are different cookie hosts and
-  different CORS origins; mixing them breaks sign-in with a CORS error and no
-  session cookie.
+- The browser only ever calls the **web origin**. Next.js rewrites `/api` to the
+  backend (`next.config.ts`), so the session cookie is always first-party and no
+  CORS is involved. Do not point the browser at the API directly.
+- `INTERNAL_API_BASE_URL` is the proxy and server-render target, read at runtime.
+  `NEXT_PUBLIC_API_BASE_URL` is inlined at **build** time and must stay empty for
+  containers — setting it in a Deployment does nothing.
 - The session is a JWT in an **httpOnly** cookie (`cerebro_session`). It is not
   readable from JavaScript by design — do not add a client-side token store.
 - `/construct` is protected twice: `src/proxy.ts` checks the cookie exists,

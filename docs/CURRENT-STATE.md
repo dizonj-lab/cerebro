@@ -70,13 +70,23 @@ Database evidence at time of writing: 78 user rows, 78 Argon2id hashes,
 | PostgreSQL       | RUNNING (local cluster, `cerebro` + `cerebro_test`) |
 | cerebro-api      | RUNNING (uvicorn, port 8000)                        |
 | cerebro-web      | RUNNING (Next.js, port 3000)                        |
-| Kubernetes       | **BLOCKED — not deployable from this environment**  |
+| Kubernetes       | MANIFESTS READY — **not applied from this environment** |
 | cerebro-worker   | NOT PRESENT (not required by this work package)     |
 
-Kubernetes manifests for namespace `cerebro` exist under `k8s/` and their YAML
-is valid, but they have not been applied: the development container has no
-Docker daemon and no `kubectl`/cluster, so images cannot be built or deployed
-here. Applying them on a machine with a local cluster is the outstanding step.
+The stack is fully containerised: Dockerfiles for both services, Kubernetes
+manifests under `k8s/` (namespace `cerebro`), a `Makefile` (`make up`), and a
+`docker-compose.yml` as the simpler alternative.
+
+The manifests render with kustomize and pass `kubeconform -strict` against the
+Kubernetes 1.31 schemas (`make validate`), so structural errors are ruled out.
+They have still **never been applied and the images have never been built**:
+this environment has no Docker daemon and no cluster. Runtime behaviour is
+therefore unverified and is the outstanding step.
+
+An ingress controller is no longer required. The web pod proxies `/api` to the
+API service, so `make port-forward` is a complete working deployment;
+`k8s/40-ingress.yaml` is optional and only provides the `cerebro.localhost`
+hostname.
 
 ## Not implemented (deliberately out of scope)
 

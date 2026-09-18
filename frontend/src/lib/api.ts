@@ -4,8 +4,22 @@
  * All requests send credentials so the httpOnly session cookie travels with
  * them. No component talks to the API except through this module.
  */
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+/**
+ * Where the browser sends API requests.
+ *
+ * Empty by default, meaning same-origin: Next.js rewrites /api to the backend
+ * (see next.config.ts). That keeps the session cookie first-party everywhere,
+ * needs no CORS, and works identically in development, compose and Kubernetes.
+ *
+ * Override NEXT_PUBLIC_API_BASE_URL only to bypass the proxy and call the API
+ * directly. It is inlined at BUILD time, so it cannot be changed by a runtime
+ * environment variable in a container.
+ *
+ * Trailing slashes are stripped: a configured "/" would otherwise produce
+ * "//api/auth/login", which a browser resolves as a protocol-relative URL
+ * pointing at a host called "api".
+ */
+export const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/+$/, "");
 
 export interface CerebroUser {
   id: string;

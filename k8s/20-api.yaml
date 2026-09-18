@@ -3,21 +3,35 @@ kind: Secret
 metadata:
   name: cerebro-api
   namespace: cerebro
+  labels:
+    app.kubernetes.io/name: cerebro-api
+    app.kubernetes.io/part-of: cerebro
 type: Opaque
 stringData:
-  # Replace with a generated 32+ character secret before any shared deployment:
+  # Both are local development values. Replace before any shared deployment:
   #   kubectl -n cerebro create secret generic cerebro-api \
-  #     --from-literal=CEREBRO_JWT_SECRET="$(openssl rand -hex 32)"
-  CEREBRO_JWT_SECRET: replace-me-with-a-generated-32-byte-secret
+  #     --from-literal=CEREBRO_JWT_SECRET="$(openssl rand -hex 32)" \
+  #     --from-literal=CEREBRO_DATABASE_URL="postgresql+psycopg://cerebro:<pw>@cerebro-postgres:5432/cerebro" \
+  #     --dry-run=client -o yaml | kubectl apply -f -
+  #
+  # The API refuses to start when CEREBRO_ENVIRONMENT is not "development"
+  # unless this is at least 32 characters and not the built-in default.
+  CEREBRO_JWT_SECRET: local-dev-only-secret-32-characters-minimum-abcdef
+  CEREBRO_DATABASE_URL: postgresql+psycopg://cerebro:cerebro_dev_password@cerebro-postgres:5432/cerebro
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: cerebro-api
   namespace: cerebro
+  labels:
+    app.kubernetes.io/name: cerebro-api
+    app.kubernetes.io/part-of: cerebro
 data:
   CEREBRO_ENVIRONMENT: production
-  CEREBRO_CORS_ORIGINS: http://cerebro.localhost
+  # Only matters for clients that call the API directly. The app never does:
+  # the browser talks to the web origin, which proxies /api internally.
+  CEREBRO_CORS_ORIGINS: http://cerebro.localhost,http://localhost:3000
   CEREBRO_COOKIE_SECURE: "false"   # set true once served over HTTPS
   CEREBRO_COOKIE_SAMESITE: lax
 ---
@@ -26,50 +40,79 @@ kind: Deployment
 metadata:
   name: cerebro-api
   namespace: cerebro
+  labels:
+    app.kubernetes.io/name: cerebro-api
+    app.kubernetes.io/part-of: cerebro
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: cerebro-api
+      app.kubernetes.io/name: cerebro-api
   template:
     metadata:
       labels:
-        app: cerebro-api
+        app.kubernetes.io/name: cerebro-api
+        app.kubernetes.io/part-of: cerebro
     spec:
-      # Schema is applied before the API accepts traffic.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
       initContainers:
+        # Schema is brought to head before the API serves traffic.
+        # `alembic upgrade head` is idempotent, so a restart is safe. With more
+        # than one replica this would need to move to a Job to avoid a race.
         - name: migrate
           image: cerebro-api:0.1.0
           imagePullPolicy: IfNotPresent
           command: ["alembic", "upgrade", "head"]
-          env:
-            - name: CEREBRO_DATABASE_URL
-              value: postgresql+psycopg://cerebro:cerebro_dev_password@cerebro-postgres:5432/cerebro
-      containers:
-        - name: api
-          image: cerebro-api:0.1.0
-          imagePullPolicy: IfNotPresent
-          ports:
-            - containerPort: 8000
           envFrom:
             - configMapRef:
                 name: cerebro-api
             - secretRef:
                 name: cerebro-api
-          env:
-            - name: CEREBRO_DATABASE_URL
-              value: postgresql+psycopg://cerebro:cerebro_dev_password@cerebro-postgres:5432/cerebro
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+      containers:
+        - name: api
+          image: cerebro-api:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: cerebro-api
+            - secretRef:
+                name: cerebro-api
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          startupProbe:
+            # Gives the database time to accept connections without a short
+            # liveness timeout killing the pod during startup.
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 3
+            failureThreshold: 20
           readinessProbe:
             httpGet:
               path: /api/health
-              port: 8000
-            initialDelaySeconds: 5
+              port: http
             periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /api/health
-              port: 8000
-            initialDelaySeconds: 20
+              port: http
             periodSeconds: 20
           resources:
             requests:
@@ -83,10 +126,13 @@ kind: Service
 metadata:
   name: cerebro-api
   namespace: cerebro
+  labels:
+    app.kubernetes.io/name: cerebro-api
+    app.kubernetes.io/part-of: cerebro
 spec:
   selector:
-    app: cerebro-api
+    app.kubernetes.io/name: cerebro-api
   ports:
     - name: http
       port: 8000
-      targetPort: 8000
+      targetPort: http

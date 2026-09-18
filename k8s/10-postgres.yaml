@@ -3,11 +3,19 @@ kind: Secret
 metadata:
   name: cerebro-postgres
   namespace: cerebro
+  labels:
+    app.kubernetes.io/name: cerebro-postgres
+    app.kubernetes.io/part-of: cerebro
 type: Opaque
 stringData:
-  # Local development values. Replace before any shared deployment.
   POSTGRES_DB: cerebro
   POSTGRES_USER: cerebro
+  # Local development value. Replace before any shared deployment:
+  #   kubectl -n cerebro create secret generic cerebro-postgres \
+  #     --from-literal=POSTGRES_DB=cerebro \
+  #     --from-literal=POSTGRES_USER=cerebro \
+  #     --from-literal=POSTGRES_PASSWORD="$(openssl rand -hex 24)" \
+  #     --dry-run=client -o yaml | kubectl apply -f -
   POSTGRES_PASSWORD: cerebro_dev_password
 ---
 apiVersion: v1
@@ -15,40 +23,54 @@ kind: Service
 metadata:
   name: cerebro-postgres
   namespace: cerebro
+  labels:
+    app.kubernetes.io/name: cerebro-postgres
+    app.kubernetes.io/part-of: cerebro
 spec:
   clusterIP: None
   selector:
-    app: cerebro-postgres
+    app.kubernetes.io/name: cerebro-postgres
   ports:
     - name: postgres
       port: 5432
-      targetPort: 5432
+      targetPort: postgres
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: cerebro-postgres
   namespace: cerebro
+  labels:
+    app.kubernetes.io/name: cerebro-postgres
+    app.kubernetes.io/part-of: cerebro
 spec:
   serviceName: cerebro-postgres
   replicas: 1
   selector:
     matchLabels:
-      app: cerebro-postgres
+      app.kubernetes.io/name: cerebro-postgres
   template:
     metadata:
       labels:
-        app: cerebro-postgres
+        app.kubernetes.io/name: cerebro-postgres
+        app.kubernetes.io/part-of: cerebro
     spec:
+      securityContext:
+        # The official image starts as root and drops to postgres itself, so
+        # runAsNonRoot would break initdb. fsGroup fixes volume ownership.
+        fsGroup: 999
       containers:
         - name: postgres
           image: postgres:16-alpine
           ports:
-            - containerPort: 5432
+            - name: postgres
+              containerPort: 5432
           envFrom:
             - secretRef:
                 name: cerebro-postgres
           env:
+            # PGDATA must be a subdirectory: the volume root holds lost+found
+            # on some provisioners, and initdb refuses a non-empty directory.
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
           volumeMounts:
@@ -56,14 +78,16 @@ spec:
               mountPath: /var/lib/postgresql/data
           readinessProbe:
             exec:
-              command: ["pg_isready", "-U", "cerebro", "-d", "cerebro"]
+              command: ["sh", "-c", 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
             initialDelaySeconds: 5
-            periodSeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
           livenessProbe:
             exec:
-              command: ["pg_isready", "-U", "cerebro", "-d", "cerebro"]
-            initialDelaySeconds: 20
+              command: ["sh", "-c", 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
+            initialDelaySeconds: 30
             periodSeconds: 20
+            timeoutSeconds: 3
           resources:
             requests:
               cpu: 100m
