@@ -58,7 +58,7 @@ test("TEST 2 — new user signs up and lands in The Construct", async ({ page })
   await signUp(page, account);
 
   await expect(page).toHaveURL(/\/construct$/);
-  await expect(page.getByRole("heading", { name: "Welcome to CEREBRO" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(/Good (morning|afternoon|evening)/);
   await expect(page.getByText("Your knowledge twin begins here.")).toBeVisible();
 });
 
@@ -134,8 +134,8 @@ test("TEST 4 — existing user logs in and reaches The Construct", async ({ page
   await logIn(page, account);
 
   await expect(page).toHaveURL(/\/construct$/);
-  await expect(page.getByRole("heading", { name: "Welcome to CEREBRO" })).toBeVisible();
-  await expect(page.getByText(`Signed in as ${account.displayName}.`)).toBeVisible();
+  // The dashboard greets the user by name (Phase 1.5).
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(account.displayName.split(" ")[0]);
 });
 
 // --- TEST 5: invalid login -------------------------------------------------
@@ -199,7 +199,7 @@ test("TEST 7 — session survives a page refresh", async ({ page }) => {
   await page.reload();
 
   await expect(page).toHaveURL(/\/construct$/);
-  await expect(page.getByRole("heading", { name: "Welcome to CEREBRO" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(/Good (morning|afternoon|evening)/);
 });
 
 test("TEST 7 — an authenticated user visiting /login is sent to The Construct", async ({ page }) => {

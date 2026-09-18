@@ -98,3 +98,10 @@ export const IconLogout = () => (
     <path d="M8 10h8.5M16.5 10l-2.25-2.25M16.5 10l-2.25 2.25" />
   </Icon>
 );
+
+export const IconSettings = () => (
+  <Icon>
+    <circle cx="10" cy="10" r="2.5" />
+    <path d="M10 2.75v1.6M10 15.65v1.6M17.25 10h-1.6M4.35 10h-1.6M15.13 4.87l-1.13 1.13M6 14l-1.13 1.13M15.13 15.13 14 14M6 6 4.87 4.87" />
+  </Icon>
+);

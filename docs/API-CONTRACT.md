@@ -77,3 +77,25 @@ Used as the readiness and liveness probe.
   "created_at": "2026-09-17T10:03:04.788367Z"
 }
 ```
+
+## Phase 1.5 — profile, preferences, account
+
+All of these resolve the user from the session. None accepts a user id in its
+path, query or body, so a client cannot address another user's record.
+
+| Method | Path                    | Notes                                            |
+| ------ | ----------------------- | ------------------------------------------------ |
+| GET    | `/api/profile`          | Creates an empty profile on first access         |
+| PATCH  | `/api/profile`          | Full replacement of editable fields              |
+| GET    | `/api/preferences`      | Defaults: local AI, private knowledge, no consent |
+| PATCH  | `/api/preferences`      | Partial; omitted fields are left untouched       |
+| GET    | `/api/account`          | Safe fields only — never the hash or a token     |
+| POST   | `/api/account/password` | Requires the current password                    |
+
+`completion_percent` is derived on every read from a fixed list of twelve
+profile fields; it is never stored, so it cannot drift from the data.
+
+Cloud AI processing requires `cloud_ai_consent`. Setting
+`ai_processing_mode: "cloud"` without it leaves the mode at `local`, and
+withdrawing consent returns the mode to `local`. The consent timestamp is
+server-set. No API credentials are stored on these records.

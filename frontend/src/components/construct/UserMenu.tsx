@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { IconLogout, IconProfile } from "@/components/construct/icons";
+import Link from "next/link";
+
+import { IconLogout, IconProfile, IconSettings } from "@/components/construct/icons";
 import type { CerebroUser } from "@/lib/api";
 
 interface UserMenuProps {
@@ -68,16 +70,25 @@ export function UserMenu({ user, onLogout, loggingOut = false }: UserMenuProps) 
             <p className="truncate text-xs text-ink-subtle">{user.email}</p>
           </div>
 
-          <button
-            type="button"
+          <Link
+            href="/construct/profile"
             role="menuitem"
-            aria-disabled="true"
-            title="Profile — coming soon"
-            className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-ink-subtle hover:bg-surface-subtle"
+            onClick={() => setOpen(false)}
+            className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-ink-muted hover:bg-surface-subtle hover:text-ink"
           >
             <IconProfile />
             Profile
-          </button>
+          </Link>
+
+          <Link
+            href="/construct/settings"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-ink-muted hover:bg-surface-subtle hover:text-ink"
+          >
+            <IconSettings />
+            Settings
+          </Link>
 
           <button
             type="button"

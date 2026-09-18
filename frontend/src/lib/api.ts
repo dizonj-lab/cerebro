@@ -85,6 +85,48 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
+export interface CerebroProfile {
+  full_name: string | null;
+  bio: string | null;
+  location: string | null;
+  timezone: string | null;
+  avatar_url: string | null;
+  role_title: string | null;
+  organization: string | null;
+  industry: string | null;
+  years_experience: number | null;
+  expertise: string[];
+  interests: string[];
+  current_topics: string[];
+  learning_goals: string | null;
+  career_goals: string | null;
+  completion_percent: number;
+  completed_fields: number;
+  total_fields: number;
+}
+
+export interface CerebroPreferences {
+  response_style: string;
+  ai_suggestions: boolean;
+  recall_suggestions: boolean;
+  knowledge_visibility: string;
+  ai_processing_mode: "local" | "cloud";
+  local_provider: string | null;
+  local_model: string | null;
+  cloud_provider: string | null;
+  cloud_model: string | null;
+  cloud_ai_consent: boolean;
+  cloud_ai_consent_at: string | null;
+}
+
+export interface CerebroAccount {
+  id: string;
+  display_name: string;
+  email: string;
+  created_at: string;
+  last_login_at: string | null;
+}
+
 export const api = {
   signup: (input: { display_name: string; email: string; password: string }) =>
     request<CerebroUser>("/api/auth/signup", {
@@ -101,4 +143,25 @@ export const api = {
   me: () => request<CerebroUser>("/api/auth/me"),
 
   logout: () => request<{ message: string }>("/api/auth/logout", { method: "POST" }),
+
+  profile: () => request<CerebroProfile>("/api/profile"),
+
+  saveProfile: (input: Partial<CerebroProfile>) =>
+    request<CerebroProfile>("/api/profile", { method: "PATCH", body: JSON.stringify(input) }),
+
+  preferences: () => request<CerebroPreferences>("/api/preferences"),
+
+  savePreferences: (input: Partial<CerebroPreferences>) =>
+    request<CerebroPreferences>("/api/preferences", {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+
+  account: () => request<CerebroAccount>("/api/account"),
+
+  changePassword: (input: { current_password: string; new_password: string }) =>
+    request<{ message: string }>("/api/account/password", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
 };

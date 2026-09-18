@@ -1,10 +1,8 @@
 """Authentication endpoints: signup, login, me, logout."""
-from typing import Annotated
-
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, HTTPException, Response, status
 from sqlalchemy.exc import IntegrityError
 
-from app.api.deps import DbSession, get_current_user
+from app.api.deps import CurrentUser, DbSession
 from app.core.config import get_settings
 from app.core.security import create_access_token
 from app.models.user import User
@@ -13,7 +11,6 @@ from app.services import users as user_service
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
-CurrentUser = Annotated[User, Depends(get_current_user)]
 settings = get_settings()
 
 
@@ -65,6 +62,9 @@ def login(payload: LoginRequest, response: Response, db: DbSession) -> User:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
         )
+    from datetime import UTC, datetime
+
+    user.last_login_at = datetime.now(UTC)
     db.commit()
     _set_session_cookie(response, user.id)
     return user

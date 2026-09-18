@@ -2,7 +2,7 @@ import "server-only";
 
 import { cookies } from "next/headers";
 
-import type { CerebroUser } from "@/lib/api";
+import type { CerebroProfile, CerebroUser } from "@/lib/api";
 
 export const SESSION_COOKIE = process.env.NEXT_PUBLIC_SESSION_COOKIE ?? "cerebro_session";
 
@@ -38,4 +38,25 @@ export async function getCurrentUser(): Promise<CerebroUser | null> {
     // API unreachable — treat as unauthenticated rather than crashing the page.
     return null;
   }
+}
+
+
+/** Server-side fetch of any authenticated endpoint, forwarding the cookie. */
+async function authedGet<T>(path: string): Promise<T | null> {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  if (!token) return null;
+  try {
+    const response = await fetch(`${INTERNAL_API_BASE_URL}${path}`, {
+      headers: { Cookie: `${SESSION_COOKIE}=${token}` },
+      cache: "no-store",
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
+export function getCurrentProfile(): Promise<CerebroProfile | null> {
+  return authedGet<CerebroProfile>("/api/profile");
 }

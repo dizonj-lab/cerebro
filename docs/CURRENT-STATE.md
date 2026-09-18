@@ -1,6 +1,6 @@
 # CEREBRO — Current State
 
-Last updated: 2026-09-18
+Last updated: 2026-09-18 (Phase 1.5)
 
 ## EXPERIENCE FOUNDATION
 
@@ -20,6 +20,18 @@ Branding: complete. The supplied artwork is in at
 its white matte removed so it renders on any surface, and the logo copy
 (tagline *Adaptive Knowledge and Reasoning Digital Twin*, pillars *Learn ·
 Connect · Reason · Recall*) is applied throughout.
+
+## PHASE 1.5 — PROFILE, PREFERENCES, ACCOUNT
+
+| Component                | Status   |
+| ------------------------ | -------- |
+| User Profile             | COMPLETE |
+| Edit Profile             | COMPLETE |
+| User Preferences         | COMPLETE |
+| Account settings         | COMPLETE |
+| Dashboard integration    | COMPLETE |
+| Profile completion       | COMPLETE |
+| AI & Privacy settings    | COMPLETE (configuration only — no LLM calls) |
 
 ## Verification
 

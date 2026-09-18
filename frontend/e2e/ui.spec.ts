@@ -151,7 +151,7 @@ test("TEST 9 — The Construct is usable at desktop width", async ({ page }) => 
   await page.waitForURL(/\/construct$/);
 
   await expect(page.locator("nav[aria-label='Workspace']")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Welcome to CEREBRO" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(/Good (morning|afternoon|evening)/);
 
   for (const item of ["Library", "Ingest", "Search", "Recall", "Timeline", "Galaxy", "What-If"]) {
     await expect(

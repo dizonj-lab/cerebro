@@ -10,6 +10,7 @@ import {
   IconLibrary,
   IconLogout,
   IconProfile,
+  IconSettings,
   IconRecall,
   IconSearch,
   IconTimeline,
@@ -43,6 +44,7 @@ export function Sidebar({ onLogout, loggingOut = false, open = false, onNavigate
           <NavigationItem
             label="Dashboard"
             icon={<IconDashboard />}
+            href="/construct"
             active={pathname === "/construct"}
             onClick={onNavigate}
           />
@@ -69,7 +71,20 @@ export function Sidebar({ onLogout, loggingOut = false, open = false, onNavigate
       </div>
 
       <div className="flex flex-col gap-0.5 border-t border-line p-3">
-        <NavigationItem label="Profile" icon={<IconProfile />} placeholder />
+        <NavigationItem
+          label="Profile"
+          icon={<IconProfile />}
+          href="/construct/profile"
+          active={pathname === "/construct/profile"}
+          onClick={onNavigate}
+        />
+        <NavigationItem
+          label="Settings"
+          icon={<IconSettings />}
+          href="/construct/settings"
+          active={pathname === "/construct/settings"}
+          onClick={onNavigate}
+        />
         <NavigationItem
           label={loggingOut ? "Signing out" : "Logout"}
           icon={<IconLogout />}

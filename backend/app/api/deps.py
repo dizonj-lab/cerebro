@@ -44,3 +44,6 @@ def get_current_user(request: Request, db: DbSession) -> User:
         # Token is well-formed but the account is gone.
         raise CREDENTIALS_ERROR
     return user
+
+
+CurrentUser = Annotated[User, Depends(get_current_user)]
