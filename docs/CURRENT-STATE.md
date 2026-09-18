@@ -13,14 +13,13 @@ Last updated: 2026-09-18
 | PostgreSQL Persistence | COMPLETE   |
 | Protected Construct    | COMPLETE   |
 | Construct Shell        | COMPLETE   |
-| Branding               | PARTIAL — awaiting artwork |
+| Branding               | COMPLETE   |
 
-Branding: the supplied logo's copy is applied throughout (tagline *Adaptive
-Knowledge and Reasoning Digital Twin*, pillars *Learn · Connect · Reason ·
-Recall*), and the brand components are in place. The mark image itself is still
-a **placeholder** — the artwork was not available as a file to this environment.
-Dropping the real file at `frontend/public/brand/cerebro-mark.svg` completes it
-with no code change.
+Branding: complete. The supplied artwork is in at
+`frontend/public/brand/cerebro-mark.png`, cropped from the master lockup with
+its white matte removed so it renders on any surface, and the logo copy
+(tagline *Adaptive Knowledge and Reasoning Digital Twin*, pillars *Learn ·
+Connect · Reason · Recall*) is applied throughout.
 
 ## Verification
 
@@ -28,7 +27,7 @@ with no code change.
 | ----------- | -------------------- |
 | Engineering | PASS                 |
 | Functional  | PASS                 |
-| UI/UX       | AWAITING USER REVIEW |
+| UI/UX       | APPROVED             |
 | Regression  | PASS                 |
 
 **Engineering** — Backend: 25 pytest tests green against a real PostgreSQL 16
@@ -38,10 +37,9 @@ Kubernetes manifests parse as valid YAML.
 **Functional** — 31 Playwright end-to-end tests green in Chromium against the
 running stack (Next.js + FastAPI + PostgreSQL), covering work-package TESTs 1–9.
 
-**UI/UX** — Implemented to the design contract and verified programmatically
-(WCAG 2.1 A/AA via axe-core on all four pages, no horizontal overflow at 375 /
-768 / 1440, no unexpected browser console errors). Visual approval by the
-product owner is still outstanding.
+**UI/UX** — Approved by the product owner on 18 September 2026. Also verified
+programmatically: WCAG 2.1 A/AA via axe-core on all four pages, no horizontal
+overflow at 375 / 768 / 1440, and no unexpected browser console errors.
 
 **Regression** — No prior functionality existed to regress; the repository
 contained only an empty `readme.md` at the start of this work package.
@@ -70,7 +68,7 @@ Database evidence at time of writing: 78 user rows, 78 Argon2id hashes,
 | PostgreSQL       | RUNNING (local cluster, `cerebro` + `cerebro_test`) |
 | cerebro-api      | RUNNING (uvicorn, port 8000)                        |
 | cerebro-web      | RUNNING (Next.js, port 3000)                        |
-| Kubernetes       | MANIFESTS READY — **not applied from this environment** |
+| Kubernetes       | SCHEMA APPROVED — **not yet applied to a cluster**      |
 | cerebro-worker   | NOT PRESENT (not required by this work package)     |
 
 The stack is fully containerised: Dockerfiles for both services, Kubernetes
@@ -78,10 +76,13 @@ manifests under `k8s/` (namespace `cerebro`), a `Makefile` (`make up`), and a
 `docker-compose.yml` as the simpler alternative.
 
 The manifests render with kustomize and pass `kubeconform -strict` against the
-Kubernetes 1.31 schemas (`make validate`), so structural errors are ruled out.
+Kubernetes 1.31 schemas (`make validate`), and the schema was approved by the
+product owner on 18 September 2026.
+
 They have still **never been applied and the images have never been built**:
-this environment has no Docker daemon and no cluster. Runtime behaviour is
-therefore unverified and is the outstanding step.
+this environment has no Docker daemon and no cluster. Approval covers the
+design, not a runtime proving — `make up` on a machine with Docker and a
+cluster remains the outstanding step.
 
 An ingress controller is no longer required. The web pod proxies `/api` to the
 API service, so `make port-forward` is a complete working deployment;
@@ -95,6 +96,10 @@ vision, embeddings, Qdrant, Neo4j, Kafka, local LLM, RAG, Recall, Timeline,
 Galaxy, What-If, Dashboard analytics. Sidebar entries for these are inert
 placeholders.
 
+## Release
+
+Tagged `v0.1-construct` on 18 September 2026, following UI approval.
+
 ## Next work package
 
-User Profile + Artifact Ingestion.
+User Profile + Artifact Ingestion. See `docs/ROADMAP.md`.

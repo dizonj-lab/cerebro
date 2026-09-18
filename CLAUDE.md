@@ -83,5 +83,6 @@ docs/                                               architecture, contracts, sta
   packages. Do not wire them up without an explicit work package.
 - Brand name, tagline and pillars come from the `BRAND` constant in
   `src/components/brand/Logo.tsx`. Do not retype them in a page.
-- `public/brand/cerebro-mark.svg` is currently a **placeholder**, not the real
-  mark. See `frontend/public/brand/README.md`.
+- The brand mark is the supplied artwork at `public/brand/cerebro-mark.png`.
+  The wordmark and tagline are set in type, not baked into the image — see
+  `frontend/public/brand/README.md` before changing either.

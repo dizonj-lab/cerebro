@@ -5,9 +5,11 @@ import { cn } from "@/lib/cn";
 /**
  * CEREBRO brand lockup.
  *
- * The artwork is a single supplied asset at `public/brand/cerebro-mark.svg`
- * (the head-and-network mark, no wordmark — the wordmark is set in type so it
- * stays crisp at every size and inherits the ink token).
+ * The artwork is the supplied head-and-network mark at
+ * `public/brand/cerebro-mark.png`, cropped from the master lockup with its
+ * white matte removed so it sits on any surface. The wordmark is set in type
+ * rather than baked into the image, so it stays crisp at every size, inherits
+ * the ink token, and remains selectable and searchable.
  *
  * Two compositions:
  *   <Logo />        mark + wordmark            — app chrome, tight vertical space
@@ -20,7 +22,7 @@ export const BRAND = {
   pillars: ["Learn", "Connect", "Reason", "Recall"] as const,
 } as const;
 
-const MARK_SRC = "/brand/cerebro-mark.svg";
+const MARK_SRC = "/brand/cerebro-mark.png";
 
 interface LogoMarkProps {
   size?: number;
@@ -50,7 +52,7 @@ interface LogoProps {
   priority?: boolean;
 }
 
-export function Logo({ markOnly = false, size = 26, className, priority }: LogoProps) {
+export function Logo({ markOnly = false, size = 30, className, priority }: LogoProps) {
   return (
     <span className={cn("inline-flex items-center gap-2.5", className)}>
       <LogoMark size={size} priority={priority} />
@@ -85,7 +87,10 @@ export function LogoLockup({
 }: LogoLockupProps) {
   return (
     <div className={cn("flex flex-col items-center text-center", className)}>
-      <LogoMark size={compact ? 56 : 80} priority={priority} />
+      {/* The supplied mark carries fine detail — the network nodes and the
+          strands through the head — so it needs more room than a simple glyph
+          would to stay legible. */}
+      <LogoMark size={compact ? 76 : 112} priority={priority} />
 
       {showWordmark && (
         <p className="mt-4 text-2xl font-semibold tracking-[0.18em] text-ink sm:text-[1.75rem]">

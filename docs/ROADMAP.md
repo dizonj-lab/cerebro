@@ -39,14 +39,13 @@ diagrams show built elements solid and planned ones pale.
 | One-command workflow     | `make up`, `make down`, `make validate`            |
 | Docker Compose           | `make compose-up` as the simpler alternative       |
 | Same-origin proxy        | No CORS, cookie always first-party, ingress optional |
+| Branding                 | Supplied mark in use; logo copy applied product-wide |
 
 ## Partial
 
 | Item             | What is missing                                                |
 | ---------------- | -------------------------------------------------------------- |
-| Branding         | `frontend/public/brand/cerebro-mark.svg` is a placeholder; the real artwork has not been supplied to the repository |
-| Kubernetes       | Manifests render and pass `kubeconform -strict`, but have never been applied and the images have never been built — no Docker daemon or cluster in the development environment |
-| UI/UX sign-off   | Implemented to the design contract and verified programmatically; visual approval by the product owner outstanding |
+| Kubernetes       | Schema approved and passing `kubeconform -strict`, but never applied and the images never built — no Docker daemon or cluster in the development environment. Approval covers the design, not a runtime proving. |
 
 ## Planned
 
@@ -67,9 +66,9 @@ placeholders, so the shape of the product is visible without the functionality.
 
 ## Immediate next steps
 
-1. Supply the brand artwork.
-2. Run `make up` on a machine with Docker and a cluster; report anything that
-   fails at runtime.
-3. Review the UI and approve or send changes.
-4. Tag `v0.1-construct` once the UI is approved.
-5. Begin work package 2.
+1. Run `make up` on a machine with Docker and a cluster; report anything that
+   fails at runtime. This is the only unproven part of the stack.
+2. Begin work package 2 — User Profile and Artifact Ingestion.
+
+Completed: brand artwork supplied and in use; Kubernetes schema approved; UI
+approved; `v0.1-construct` tagged.
