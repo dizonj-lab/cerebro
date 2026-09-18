@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  PLACEHOLDER — not the CEREBRO brand mark.
+
+  Replace this file with the supplied artwork (the head-and-network mark,
+  cropped to the mark alone, without the CEREBRO wordmark or tagline: those
+  are set in type by src/components/brand/Logo.tsx).
+
+  Keep the filename and the square viewBox so no component changes are needed.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" role="img">
+  <title>CEREBRO</title>
+  <path d="M12 4.2 6 7.5v6l6 3.3 6-3.3v-6l-6-3.3Z" stroke="#2a5d9f" stroke-width="1.4"
+        stroke-linejoin="round" opacity="0.45"/>
+  <circle cx="12" cy="4.2" r="1.7" fill="#2a5d9f"/>
+  <circle cx="6" cy="13.5" r="1.7" fill="#2a5d9f"/>
+  <circle cx="18" cy="13.5" r="1.7" fill="#2a5d9f"/>
+  <circle cx="12" cy="19.8" r="1.7" fill="#2a5d9f" opacity="0.55"/>
+</svg>

@@ -1,36 +1,114 @@
+import Image from "next/image";
+
 import { cn } from "@/lib/cn";
 
-interface LogoProps {
-  /** Hides the wordmark, leaving only the mark. */
-  markOnly?: boolean;
+/**
+ * CEREBRO brand lockup.
+ *
+ * The artwork is a single supplied asset at `public/brand/cerebro-mark.svg`
+ * (the head-and-network mark, no wordmark — the wordmark is set in type so it
+ * stays crisp at every size and inherits the ink token).
+ *
+ * Two compositions:
+ *   <Logo />        mark + wordmark            — app chrome, tight vertical space
+ *   <LogoLockup />  mark + wordmark + tagline  — landing and auth pages
+ */
+
+export const BRAND = {
+  name: "CEREBRO",
+  tagline: "Adaptive Knowledge and Reasoning Digital Twin",
+  pillars: ["Learn", "Connect", "Reason", "Recall"] as const,
+} as const;
+
+const MARK_SRC = "/brand/cerebro-mark.svg";
+
+interface LogoMarkProps {
+  size?: number;
   className?: string;
+  priority?: boolean;
 }
 
-/**
- * CEREBRO brand lockup: a small node-and-link mark suggesting connected
- * knowledge, set beside the wordmark.
- */
-export function Logo({ markOnly = false, className }: LogoProps) {
+export function LogoMark({ size = 24, className, priority = false }: LogoMarkProps) {
+  return (
+    <Image
+      src={MARK_SRC}
+      alt=""
+      width={size}
+      height={size}
+      priority={priority}
+      aria-hidden="true"
+      className={cn("shrink-0 select-none", className)}
+    />
+  );
+}
+
+interface LogoProps {
+  /** Renders the mark alone, without the wordmark. */
+  markOnly?: boolean;
+  size?: number;
+  className?: string;
+  priority?: boolean;
+}
+
+export function Logo({ markOnly = false, size = 26, className, priority }: LogoProps) {
   return (
     <span className={cn("inline-flex items-center gap-2.5", className)}>
-      <svg viewBox="0 0 24 24" className="size-6 text-accent" fill="none" aria-hidden="true">
-        <path
-          d="M12 4.2 6 7.5v6l6 3.3 6-3.3v-6l-6-3.3Z"
-          stroke="currentColor"
-          strokeWidth="1.4"
-          strokeLinejoin="round"
-          opacity="0.45"
-        />
-        <circle cx="12" cy="4.2" r="1.7" fill="currentColor" />
-        <circle cx="6" cy="13.5" r="1.7" fill="currentColor" />
-        <circle cx="18" cy="13.5" r="1.7" fill="currentColor" />
-        <circle cx="12" cy="19.8" r="1.7" fill="currentColor" opacity="0.55" />
-      </svg>
+      <LogoMark size={size} priority={priority} />
       {!markOnly && (
         <span className="text-[0.9375rem] font-semibold tracking-[0.14em] text-ink">
-          CEREBRO
+          {BRAND.name}
         </span>
       )}
+      {markOnly && <span className="sr-only">{BRAND.name}</span>}
     </span>
+  );
+}
+
+interface LogoLockupProps {
+  className?: string;
+  /** Hides the pillar strip; the tagline is always shown. */
+  compact?: boolean;
+  /**
+   * Set false where the wordmark already appears nearby — the landing header
+   * carries it, so repeating it in the hero reads as duplication.
+   */
+  showWordmark?: boolean;
+  priority?: boolean;
+}
+
+/** Full lockup: mark, wordmark, tagline and (optionally) the pillar strip. */
+export function LogoLockup({
+  className,
+  compact = false,
+  showWordmark = true,
+  priority,
+}: LogoLockupProps) {
+  return (
+    <div className={cn("flex flex-col items-center text-center", className)}>
+      <LogoMark size={compact ? 56 : 80} priority={priority} />
+
+      {showWordmark && (
+        <p className="mt-4 text-2xl font-semibold tracking-[0.18em] text-ink sm:text-[1.75rem]">
+          {BRAND.name}
+        </p>
+      )}
+
+      <p className={cn("text-sm text-ink-muted", showWordmark ? "mt-1.5" : "mt-4")}>
+        {BRAND.tagline}
+      </p>
+
+      {!compact && (
+        <ul className="mt-3 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-[0.6875rem] font-medium uppercase tracking-[0.16em] text-ink-subtle">
+          {BRAND.pillars.map((pillar, index) => (
+            <li key={pillar} className="flex items-center gap-2.5">
+              {index > 0 && (
+                <span aria-hidden="true" className="size-1 rounded-full bg-accent/50" />
+              )}
+              {pillar}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

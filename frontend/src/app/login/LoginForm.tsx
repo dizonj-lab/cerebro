@@ -58,7 +58,7 @@ function LoginFormInner() {
   return (
     <AuthShell
       title="Sign in"
-      subtitle="Continue to your Digital Knowledge Twin."
+      subtitle="Continue to your knowledge twin."
       footer={
         <p>
           New to CEREBRO?{" "}

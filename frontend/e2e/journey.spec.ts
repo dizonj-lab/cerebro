@@ -23,11 +23,13 @@ test("TEST 1 — landing renders with branding and both entry points", async ({ 
 
   await expect(page).toHaveTitle(/CEREBRO/);
   await expect(page.getByText("CEREBRO").first()).toBeVisible();
-  await expect(page.getByText("Digital Knowledge Twin").first()).toBeVisible();
+  await expect(
+    page.getByText("Adaptive Knowledge and Reasoning Digital Twin").first(),
+  ).toBeVisible();
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 
-  // Capture → Connect → Reason → Recall
-  for (const pillar of ["Capture", "Connect", "Reason", "Recall"]) {
+  // Learn · Connect · Reason · Recall
+  for (const pillar of ["Learn", "Connect", "Reason", "Recall"]) {
     await expect(page.getByRole("heading", { name: pillar, level: 3 })).toBeVisible();
   }
 
@@ -57,7 +59,7 @@ test("TEST 2 — new user signs up and lands in The Construct", async ({ page })
 
   await expect(page).toHaveURL(/\/construct$/);
   await expect(page.getByRole("heading", { name: "Welcome to CEREBRO" })).toBeVisible();
-  await expect(page.getByText("Your Digital Knowledge Twin begins here.")).toBeVisible();
+  await expect(page.getByText("Your knowledge twin begins here.")).toBeVisible();
 });
 
 test("TEST 2 — validation blocks an empty submission", async ({ page }) => {

@@ -57,3 +57,26 @@ which passes on all three surfaces.
 The development container has no Docker daemon and no cluster, so the manifests
 under `k8s/` are YAML-validated only. This is recorded as BLOCKED rather than
 reported as a deployment.
+
+## D9 — Brand copy follows the logo, not the original work package
+
+The supplied logo carries the tagline *Adaptive Knowledge and Reasoning Digital
+Twin* and the pillars *Learn · Connect · Reason · Recall*. The Experience
+Foundation work package specified *Digital Knowledge Twin* and *Capture →
+Connect → Reason → Recall*. The logo wins, by the product owner's decision.
+
+Consequences: the landing eyebrow, pillar list, page metadata, auth subtitles
+and the Construct welcome line were updated, along with the tests asserting
+them. `Capture` became `Learn`.
+
+Name, tagline and pillars now live in one `BRAND` constant
+(`src/components/brand/Logo.tsx`) so a future wording change is one edit, not a
+search across pages.
+
+## D10 — Wordmark set in type, not baked into the artwork
+
+The supplied logo is a lockup (mark + wordmark + tagline + pillar strip). Only
+the mark is used as an image; the wordmark, tagline and pillars are rendered as
+text. This keeps them crisp at every size, lets them inherit the ink colour
+token, keeps them selectable and searchable, and means the header can show a
+compact mark + wordmark where the full lockup would be illegible at 64px.

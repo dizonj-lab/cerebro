@@ -99,7 +99,7 @@ export function SignupForm() {
   return (
     <AuthShell
       title="Create your account"
-      subtitle="Begin building your Digital Knowledge Twin."
+      subtitle="Begin building your knowledge twin."
       footer={
         <p>
           Already have an account?{" "}

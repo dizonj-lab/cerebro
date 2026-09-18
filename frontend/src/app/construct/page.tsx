@@ -7,7 +7,7 @@ export default async function ConstructPage() {
     <div className="mx-auto max-w-2xl">
       <h1 className="text-2xl font-semibold tracking-tight text-ink">Welcome to CEREBRO</h1>
       <p className="mt-2 text-sm leading-relaxed text-ink-muted">
-        Your Digital Knowledge Twin begins here.
+        Your knowledge twin begins here.
       </p>
 
       {user && (

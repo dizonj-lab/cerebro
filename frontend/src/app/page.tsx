@@ -1,14 +1,14 @@
 import Link from "next/link";
 
-import { Logo } from "@/components/brand/Logo";
+import { BRAND, Logo, LogoLockup } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/Button";
 
 const PILLARS = [
-  { name: "Capture", detail: "Bring in what you read, write, record and do." },
+  { name: "Learn", detail: "CEREBRO takes in what you read, write, record and do." },
   { name: "Connect", detail: "Relationships form between everything you keep." },
   { name: "Reason", detail: "Ask questions that span your whole history." },
   { name: "Recall", detail: "Find the thing you half-remember, precisely." },
-];
+] as const;
 
 export default function LandingPage() {
   return (
@@ -25,7 +25,7 @@ export default function LandingPage() {
           aria-label="Primary"
           className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between px-6"
         >
-          <Logo />
+          <Logo priority />
           <div className="flex items-center gap-2">
             <Link href="/login">
               <Button variant="ghost">Sign In</Button>
@@ -38,21 +38,19 @@ export default function LandingPage() {
       </header>
 
       <main id="main" className="mx-auto w-full max-w-5xl flex-1 px-6">
-        <section className="pt-24 pb-20 sm:pt-32 sm:pb-28">
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-ink-subtle">
-            Digital Knowledge Twin
-          </p>
+        <section className="pt-20 pb-20 sm:pt-24 sm:pb-24">
+          <LogoLockup className="mx-auto" showWordmark={false} priority />
 
-          <h1 className="mt-5 max-w-2xl text-4xl font-semibold leading-[1.1] tracking-tight text-ink sm:text-5xl">
+          <h1 className="mx-auto mt-12 max-w-2xl text-center text-4xl font-semibold leading-[1.1] tracking-tight text-ink sm:text-5xl">
             Your knowledge, connected.
           </h1>
 
-          <p className="mt-5 max-w-xl text-base leading-relaxed text-ink-muted">
+          <p className="mx-auto mt-5 max-w-xl text-center text-base leading-relaxed text-ink-muted">
             CEREBRO transforms your personal knowledge and experiences into a connected
-            Digital Knowledge Twin — private, searchable and entirely your own.
+            digital twin — private, searchable and entirely your own.
           </p>
 
-          <div className="mt-9 flex flex-wrap items-center gap-3">
+          <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
             <Link href="/signup">
               <Button variant="primary" size="lg">
                 Create Account
@@ -85,8 +83,9 @@ export default function LandingPage() {
       </main>
 
       <footer className="border-t border-line">
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-6 py-6">
-          <Logo markOnly className="opacity-60" />
+        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3 px-6 py-6">
+          <Logo markOnly className="opacity-60" size={22} />
+          <p className="text-xs text-ink-subtle">{BRAND.tagline}</p>
           <p className="text-xs text-ink-subtle">Private by design.</p>
         </div>
       </footer>

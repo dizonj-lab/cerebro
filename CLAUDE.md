@@ -5,9 +5,9 @@ loaded into context on every session.
 
 ## Project
 
-**CEREBRO** — a Digital Knowledge Twin. It turns personal knowledge and
-experiences into a connected, private, searchable store: Capture → Connect →
-Reason → Recall.
+**CEREBRO** — an Adaptive Knowledge and Reasoning Digital Twin. It turns
+personal knowledge and experiences into a connected, private, searchable store:
+Learn · Connect · Reason · Recall.
 
 - Frontend: Next.js 16 (App Router), React 19, TypeScript, Tailwind v4 — `frontend/`
 - Backend: FastAPI, SQLAlchemy 2, Alembic, Python 3.11 — `backend/`
@@ -76,3 +76,7 @@ docs/                                               architecture, contracts, sta
   set to 32+ characters.
 - Sidebar items other than Dashboard are inert placeholders for future work
   packages. Do not wire them up without an explicit work package.
+- Brand name, tagline and pillars come from the `BRAND` constant in
+  `src/components/brand/Logo.tsx`. Do not retype them in a page.
+- `public/brand/cerebro-mark.svg` is currently a **placeholder**, not the real
+  mark. See `frontend/public/brand/README.md`.

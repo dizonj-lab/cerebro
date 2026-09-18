@@ -8,11 +8,11 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 
 export const metadata: Metadata = {
   title: {
-    default: "CEREBRO — Digital Knowledge Twin",
+    default: "CEREBRO — Adaptive Knowledge and Reasoning Digital Twin",
     template: "%s — CEREBRO",
   },
   description:
-    "CEREBRO turns your knowledge and experiences into a connected Digital Knowledge Twin.",
+    "CEREBRO turns your knowledge and experiences into a connected digital twin: learn, connect, reason, recall.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

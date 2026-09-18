@@ -1,6 +1,6 @@
 # CEREBRO — Current State
 
-Last updated: 2026-09-17
+Last updated: 2026-09-18
 
 ## EXPERIENCE FOUNDATION
 
@@ -13,6 +13,14 @@ Last updated: 2026-09-17
 | PostgreSQL Persistence | COMPLETE   |
 | Protected Construct    | COMPLETE   |
 | Construct Shell        | COMPLETE   |
+| Branding               | PARTIAL — awaiting artwork |
+
+Branding: the supplied logo's copy is applied throughout (tagline *Adaptive
+Knowledge and Reasoning Digital Twin*, pillars *Learn · Connect · Reason ·
+Recall*), and the brand components are in place. The mark image itself is still
+a **placeholder** — the artwork was not available as a file to this environment.
+Dropping the real file at `frontend/public/brand/cerebro-mark.svg` completes it
+with no code change.
 
 ## Verification
 

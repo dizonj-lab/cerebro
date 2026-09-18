@@ -4,6 +4,30 @@ CEREBRO should read as a personal intelligence workspace: modern, minimalist,
 calm, precise, trustworthy. Not social media, not an admin dashboard, not a
 crypto app, not a sci-fi control panel.
 
+## Brand
+
+Name **CEREBRO**, tagline **Adaptive Knowledge and Reasoning Digital Twin**,
+pillars **Learn · Connect · Reason · Recall**. All three live in the `BRAND`
+constant in `src/components/brand/Logo.tsx` and are never retyped in a page.
+
+Two compositions, both from that module:
+
+| Component      | Contents                            | Used on                      |
+| -------------- | ----------------------------------- | ---------------------------- |
+| `<Logo />`     | mark + wordmark                     | Construct header, footer     |
+| `<LogoLockup />` | mark + wordmark + tagline + pillars | Landing hero, auth pages     |
+
+`LogoLockup` takes `compact` (drops the pillar strip) and `showWordmark`
+(false on the landing hero, where the header already carries the wordmark).
+
+The mark is decorative everywhere — `alt=""` and `aria-hidden` — because the
+accessible name comes from the adjacent `CEREBRO` text. The wordmark is set in
+type rather than baked into the artwork so it stays crisp at every size,
+inherits the ink token and remains selectable and searchable.
+
+**The artwork at `public/brand/cerebro-mark.svg` is a placeholder.** See
+`frontend/public/brand/README.md` for what to supply.
+
 ## Tokens
 
 All tokens live in `frontend/src/app/globals.css` under `@theme`. Nothing else
