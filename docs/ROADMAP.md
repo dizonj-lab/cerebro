@@ -28,7 +28,20 @@ diagrams show built elements solid and planned ones pale.
 | Session                 | JWT in an httpOnly `SameSite=Lax` cookie             |
 | Protected routes        | Proxy pre-check plus authoritative server validation |
 | Design system           | Tokens → primitives → components → pages             |
-| Test suites             | 25 backend (real PostgreSQL) + 31 E2E (real browser) |
+| Test suites             | 55 backend (real PostgreSQL) + 39 E2E (real browser) |
+
+### Phase 1.5 — Profile, Preferences, Account
+
+| Item                     | Evidence                                              |
+| ------------------------ | ----------------------------------------------------- |
+| User Profile + editing   | Personal, professional, interests; chip inputs        |
+| Profile completion       | Derived on read from a fixed twelve-field list        |
+| Preferences              | Response style, suggestion toggles, private default   |
+| AI & Privacy             | Local default; cloud gated by explicit consent        |
+| Account settings         | Email, dates, password change; no hash or token leaks |
+| Dashboard context        | Greeting, current focus, completion, empty-state prompt |
+
+No model is called anywhere: this phase is configuration only.
 
 ### Containerisation
 
@@ -53,7 +66,7 @@ Ordered so each package depends only on the ones above it.
 
 | # | Work package                | Adds                                                        |
 | - | --------------------------- | ----------------------------------------------------------- |
-| 2 | User Profile + Ingestion    | Profile page; artifact upload; object store (MinIO); `artifacts` table; Library view |
+| 2 | Artifact Ingestion          | Artifact upload; object store (MinIO); `artifacts` table; Library view |
 | 3 | Processing pipeline         | `cerebro-worker`; event bus (Kafka); OCR, speech transcription, vision |
 | 4 | Semantic search             | Embeddings; vector store (Qdrant); Search view              |
 | 5 | Knowledge graph             | Entity and relationship extraction; graph store (Neo4j); Connect |
@@ -68,7 +81,7 @@ placeholders, so the shape of the product is visible without the functionality.
 
 1. Run `make up` on a machine with Docker and a cluster; report anything that
    fails at runtime. This is the only unproven part of the stack.
-2. Begin work package 2 — User Profile and Artifact Ingestion.
+2. Begin work package 2 — Artifact Ingestion.
 
 Completed: brand artwork supplied and in use; Kubernetes schema approved; UI
 approved; `v0.1-construct` tagged.

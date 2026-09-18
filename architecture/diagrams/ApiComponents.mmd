@@ -12,10 +12,16 @@ graph LR
 
         10["<div style='font-weight: bold'>Health</div><div style='font-size: 70%; margin-top: 0px'>[Component: FastAPI]</div><div style='font-size: 80%; margin-top:10px'>GET /api/health, including<br />database reachability.</div>"]
         style 10 fill:#2a5d9f,stroke:#234f88,color:#ffffff
-        11["<div style='font-weight: bold'>Artifact Router</div><div style='font-size: 70%; margin-top: 0px'>[Component: FastAPI]</div><div style='font-size: 80%; margin-top:10px'>Upload, list and fetch<br />artifacts.</div>"]
-        style 11 fill:#f7f8fa,stroke:#cfd5de,color:#636c7a
-        12["<div style='font-weight: bold'>Search / Recall Router</div><div style='font-size: 70%; margin-top: 0px'>[Component: FastAPI]</div><div style='font-size: 80%; margin-top:10px'>Semantic search and recall<br />over the twin.</div>"]
-        style 12 fill:#f7f8fa,stroke:#cfd5de,color:#636c7a
+        11["<div style='font-weight: bold'>Profile Router</div><div style='font-size: 70%; margin-top: 0px'>[Component: FastAPI APIRouter]</div><div style='font-size: 80%; margin-top:10px'>GET/PATCH /profile and<br />/preferences, GET /account,<br />POST /account/password.</div>"]
+        style 11 fill:#2a5d9f,stroke:#234f88,color:#ffffff
+        12["<div style='font-weight: bold'>Profile Service</div><div style='font-size: 70%; margin-top: 0px'>[Component: Python]</div><div style='font-size: 80%; margin-top:10px'>Profile and preferences<br />persistence; deterministic<br />completion; cloud-AI consent<br />gating.</div>"]
+        style 12 fill:#2a5d9f,stroke:#234f88,color:#ffffff
+        13["<div style='font-weight: bold'>Profile & Preferences Models</div><div style='font-size: 70%; margin-top: 0px'>[Component: SQLAlchemy 2]</div><div style='font-size: 80%; margin-top:10px'>user_profiles and<br />user_preferences, each keyed<br />by the user id.</div>"]
+        style 13 fill:#2a5d9f,stroke:#234f88,color:#ffffff
+        14["<div style='font-weight: bold'>Artifact Router</div><div style='font-size: 70%; margin-top: 0px'>[Component: FastAPI]</div><div style='font-size: 80%; margin-top:10px'>Upload, list and fetch<br />artifacts.</div>"]
+        style 14 fill:#f7f8fa,stroke:#cfd5de,color:#636c7a
+        15["<div style='font-weight: bold'>Search / Recall Router</div><div style='font-size: 70%; margin-top: 0px'>[Component: FastAPI]</div><div style='font-size: 80%; margin-top:10px'>Semantic search and recall<br />over the twin.</div>"]
+        style 15 fill:#f7f8fa,stroke:#cfd5de,color:#636c7a
         5["<div style='font-weight: bold'>Auth Router</div><div style='font-size: 70%; margin-top: 0px'>[Component: FastAPI APIRouter]</div><div style='font-size: 80%; margin-top:10px'>POST /signup, /login, /logout<br />and GET /me.</div>"]
         style 5 fill:#2a5d9f,stroke:#234f88,color:#ffffff
         6["<div style='font-weight: bold'>Dependencies</div><div style='font-size: 70%; margin-top: 0px'>[Component: FastAPI Depends]</div><div style='font-size: 80%; margin-top:10px'>Resolves the session cookie<br />or bearer token to a User, or<br />401.</div>"]
@@ -28,19 +34,24 @@ graph LR
         style 9 fill:#2a5d9f,stroke:#234f88,color:#ffffff
       end
 
-      13[("<div style='font-weight: bold'>PostgreSQL</div><div style='font-size: 70%; margin-top: 0px'>[Container: PostgreSQL 16]</div><div style='font-size: 80%; margin-top:10px'>Users today; artifacts and<br />metadata next.</div>")]
-      style 13 fill:#2a5d9f,stroke:#234f88,color:#ffffff
-      3["<div style='font-weight: bold'>cerebro-web</div><div style='font-size: 70%; margin-top: 0px'>[Container: Next.js 16, React 19, TypeScript]</div><div style='font-size: 80%; margin-top:10px'>Landing, sign-up, sign-in and<br />The Construct. Proxies /api<br />to the API so the browser<br />sees one origin.</div>"]
+      16[("<div style='font-weight: bold'>PostgreSQL</div><div style='font-size: 70%; margin-top: 0px'>[Container: PostgreSQL 16]</div><div style='font-size: 80%; margin-top:10px'>Users, profiles and<br />preferences today; artifacts<br />and metadata next.</div>")]
+      style 16 fill:#2a5d9f,stroke:#234f88,color:#ffffff
+      3["<div style='font-weight: bold'>cerebro-web</div><div style='font-size: 70%; margin-top: 0px'>[Container: Next.js 16, React 19, TypeScript]</div><div style='font-size: 80%; margin-top:10px'>Landing, auth, The Construct,<br />profile and settings. Proxies<br />/api to the API so the<br />browser sees one origin.</div>"]
       style 3 fill:#2a5d9f,stroke:#234f88,color:#ffffff
     end
 
     3-. "<div>Signup, login, logout,<br />session check</div><div style='font-size: 70%'>[HTTP/JSON]</div>" .->5
+    3-. "<div>Reads and writes profile,<br />preferences and account</div><div style='font-size: 70%'>[HTTP/JSON]</div>" .->11
     5-. "<div>Guards /me with</div><div style='font-size: 70%'></div>" .->6
+    11-. "<div>Resolves the user from the<br />session with</div><div style='font-size: 70%'></div>" .->6
+    11-. "<div>Delegates to</div><div style='font-size: 70%'></div>" .->12
+    12-. "<div>Persists through</div><div style='font-size: 70%'></div>" .->13
+    13-. "<div>Reads and writes</div><div style='font-size: 70%'></div>" .->16
     5-. "<div>Delegates to</div><div style='font-size: 70%'></div>" .->7
     6-. "<div>Verifies tokens with</div><div style='font-size: 70%'></div>" .->8
     6-. "<div>Loads the user with</div><div style='font-size: 70%'></div>" .->7
     7-. "<div>Hashes and verifies passwords<br />with</div><div style='font-size: 70%'></div>" .->8
     7-. "<div>Persists through</div><div style='font-size: 70%'></div>" .->9
-    9-. "<div>Reads and writes</div><div style='font-size: 70%'></div>" .->13
+    9-. "<div>Reads and writes</div><div style='font-size: 70%'></div>" .->16
 
   end

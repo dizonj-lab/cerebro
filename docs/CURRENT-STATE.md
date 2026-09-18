@@ -42,12 +42,13 @@ Connect · Reason · Recall*) is applied throughout.
 | UI/UX       | APPROVED             |
 | Regression  | PASS                 |
 
-**Engineering** — Backend: 25 pytest tests green against a real PostgreSQL 16
+**Engineering** — Backend: 55 pytest tests green against a real PostgreSQL 16
 database. Frontend: `tsc --noEmit` clean, ESLint clean, production build clean.
 Kubernetes manifests parse as valid YAML.
 
-**Functional** — 31 Playwright end-to-end tests green in Chromium against the
-running stack (Next.js + FastAPI + PostgreSQL), covering work-package TESTs 1–9.
+**Functional** — 39 Playwright end-to-end tests green in Chromium against the
+running stack (Next.js + FastAPI + PostgreSQL), covering Phase 1 TESTs 1–9 and
+the Phase 1.5 profile, preferences, consent and isolation cases.
 
 **UI/UX** — Approved by the product owner on 18 September 2026. Also verified
 programmatically: WCAG 2.1 A/AA via axe-core on all four pages, no horizontal
@@ -70,8 +71,9 @@ contained only an empty `readme.md` at the start of this work package.
 | TEST 8 — Logout          | PASS   | Cookie cleared; protected route inaccessible          |
 | TEST 9 — UI              | PASS   | axe-core clean; responsive; loading and error states  |
 
-Database evidence at time of writing: 78 user rows, 78 Argon2id hashes,
-0 plaintext passwords.
+Database evidence at time of writing: 318 user rows, all Argon2id hashed,
+0 plaintext passwords. The Phase 1.5 migration applied over that existing data
+without loss.
 
 ## Infrastructure
 

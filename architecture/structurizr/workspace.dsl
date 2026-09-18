@@ -21,8 +21,8 @@ workspace "CEREBRO" "Adaptive Knowledge and Reasoning Digital Twin" {
 
         cerebro = softwareSystem "CEREBRO" "Turns personal knowledge and experiences into a connected digital twin." {
 
-            web = container "cerebro-web" "Landing, sign-up, sign-in and The Construct. Proxies /api to the API so the browser sees one origin." "Next.js 16, React 19, TypeScript" "Built,Web"
-            api = container "cerebro-api" "Authentication and, in time, the knowledge APIs." "FastAPI, Python 3.11" "Built,Api" {
+            web = container "cerebro-web" "Landing, auth, The Construct, profile and settings. Proxies /api to the API so the browser sees one origin." "Next.js 16, React 19, TypeScript" "Built,Web"
+            api = container "cerebro-api" "Authentication, profile and preferences; in time, the knowledge APIs." "FastAPI, Python 3.11" "Built,Api" {
                 authRouter = component "Auth Router" "POST /signup, /login, /logout and GET /me." "FastAPI APIRouter" "Built"
                 deps = component "Dependencies" "Resolves the session cookie or bearer token to a User, or 401." "FastAPI Depends" "Built"
                 userService = component "User Service" "Account creation and credential checking, free of HTTP concerns." "Python" "Built"
@@ -30,10 +30,14 @@ workspace "CEREBRO" "Adaptive Knowledge and Reasoning Digital Twin" {
                 userModel = component "User Model" "users table: UUID id, unique lowercased email, Argon2id hash." "SQLAlchemy 2" "Built"
                 health = component "Health" "GET /api/health, including database reachability." "FastAPI" "Built"
 
+                profileRouter = component "Profile Router" "GET/PATCH /profile and /preferences, GET /account, POST /account/password." "FastAPI APIRouter" "Built"
+                profileService = component "Profile Service" "Profile and preferences persistence; deterministic completion; cloud-AI consent gating." "Python" "Built"
+                profileModel = component "Profile & Preferences Models" "user_profiles and user_preferences, each keyed by the user id." "SQLAlchemy 2" "Built"
+
                 artifactRouter = component "Artifact Router" "Upload, list and fetch artifacts." "FastAPI" "Planned"
                 searchRouter = component "Search / Recall Router" "Semantic search and recall over the twin." "FastAPI" "Planned"
             }
-            db = container "PostgreSQL" "Users today; artifacts and metadata next." "PostgreSQL 16" "Built,Db"
+            db = container "PostgreSQL" "Users, profiles and preferences today; artifacts and metadata next." "PostgreSQL 16" "Built,Db"
 
             worker = container "cerebro-worker" "Asynchronous ingestion and enrichment pipeline." "Python" "Planned"
             objectStore = container "Object Store" "Original uploaded artifacts." "MinIO" "Planned,Db"
@@ -64,7 +68,12 @@ workspace "CEREBRO" "Adaptive Knowledge and Reasoning Digital Twin" {
 
         # --- how the API components fit together ------------------------------
         web -> authRouter "Signup, login, logout, session check" "HTTP/JSON" "Built"
+        web -> profileRouter "Reads and writes profile, preferences and account" "HTTP/JSON" "Built"
         authRouter -> deps "Guards /me with"
+        profileRouter -> deps "Resolves the user from the session with"
+        profileRouter -> profileService "Delegates to"
+        profileService -> profileModel "Persists through"
+        profileModel -> db "Reads and writes"
         authRouter -> userService "Delegates to"
         deps -> security "Verifies tokens with"
         deps -> userService "Loads the user with"
