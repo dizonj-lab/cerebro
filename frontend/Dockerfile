@@ -11,16 +11,15 @@ COPY . .
 # NEXT_PUBLIC_* values are inlined into the browser bundle at BUILD time; they
 # cannot be changed by a runtime environment variable.
 #
-# Empty is the correct default for any deployment that serves the app and the
-# API from one origin (see k8s/40-ingress.yaml): requests become "/api/...",
-# which keeps the session cookie first-party.
-#
-# For docker compose, where the API is on its own port, pass:
-#   --build-arg NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+# Empty is correct everywhere: the browser calls /api on the origin that served
+# the page, and src/app/api/[...path]/route.ts proxies it to the backend using
+# INTERNAL_API_BASE_URL, which IS read at runtime.
 ARG NEXT_PUBLIC_API_BASE_URL=""
 ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
+# Fail the image build if deployment config was frozen into the bundle.
+RUN npm run check:runtime-config
 
 FROM node:22-alpine AS runner
 WORKDIR /app

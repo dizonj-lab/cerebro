@@ -63,9 +63,14 @@ docs/                                               architecture, contracts, sta
 
 ## Things to know
 
-- The browser only ever calls the **web origin**. Next.js rewrites `/api` to the
-  backend (`next.config.ts`), so the session cookie is always first-party and no
-  CORS is involved. Do not point the browser at the API directly.
+- The browser only ever calls the **web origin**. `src/app/api/[...path]/route.ts`
+  proxies `/api` to the backend, so the session cookie is always first-party and
+  no CORS is involved. Do not point the browser at the API directly.
+- **Never proxy `/api` with `rewrites()`.** Rewrite destinations resolve at build
+  time and are written into the standalone server bundle, so a container ignores
+  the runtime environment and proxies to the wrong host. This shipped once and
+  broke signup in Docker. `npm run check:runtime-config` fails the image build if
+  it returns.
 - `INTERNAL_API_BASE_URL` is the proxy and server-render target, read at runtime.
   `NEXT_PUBLIC_API_BASE_URL` is inlined at **build** time and must stay empty for
   containers — setting it in a Deployment does nothing.

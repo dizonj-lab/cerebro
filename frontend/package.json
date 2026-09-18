@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test:e2e": "playwright test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check:runtime-config": "node scripts/check-runtime-config.mjs"
   },
   "dependencies": {
     "next": "16.3.5",

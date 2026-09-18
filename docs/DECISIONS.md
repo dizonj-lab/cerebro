@@ -25,10 +25,12 @@ validates it against `/api/auth/me`. The proxy prevents a flash of protected UI;
 the layout is the authority. Relying on the proxy alone would accept a forged
 cookie.
 
-## D4 — Single origin everywhere, via a Next.js rewrite
+## D4 — Single origin everywhere, via a runtime proxy route
 
-Next.js proxies `/api/:path*` to `INTERNAL_API_BASE_URL`, so the browser only
-ever talks to the origin that served the page.
+`src/app/api/[...path]/route.ts` proxies `/api/*` to `INTERNAL_API_BASE_URL`, so
+the browser only ever talks to the origin that served the page.
+
+This was first implemented as a `rewrites()` entry, which was wrong — see D12.
 
 This replaced an earlier design where the browser called the API directly and an
 ingress was responsible for presenting one host. That version had three problems:
@@ -102,3 +104,31 @@ that a browser resolves to a host literally named `api`.
 The default is now empty (same origin), and `src/lib/api.ts` strips trailing
 slashes so no configured value can reproduce the bug. Verified by building with
 the variable empty and grepping the emitted bundle for the inlined path.
+
+## D12 — The API proxy must be a route handler, not a rewrite
+
+Signup failed in Docker with an unhelpful "Something went wrong.", while working
+in development. Cause: `rewrites()` destinations are resolved when the app is
+built, and under `output: "standalone"` the resolved host is written literally
+into `.next/standalone/server.js`. The image was built without
+`INTERNAL_API_BASE_URL`, so it baked the `http://127.0.0.1:8000` fallback and
+ignored the value the container set at runtime — proxying to port 8000 inside
+the web container, where nothing listens. Next returned a plain-text 500, which
+the client could not parse as JSON, hence the generic message.
+
+Confirmed by reading the baked destination out of `routes-manifest.json` and
+finding the literal host in the standalone bundle.
+
+The proxy is now a route handler that reads `process.env` per request. Proven by
+serving one build twice with different `INTERNAL_API_BASE_URL` values and
+getting different targets. `npm run check:runtime-config` fails the image build
+if an absolute rewrite destination reappears; the check itself was verified by
+reintroducing the rewrite and watching it fail.
+
+Two supporting fixes came out of the same bug:
+
+- The proxy returns `{"detail": ...}` JSON when the API is unreachable, so a
+  transport failure surfaces a real message instead of an unparseable error page.
+- `Set-Cookie` is copied entry by entry via `getSetCookie()`, because iterating a
+  `Headers` object folds multiple cookies into one comma-joined value that
+  browsers reject.
