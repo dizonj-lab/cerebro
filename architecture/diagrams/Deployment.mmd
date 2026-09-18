@@ -1,0 +1,47 @@
+graph LR
+  linkStyle default fill:#ffffff
+
+  subgraph diagram ["Deployment View: CEREBRO - Local Kubernetes"]
+    style diagram fill:#ffffff,stroke:#ffffff
+
+    subgraph 44 ["Developer machine"]
+      style 44 fill:#ffffff,stroke:#444444,color:#444444
+
+      subgraph 45 ["Kubernetes cluster"]
+        style 45 fill:#ffffff,stroke:#444444,color:#444444
+
+        subgraph 46 ["namespace: cerebro"]
+          style 46 fill:#ffffff,stroke:#444444,color:#444444
+
+          subgraph 47 ["Deployment/cerebro-web"]
+            style 47 fill:#ffffff,stroke:#444444,color:#444444
+
+            48["<div style='font-weight: bold'>cerebro-web</div><div style='font-size: 70%; margin-top: 0px'>[Container: Next.js 16, React 19, TypeScript]</div><div style='font-size: 80%; margin-top:10px'>Landing, sign-up, sign-in and<br />The Construct. Proxies /api<br />to the API so the browser<br />sees one origin.</div>"]
+            style 48 fill:#2a5d9f,stroke:#234f88,color:#ffffff
+          end
+
+          subgraph 49 ["Deployment/cerebro-api"]
+            style 49 fill:#ffffff,stroke:#444444,color:#444444
+
+            50["<div style='font-weight: bold'>cerebro-api</div><div style='font-size: 70%; margin-top: 0px'>[Container: FastAPI, Python 3.11]</div><div style='font-size: 80%; margin-top:10px'>Authentication and, in time,<br />the knowledge APIs.</div>"]
+            style 50 fill:#2a5d9f,stroke:#234f88,color:#ffffff
+          end
+
+          subgraph 53 ["StatefulSet/cerebro-postgres"]
+            style 53 fill:#ffffff,stroke:#444444,color:#444444
+
+            54[("<div style='font-weight: bold'>PostgreSQL</div><div style='font-size: 70%; margin-top: 0px'>[Container: PostgreSQL 16]</div><div style='font-size: 80%; margin-top:10px'>Users today; artifacts and<br />metadata next.</div>")]
+            style 54 fill:#2a5d9f,stroke:#234f88,color:#ffffff
+          end
+
+        end
+
+      end
+
+    end
+
+    48-. "<div>Proxies /api; validates the<br />session on every protected<br />render</div><div style='font-size: 70%'>[HTTP/JSON]</div>" .->50
+    48-. "<div>Uploads artifacts, searches,<br />recalls</div><div style='font-size: 70%'>[HTTP/JSON]</div>" .->50
+    50-. "<div>Reads and writes users</div><div style='font-size: 70%'>[SQL over psycopg]</div>" .->54
+
+  end

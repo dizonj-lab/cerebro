@@ -1,0 +1,49 @@
+graph LR
+  linkStyle default fill:#ffffff
+
+  subgraph diagram ["Container View: CEREBRO"]
+    style diagram fill:#ffffff,stroke:#ffffff
+
+    1["<div style='font-weight: bold'>Owner</div><div style='font-size: 70%; margin-top: 0px'>[Person]</div><div style='font-size: 80%; margin-top:10px'>A person building a private<br />knowledge twin.</div>"]
+    style 1 fill:#2a5d9f,stroke:#1d416f,color:#ffffff
+
+    subgraph 2 ["CEREBRO"]
+      style 2 fill:#ffffff,stroke:#0e1013,color:#0e1013
+
+      13[("<div style='font-weight: bold'>PostgreSQL</div><div style='font-size: 70%; margin-top: 0px'>[Container: PostgreSQL 16]</div><div style='font-size: 80%; margin-top:10px'>Users today; artifacts and<br />metadata next.</div>")]
+      style 13 fill:#2a5d9f,stroke:#234f88,color:#ffffff
+      14["<div style='font-weight: bold'>cerebro-worker</div><div style='font-size: 70%; margin-top: 0px'>[Container: Python]</div><div style='font-size: 80%; margin-top:10px'>Asynchronous ingestion and<br />enrichment pipeline.</div>"]
+      style 14 fill:#f7f8fa,stroke:#cfd5de,color:#636c7a
+      15[("<div style='font-weight: bold'>Object Store</div><div style='font-size: 70%; margin-top: 0px'>[Container: MinIO]</div><div style='font-size: 80%; margin-top:10px'>Original uploaded artifacts.</div>")]
+      style 15 fill:#f7f8fa,stroke:#cfd5de,color:#636c7a
+      16[("<div style='font-weight: bold'>Vector Store</div><div style='font-size: 70%; margin-top: 0px'>[Container: Qdrant]</div><div style='font-size: 80%; margin-top:10px'>Embeddings for semantic<br />search and RAG.</div>")]
+      style 16 fill:#f7f8fa,stroke:#cfd5de,color:#636c7a
+      17[("<div style='font-weight: bold'>Knowledge Graph</div><div style='font-size: 70%; margin-top: 0px'>[Container: Neo4j]</div><div style='font-size: 80%; margin-top:10px'>Entities and the<br />relationships between them.</div>")]
+      style 17 fill:#f7f8fa,stroke:#cfd5de,color:#636c7a
+      18["<div style='font-weight: bold'>Event Bus</div><div style='font-size: 70%; margin-top: 0px'>[Container: Kafka]</div><div style='font-size: 80%; margin-top:10px'>Decouples ingestion from<br />enrichment.</div>"]
+      style 18 fill:#f7f8fa,stroke:#cfd5de,color:#636c7a
+      19["<div style='font-weight: bold'>Local LLM</div><div style='font-size: 70%; margin-top: 0px'>[Container: Ollama]</div><div style='font-size: 80%; margin-top:10px'>Reasoning and answer<br />generation, kept on-device.</div>"]
+      style 19 fill:#f7f8fa,stroke:#cfd5de,color:#636c7a
+      3["<div style='font-weight: bold'>cerebro-web</div><div style='font-size: 70%; margin-top: 0px'>[Container: Next.js 16, React 19, TypeScript]</div><div style='font-size: 80%; margin-top:10px'>Landing, sign-up, sign-in and<br />The Construct. Proxies /api<br />to the API so the browser<br />sees one origin.</div>"]
+      style 3 fill:#2a5d9f,stroke:#234f88,color:#ffffff
+      4["<div style='font-weight: bold'>cerebro-api</div><div style='font-size: 70%; margin-top: 0px'>[Container: FastAPI, Python 3.11]</div><div style='font-size: 80%; margin-top:10px'>Authentication and, in time,<br />the knowledge APIs.</div>"]
+      style 4 fill:#2a5d9f,stroke:#234f88,color:#ffffff
+    end
+
+    1-. "<div>Signs up, signs in, uses The<br />Construct</div><div style='font-size: 70%'>[HTTPS]</div>" .->3
+    3-. "<div>Proxies /api; validates the<br />session on every protected<br />render</div><div style='font-size: 70%'>[HTTP/JSON]</div>" .->4
+    4-. "<div>Reads and writes users</div><div style='font-size: 70%'>[SQL over psycopg]</div>" .->13
+    3-. "<div>Uploads artifacts, searches,<br />recalls</div><div style='font-size: 70%'>[HTTP/JSON]</div>" .->4
+    4-. "<div>Stores and serves original<br />artifacts</div><div style='font-size: 70%'>[S3 API]</div>" .->15
+    4-. "<div>Publishes artifact.ingested</div><div style='font-size: 70%'>[Kafka]</div>" .->18
+    18-. "<div>Delivers ingestion events</div><div style='font-size: 70%'>[Kafka]</div>" .->14
+    14-. "<div>Reads originals</div><div style='font-size: 70%'>[S3 API]</div>" .->15
+    14-. "<div>Extracts entities, summarises</div><div style='font-size: 70%'>[HTTP]</div>" .->19
+    14-. "<div>Writes embeddings</div><div style='font-size: 70%'>[gRPC]</div>" .->16
+    14-. "<div>Writes entities and<br />relationships</div><div style='font-size: 70%'>[Bolt]</div>" .->17
+    14-. "<div>Updates artifact status</div><div style='font-size: 70%'>[SQL]</div>" .->13
+    4-. "<div>Semantic search</div><div style='font-size: 70%'>[gRPC]</div>" .->16
+    4-. "<div>Traverses connections</div><div style='font-size: 70%'>[Bolt]</div>" .->17
+    4-. "<div>Grounded answers over<br />retrieved context</div><div style='font-size: 70%'>[HTTP]</div>" .->19
+
+  end

@@ -1,0 +1,46 @@
+graph LR
+  linkStyle default fill:#ffffff
+
+  subgraph diagram ["Component View: CEREBRO - cerebro-api"]
+    style diagram fill:#ffffff,stroke:#ffffff
+
+    subgraph 2 ["CEREBRO"]
+      style 2 fill:#ffffff,stroke:#0e1013,color:#0e1013
+
+      subgraph 4 ["cerebro-api"]
+        style 4 fill:#ffffff,stroke:#234f88,color:#234f88
+
+        10["<div style='font-weight: bold'>Health</div><div style='font-size: 70%; margin-top: 0px'>[Component: FastAPI]</div><div style='font-size: 80%; margin-top:10px'>GET /api/health, including<br />database reachability.</div>"]
+        style 10 fill:#2a5d9f,stroke:#234f88,color:#ffffff
+        11["<div style='font-weight: bold'>Artifact Router</div><div style='font-size: 70%; margin-top: 0px'>[Component: FastAPI]</div><div style='font-size: 80%; margin-top:10px'>Upload, list and fetch<br />artifacts.</div>"]
+        style 11 fill:#f7f8fa,stroke:#cfd5de,color:#636c7a
+        12["<div style='font-weight: bold'>Search / Recall Router</div><div style='font-size: 70%; margin-top: 0px'>[Component: FastAPI]</div><div style='font-size: 80%; margin-top:10px'>Semantic search and recall<br />over the twin.</div>"]
+        style 12 fill:#f7f8fa,stroke:#cfd5de,color:#636c7a
+        5["<div style='font-weight: bold'>Auth Router</div><div style='font-size: 70%; margin-top: 0px'>[Component: FastAPI APIRouter]</div><div style='font-size: 80%; margin-top:10px'>POST /signup, /login, /logout<br />and GET /me.</div>"]
+        style 5 fill:#2a5d9f,stroke:#234f88,color:#ffffff
+        6["<div style='font-weight: bold'>Dependencies</div><div style='font-size: 70%; margin-top: 0px'>[Component: FastAPI Depends]</div><div style='font-size: 80%; margin-top:10px'>Resolves the session cookie<br />or bearer token to a User, or<br />401.</div>"]
+        style 6 fill:#2a5d9f,stroke:#234f88,color:#ffffff
+        7["<div style='font-weight: bold'>User Service</div><div style='font-size: 70%; margin-top: 0px'>[Component: Python]</div><div style='font-size: 80%; margin-top:10px'>Account creation and<br />credential checking, free of<br />HTTP concerns.</div>"]
+        style 7 fill:#2a5d9f,stroke:#234f88,color:#ffffff
+        8["<div style='font-weight: bold'>Security</div><div style='font-size: 70%; margin-top: 0px'>[Component: argon2-cffi, PyJWT]</div><div style='font-size: 80%; margin-top:10px'>Argon2id hashing and JWT<br />issue/verify.</div>"]
+        style 8 fill:#2a5d9f,stroke:#234f88,color:#ffffff
+        9["<div style='font-weight: bold'>User Model</div><div style='font-size: 70%; margin-top: 0px'>[Component: SQLAlchemy 2]</div><div style='font-size: 80%; margin-top:10px'>users table: UUID id, unique<br />lowercased email, Argon2id<br />hash.</div>"]
+        style 9 fill:#2a5d9f,stroke:#234f88,color:#ffffff
+      end
+
+      13[("<div style='font-weight: bold'>PostgreSQL</div><div style='font-size: 70%; margin-top: 0px'>[Container: PostgreSQL 16]</div><div style='font-size: 80%; margin-top:10px'>Users today; artifacts and<br />metadata next.</div>")]
+      style 13 fill:#2a5d9f,stroke:#234f88,color:#ffffff
+      3["<div style='font-weight: bold'>cerebro-web</div><div style='font-size: 70%; margin-top: 0px'>[Container: Next.js 16, React 19, TypeScript]</div><div style='font-size: 80%; margin-top:10px'>Landing, sign-up, sign-in and<br />The Construct. Proxies /api<br />to the API so the browser<br />sees one origin.</div>"]
+      style 3 fill:#2a5d9f,stroke:#234f88,color:#ffffff
+    end
+
+    3-. "<div>Signup, login, logout,<br />session check</div><div style='font-size: 70%'>[HTTP/JSON]</div>" .->5
+    5-. "<div>Guards /me with</div><div style='font-size: 70%'></div>" .->6
+    5-. "<div>Delegates to</div><div style='font-size: 70%'></div>" .->7
+    6-. "<div>Verifies tokens with</div><div style='font-size: 70%'></div>" .->8
+    6-. "<div>Loads the user with</div><div style='font-size: 70%'></div>" .->7
+    7-. "<div>Hashes and verifies passwords<br />with</div><div style='font-size: 70%'></div>" .->8
+    7-. "<div>Persists through</div><div style='font-size: 70%'></div>" .->9
+    9-. "<div>Reads and writes</div><div style='font-size: 70%'></div>" .->13
+
+  end

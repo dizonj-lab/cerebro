@@ -1,0 +1,14 @@
+graph LR
+  linkStyle default fill:#ffffff
+
+  subgraph diagram ["System Context View: CEREBRO"]
+    style diagram fill:#ffffff,stroke:#ffffff
+
+    1["<div style='font-weight: bold'>Owner</div><div style='font-size: 70%; margin-top: 0px'>[Person]</div><div style='font-size: 80%; margin-top:10px'>A person building a private<br />knowledge twin.</div>"]
+    style 1 fill:#2a5d9f,stroke:#1d416f,color:#ffffff
+    2["<div style='font-weight: bold'>CEREBRO</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Turns personal knowledge and<br />experiences into a connected<br />digital twin.</div>"]
+    style 2 fill:#14171c,stroke:#0e1013,color:#ffffff
+
+    1-. "<div>Signs up, signs in, uses The<br />Construct</div><div style='font-size: 70%'>[HTTPS]</div>" .->2
+
+  end

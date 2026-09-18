@@ -12,7 +12,7 @@ WEB_IMAGE := cerebro-web:0.1.0
 NS := cerebro
 
 .DEFAULT_GOAL := help
-.PHONY: help build load deploy up down status logs wait urls port-forward validate \
+.PHONY: help build load deploy up down status logs wait urls port-forward validate diagrams \
         compose-up compose-down compose-logs test-backend test-e2e
 
 help: ## Show available targets
@@ -82,6 +82,20 @@ compose-down: ## Stop compose and remove the database volume
 
 compose-logs: ## Tail compose logs
 	docker compose logs -f
+
+## --- Architecture ----------------------------------------------------------
+
+diagrams: ## Regenerate the C4 diagrams from the Structurizr model
+	structurizr.sh validate -w architecture/structurizr/workspace.dsl
+	structurizr.sh export -w architecture/structurizr/workspace.dsl \
+		-f mermaid -o architecture/diagrams
+	@cd architecture/diagrams && for f in structurizr-*.mmd; do \
+		mv "$$f" "$${f#structurizr-}"; \
+	done
+	@cd architecture/diagrams && for f in *.mmd; do \
+		mmdc -i "$$f" -o "$${f%.mmd}.png" -b white -w 2200; \
+	done
+	@echo "Regenerated. Requires structurizr-cli and @mermaid-js/mermaid-cli on PATH."
 
 ## --- Tests -----------------------------------------------------------------
 
