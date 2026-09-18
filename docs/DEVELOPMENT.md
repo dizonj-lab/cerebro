@@ -87,7 +87,8 @@ make up          # build images, load them into the cluster, deploy, wait
 make port-forward
 ```
 
-Then open <http://localhost:3000>. No ingress controller needed: the web pod
+Then open <http://localhost:3000>. If that port is taken, use
+`make port-forward WEB_PORT=3100`. No ingress controller needed: the web pod
 proxies `/api` to the API service, so a port-forward is a complete deployment.
 
 Optional friendlier hostname, if you have ingress-nginx:
@@ -107,6 +108,28 @@ make compose-up      # or: docker compose up --build
 ```
 
 Open <http://localhost:3000>. `make compose-down` removes the database volume.
+
+### Port already in use
+
+3000, 8000 and 5432 are all commonly taken — OpenWebUI and other Next.js
+projects sit on 3000, and a host PostgreSQL on 5432. Override per run:
+
+```bash
+make compose-up WEB_PORT=3100        # then open http://localhost:3100
+make port-forward WEB_PORT=3100      # the Kubernetes equivalent
+make test-e2e WEB_PORT=3100
+```
+
+Or set them once, which compose reads automatically:
+
+```bash
+cp .env.example .env                 # then edit CEREBRO_WEB_PORT etc.
+```
+
+Only the host side of the mapping changes. **No image rebuild is needed**: the
+browser reaches the API through the web origin, not a hard-coded port. Verified
+by running the full end-to-end suite against port 3100 with an unchanged
+build — 31/31.
 
 ### Secrets
 

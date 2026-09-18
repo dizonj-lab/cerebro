@@ -2,6 +2,16 @@
 #
 #   docker compose up --build       then open http://localhost:3000
 #
+# Host ports are configurable, because 3000, 8000 and 5432 are all commonly
+# taken (OpenWebUI, another API, a local PostgreSQL). Override per run:
+#
+#   CEREBRO_WEB_PORT=3100 docker compose up --build
+#
+# or set them once in a .env file beside this one — compose reads it
+# automatically. See .env.example. Only the host side moves; nothing inside the
+# containers changes, and no rebuild is needed, because the browser reaches the
+# API through the web origin rather than a hard-coded port.
+#
 # Kubernetes (k8s/) is the primary target; see k8s/README.md.
 #
 # The browser only ever talks to the web service: Next.js proxies /api to the
@@ -18,7 +28,7 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "${CEREBRO_DB_PORT:-5432}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U cerebro -d cerebro"]
       interval: 5s
@@ -43,7 +53,9 @@ services:
       CEREBRO_DATABASE_URL: postgresql+psycopg://cerebro:cerebro_dev_password@postgres:5432/cerebro
       CEREBRO_ENVIRONMENT: development
     ports:
-      - "8000:8000"
+      # Published only so you can inspect the API directly; the app does not
+      # need it.
+      - "${CEREBRO_API_PORT:-8000}:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -63,7 +75,7 @@ services:
       # Both server-side rendering and the /api proxy target this.
       INTERNAL_API_BASE_URL: http://api:8000
     ports:
-      - "3000:3000"
+      - "${CEREBRO_WEB_PORT:-3000}:3000"
     depends_on:
       api:
         condition: service_healthy

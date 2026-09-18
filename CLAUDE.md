@@ -27,6 +27,7 @@ React never connects to PostgreSQL directly. All data access goes through the AP
 | Frontend deps | `cd frontend && npm install`                               |
 | Run web       | `cd frontend && npm run dev`                               |
 | Whole stack   | `make up` (Kubernetes) or `make compose-up` (Docker)       |
+| Port in use   | Append `WEB_PORT=3100` to any of the above                 |
 | Validate k8s  | `make validate`                                            |
 | Typecheck     | `cd frontend && npm run typecheck`                         |
 | Lint          | `cd frontend && npm run lint`                              |

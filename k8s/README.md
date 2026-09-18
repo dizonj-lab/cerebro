@@ -9,6 +9,9 @@ make up            # build images, load them into the cluster, deploy, wait
 make port-forward  # http://localhost:3000
 ```
 
+If port 3000 is already in use: `make port-forward WEB_PORT=3100`. Nothing needs
+rebuilding — the port is only the local end of the forward.
+
 That is a complete, working deployment — sign-in included. **No ingress
 controller is required:** the web pod proxies `/api` to the API service
 (`frontend/next.config.ts`), so the browser only ever sees one origin.
