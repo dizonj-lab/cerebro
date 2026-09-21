@@ -30,3 +30,9 @@ out/
 playwright-report/
 test-results/
 *.egg-info/
+
+# CEREBRO PoC
+cerebro_poc/
+.ipynb_checkpoints/
+__pycache__/
+*.pyc
