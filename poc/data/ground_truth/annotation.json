@@ -1,0 +1,60 @@
+{
+  "annotation_id": "ANN-0001",
+  "dataset": "CEREBRO-GT-v0.1",
+  "artifact_id": "ART-0001",
+  "fragment_id": "KF-0001",
+  "entities": [
+    {
+      "entity_id": "ENT-0001",
+      "text": "CEREBRO",
+      "type": "SYSTEM",
+      "evidence_level": "explicit"
+    }
+  ],
+  "concepts": [
+    {
+      "concept_id": "CON-0001",
+      "label": "Digital Knowledge Twin",
+      "evidence_level": "explicit"
+    },
+    {
+      "concept_id": "CON-0002",
+      "label": "Provenance",
+      "evidence_level": "explicit"
+    },
+    {
+      "concept_id": "CON-0003",
+      "label": "Knowledge Fragment",
+      "evidence_level": "explicit"
+    },
+    {
+      "concept_id": "CON-0004",
+      "label": "Source Artifact",
+      "evidence_level": "explicit"
+    },
+    {
+      "concept_id": "CON-0005",
+      "label": "Assisted Recollection",
+      "evidence_level": "explicit"
+    }
+  ],
+  "relationships": [
+    {
+      "relationship_id": "REL-0001",
+      "subject": "CEREBRO",
+      "predicate": "MAINTAINS",
+      "object": "Provenance",
+      "evidence_level": "explicit"
+    },
+    {
+      "relationship_id": "REL-0002",
+      "subject": "Knowledge Fragment",
+      "predicate": "TRACED_TO",
+      "object": "Source Artifact",
+      "evidence_level": "annotated"
+    }
+  ],
+  "temporal_facts": [],
+  "annotation_method": "manual",
+  "manually_verified": true
+}

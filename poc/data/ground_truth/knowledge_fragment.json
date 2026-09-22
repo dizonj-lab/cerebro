@@ -1,0 +1,17 @@
+{
+  "fragment_id": "KF-0001",
+  "artifact_id": "ART-0001",
+  "owner_id": "USER-001",
+  "content": "It maintains provenance between knowledge fragments and their original source artifacts.",
+  "source_location": {
+    "type": "text_span",
+    "start_char": 86,
+    "end_char": 174
+  },
+  "provenance": {
+    "extraction_method": "manual_ground_truth",
+    "parent_artifact_id": "ART-0001",
+    "source_sha256": "7694567acb26611218fd818ef2c12ec456e5ee94c5387804bfe5f36799aee832"
+  },
+  "manually_verified": true
+}

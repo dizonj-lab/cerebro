@@ -1,0 +1,23 @@
+{
+  "artifact_id": "ART-0001",
+  "owner_id": "USER-001",
+  "title": "CEREBRO Benchmark Text",
+  "modality": "text",
+  "mime_type": "text/plain",
+  "language": "en",
+  "authors": [
+    {
+      "author_id": "PERSON-001",
+      "name": "Benchmark Author"
+    }
+  ],
+  "source": {
+    "filename": "benchmark_001.txt",
+    "storage_uri": "poc/data/raw/text/benchmark_001.txt",
+    "sha256": "7694567acb26611218fd818ef2c12ec456e5ee94c5387804bfe5f36799aee832"
+  },
+  "benchmark": {
+    "dataset": "CEREBRO-GT-v0.1",
+    "manually_verified": true
+  }
+}
