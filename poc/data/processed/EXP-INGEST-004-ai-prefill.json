@@ -1,0 +1,179 @@
+{
+  "title": {
+    "value": "CEREBRO",
+    "source": "ai_suggested",
+    "status": "suggested",
+    "user_confirmed": false,
+    "provenance": {
+      "task_id": "TASK-ENRICH-001",
+      "router": "cerebro_router",
+      "router_version": "0.1",
+      "route": "local",
+      "provider": "local_ollama",
+      "model": "llama3.2:latest",
+      "latency_seconds": 8.977,
+      "escalated": false
+    }
+  },
+  "artifact_type": {
+    "value": "Digital Knowledge Twin",
+    "source": "ai_suggested",
+    "status": "suggested",
+    "user_confirmed": false,
+    "provenance": {
+      "task_id": "TASK-ENRICH-001",
+      "router": "cerebro_router",
+      "router_version": "0.1",
+      "route": "local",
+      "provider": "local_ollama",
+      "model": "llama3.2:latest",
+      "latency_seconds": 8.977,
+      "escalated": false
+    }
+  },
+  "language": {
+    "value": "",
+    "source": "ai_suggested",
+    "status": "suggested",
+    "user_confirmed": false,
+    "provenance": {
+      "task_id": "TASK-ENRICH-001",
+      "router": "cerebro_router",
+      "router_version": "0.1",
+      "route": "local",
+      "provider": "local_ollama",
+      "model": "llama3.2:latest",
+      "latency_seconds": 8.977,
+      "escalated": false
+    }
+  },
+  "description": {
+    "value": "Preserves and connects human knowledge, maintaining provenance between fragments and their original source artifacts.",
+    "source": "ai_suggested",
+    "status": "suggested",
+    "user_confirmed": false,
+    "provenance": {
+      "task_id": "TASK-ENRICH-001",
+      "router": "cerebro_router",
+      "router_version": "0.1",
+      "route": "local",
+      "provider": "local_ollama",
+      "model": "llama3.2:latest",
+      "latency_seconds": 8.977,
+      "escalated": false
+    }
+  },
+  "authors": {
+    "value": [],
+    "source": "ai_suggested",
+    "status": "suggested",
+    "user_confirmed": false,
+    "provenance": {
+      "task_id": "TASK-ENRICH-001",
+      "router": "cerebro_router",
+      "router_version": "0.1",
+      "route": "local",
+      "provider": "local_ollama",
+      "model": "llama3.2:latest",
+      "latency_seconds": 8.977,
+      "escalated": false
+    }
+  },
+  "people": {
+    "value": [
+      ""
+    ],
+    "source": "ai_suggested",
+    "status": "suggested",
+    "user_confirmed": false,
+    "provenance": {
+      "task_id": "TASK-ENRICH-001",
+      "router": "cerebro_router",
+      "router_version": "0.1",
+      "route": "local",
+      "provider": "local_ollama",
+      "model": "llama3.2:latest",
+      "latency_seconds": 8.977,
+      "escalated": false
+    }
+  },
+  "organizations": {
+    "value": [
+      [
+        ""
+      ],
+      ""
+    ],
+    "source": "ai_suggested",
+    "status": "suggested",
+    "user_confirmed": false,
+    "provenance": {
+      "task_id": "TASK-ENRICH-001",
+      "router": "cerebro_router",
+      "router_version": "0.1",
+      "route": "local",
+      "provider": "local_ollama",
+      "model": "llama3.2:latest",
+      "latency_seconds": 8.977,
+      "escalated": false
+    }
+  },
+  "projects": {
+    "value": [
+      [
+        ""
+      ],
+      ""
+    ],
+    "source": "ai_suggested",
+    "status": "suggested",
+    "user_confirmed": false,
+    "provenance": {
+      "task_id": "TASK-ENRICH-001",
+      "router": "cerebro_router",
+      "router_version": "0.1",
+      "route": "local",
+      "provider": "local_ollama",
+      "model": "llama3.2:latest",
+      "latency_seconds": 8.977,
+      "escalated": false
+    }
+  },
+  "topics": {
+    "value": [
+      [
+        "Knowledge Management",
+        "Digital Twinning"
+      ]
+    ],
+    "source": "ai_suggested",
+    "status": "suggested",
+    "user_confirmed": false,
+    "provenance": {
+      "task_id": "TASK-ENRICH-001",
+      "router": "cerebro_router",
+      "router_version": "0.1",
+      "route": "local",
+      "provider": "local_ollama",
+      "model": "llama3.2:latest",
+      "latency_seconds": 8.977,
+      "escalated": false
+    }
+  },
+  "tags": {
+    "value": [],
+    "source": "ai_suggested",
+    "status": "suggested",
+    "user_confirmed": false,
+    "provenance": {
+      "task_id": "TASK-ENRICH-001",
+      "router": "cerebro_router",
+      "router_version": "0.1",
+      "route": "local",
+      "provider": "local_ollama",
+      "model": "llama3.2:latest",
+      "latency_seconds": 8.977,
+      "escalated": false
+    }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "artifact_id": "ART-0001",
+  "status": "registered",
+  "source": {
+    "filename": "benchmark_001.txt",
+    "storage_uri": "poc/data/raw/text/benchmark_001.txt",
+    "sha256": "7694567acb26611218fd818ef2c12ec456e5ee94c5387804bfe5f36799aee832"
+  },
+  "metadata": {
+    "title": "CEREBRO Digital Knowledge Twin",
+    "artifact_type": "knowledge_description",
+    "language": "English",
+    "description": "CEREBRO is a Digital Knowledge Twin designed to preserve and connect human knowledge while maintaining provenance to supporting source artifacts.",
+    "authors": [],
+    "people": [],
+    "organizations": [],
+    "projects": [
+      "CEREBRO"
+    ],
+    "topics": [
+      "Digital Knowledge Twin",
+      "Provenance",
+      "Knowledge Fragments",
+      "Source Artifacts",
+      "Assisted Recollection"
+    ],
+    "tags": [
+      "CEREBRO",
+      "knowledge",
+      "provenance",
+      "recollection"
+    ]
+  },
+  "ownership": {
+    "owner": "artifact_owner"
+  },
+  "provenance": {
+    "deterministic_extraction": "EXP-INGEST-002",
+    "ai_enrichment": "EXP-INGEST-004",
+    "human_review": "EXP-INGEST-005",
+    "registration": "EXP-INGEST-006"
+  },
+  "integrity": {
+    "human_reviewed": true,
+    "human_approved": true,
+    "source_verified": true
+  }
+}

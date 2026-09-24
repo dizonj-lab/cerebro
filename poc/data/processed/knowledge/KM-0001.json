@@ -1,0 +1,145 @@
+{
+  "model_id": "KM-0001",
+  "artifact_id": "ART-0001",
+  "fragments": [
+    {
+      "fragment_id": "KF-0001",
+      "artifact_id": "ART-0001",
+      "content": "CEREBRO is a Digital Knowledge Twin designed to preserve and connect human knowledge.",
+      "source_location": {
+        "type": "character_range",
+        "start": 0,
+        "end": 85
+      },
+      "semantic": {
+        "concepts": [
+          "CEREBRO",
+          "Digital Knowledge Twin",
+          "Human Knowledge"
+        ],
+        "entities": [],
+        "relationships": []
+      },
+      "temporal": {
+        "source_date": null,
+        "knowledge_date": null,
+        "ingested_at": "2026-09-24T05:18:04.885262+00:00",
+        "temporal_confidence": {
+          "source_date": "unknown",
+          "knowledge_date": "unknown",
+          "ingested_at": "verified"
+        }
+      },
+      "provenance": {
+        "source_artifact": "ART-0001",
+        "source_filename": "benchmark_001.txt",
+        "source_sha256": "7694567acb26611218fd818ef2c12ec456e5ee94c5387804bfe5f36799aee832",
+        "construction_method": "deterministic_sentence_segmentation",
+        "experiment_id": "EXP-KNOW-001"
+      }
+    },
+    {
+      "fragment_id": "KF-0002",
+      "artifact_id": "ART-0001",
+      "content": "It maintains provenance between knowledge fragments and their original source artifacts.",
+      "source_location": {
+        "type": "character_range",
+        "start": 86,
+        "end": 174
+      },
+      "semantic": {
+        "concepts": [
+          "Provenance",
+          "Knowledge Fragment",
+          "Source Artifact"
+        ],
+        "entities": [],
+        "relationships": []
+      },
+      "temporal": {
+        "source_date": null,
+        "knowledge_date": null,
+        "ingested_at": "2026-09-24T05:18:04.885262+00:00",
+        "temporal_confidence": {
+          "source_date": "unknown",
+          "knowledge_date": "unknown",
+          "ingested_at": "verified"
+        }
+      },
+      "provenance": {
+        "source_artifact": "ART-0001",
+        "source_filename": "benchmark_001.txt",
+        "source_sha256": "7694567acb26611218fd818ef2c12ec456e5ee94c5387804bfe5f36799aee832",
+        "construction_method": "deterministic_sentence_segmentation",
+        "experiment_id": "EXP-KNOW-001"
+      }
+    },
+    {
+      "fragment_id": "KF-0003",
+      "artifact_id": "ART-0001",
+      "content": "The system supports assisted recollection by allowing users to navigate from knowledge back to its supporting evidence.",
+      "source_location": {
+        "type": "character_range",
+        "start": 175,
+        "end": 294
+      },
+      "semantic": {
+        "concepts": [
+          "Assisted Recollection",
+          "Knowledge Navigation",
+          "Supporting Evidence"
+        ],
+        "entities": [],
+        "relationships": []
+      },
+      "temporal": {
+        "source_date": null,
+        "knowledge_date": null,
+        "ingested_at": "2026-09-24T05:18:04.885262+00:00",
+        "temporal_confidence": {
+          "source_date": "unknown",
+          "knowledge_date": "unknown",
+          "ingested_at": "verified"
+        }
+      },
+      "provenance": {
+        "source_artifact": "ART-0001",
+        "source_filename": "benchmark_001.txt",
+        "source_sha256": "7694567acb26611218fd818ef2c12ec456e5ee94c5387804bfe5f36799aee832",
+        "construction_method": "deterministic_sentence_segmentation",
+        "experiment_id": "EXP-KNOW-001"
+      }
+    }
+  ],
+  "relationships": [
+    {
+      "relationship_id": "REL-0001",
+      "source": "KF-0001",
+      "target": "KF-0002",
+      "type": "SUPPORTED_BY",
+      "reason": "CEREBRO's Digital Knowledge Twin maintains provenance between knowledge and source artifacts."
+    },
+    {
+      "relationship_id": "REL-0002",
+      "source": "KF-0002",
+      "target": "KF-0003",
+      "type": "ENABLES",
+      "reason": "Provenance enables recollection to resolve knowledge back to supporting evidence."
+    },
+    {
+      "relationship_id": "REL-0003",
+      "source": "KF-0001",
+      "target": "KF-0003",
+      "type": "SUPPORTS",
+      "reason": "The Digital Knowledge Twin supports assisted recollection."
+    }
+  ],
+  "projections": {
+    "galaxy": {
+      "basis": "semantic_relationships"
+    },
+    "timeline": {
+      "basis": "temporal_metadata"
+    }
+  }
+}

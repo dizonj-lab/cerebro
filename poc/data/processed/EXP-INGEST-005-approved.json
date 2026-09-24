@@ -1,0 +1,270 @@
+{
+  "experiment_id": "EXP-INGEST-005",
+  "status": "approved",
+  "user_approval": true,
+  "fields": {
+    "title": {
+      "value": "CEREBRO Digital Knowledge Twin",
+      "source": "ai_suggested",
+      "status": "confirmed",
+      "user_confirmed": true,
+      "provenance": {
+        "task_id": "TASK-ENRICH-001",
+        "router": "cerebro_router",
+        "router_version": "0.1",
+        "route": "local",
+        "provider": "local_ollama",
+        "model": "llama3.2:latest",
+        "latency_seconds": 8.977,
+        "escalated": false
+      },
+      "review": {
+        "reviewer": "artifact_owner",
+        "original_ai_value": "CEREBRO",
+        "final_value": "CEREBRO Digital Knowledge Twin",
+        "action": "modified"
+      }
+    },
+    "artifact_type": {
+      "value": "knowledge_description",
+      "source": "ai_suggested",
+      "status": "confirmed",
+      "user_confirmed": true,
+      "provenance": {
+        "task_id": "TASK-ENRICH-001",
+        "router": "cerebro_router",
+        "router_version": "0.1",
+        "route": "local",
+        "provider": "local_ollama",
+        "model": "llama3.2:latest",
+        "latency_seconds": 8.977,
+        "escalated": false
+      },
+      "review": {
+        "reviewer": "artifact_owner",
+        "original_ai_value": "Digital Knowledge Twin",
+        "final_value": "knowledge_description",
+        "action": "modified"
+      }
+    },
+    "language": {
+      "value": "English",
+      "source": "ai_suggested",
+      "status": "confirmed",
+      "user_confirmed": true,
+      "provenance": {
+        "task_id": "TASK-ENRICH-001",
+        "router": "cerebro_router",
+        "router_version": "0.1",
+        "route": "local",
+        "provider": "local_ollama",
+        "model": "llama3.2:latest",
+        "latency_seconds": 8.977,
+        "escalated": false
+      },
+      "review": {
+        "reviewer": "artifact_owner",
+        "original_ai_value": "",
+        "final_value": "English",
+        "action": "modified"
+      }
+    },
+    "description": {
+      "value": "CEREBRO is a Digital Knowledge Twin designed to preserve and connect human knowledge while maintaining provenance to supporting source artifacts.",
+      "source": "ai_suggested",
+      "status": "confirmed",
+      "user_confirmed": true,
+      "provenance": {
+        "task_id": "TASK-ENRICH-001",
+        "router": "cerebro_router",
+        "router_version": "0.1",
+        "route": "local",
+        "provider": "local_ollama",
+        "model": "llama3.2:latest",
+        "latency_seconds": 8.977,
+        "escalated": false
+      },
+      "review": {
+        "reviewer": "artifact_owner",
+        "original_ai_value": "Preserves and connects human knowledge, maintaining provenance between fragments and their original source artifacts.",
+        "final_value": "CEREBRO is a Digital Knowledge Twin designed to preserve and connect human knowledge while maintaining provenance to supporting source artifacts.",
+        "action": "modified"
+      }
+    },
+    "authors": {
+      "value": [],
+      "source": "ai_suggested",
+      "status": "confirmed",
+      "user_confirmed": true,
+      "provenance": {
+        "task_id": "TASK-ENRICH-001",
+        "router": "cerebro_router",
+        "router_version": "0.1",
+        "route": "local",
+        "provider": "local_ollama",
+        "model": "llama3.2:latest",
+        "latency_seconds": 8.977,
+        "escalated": false
+      },
+      "review": {
+        "reviewer": "artifact_owner",
+        "original_ai_value": [],
+        "final_value": [],
+        "action": "accepted"
+      }
+    },
+    "people": {
+      "value": [],
+      "source": "ai_suggested",
+      "status": "confirmed",
+      "user_confirmed": true,
+      "provenance": {
+        "task_id": "TASK-ENRICH-001",
+        "router": "cerebro_router",
+        "router_version": "0.1",
+        "route": "local",
+        "provider": "local_ollama",
+        "model": "llama3.2:latest",
+        "latency_seconds": 8.977,
+        "escalated": false
+      },
+      "review": {
+        "reviewer": "artifact_owner",
+        "original_ai_value": [
+          ""
+        ],
+        "final_value": [],
+        "action": "modified"
+      }
+    },
+    "organizations": {
+      "value": [],
+      "source": "ai_suggested",
+      "status": "confirmed",
+      "user_confirmed": true,
+      "provenance": {
+        "task_id": "TASK-ENRICH-001",
+        "router": "cerebro_router",
+        "router_version": "0.1",
+        "route": "local",
+        "provider": "local_ollama",
+        "model": "llama3.2:latest",
+        "latency_seconds": 8.977,
+        "escalated": false
+      },
+      "review": {
+        "reviewer": "artifact_owner",
+        "original_ai_value": [
+          [
+            ""
+          ],
+          ""
+        ],
+        "final_value": [],
+        "action": "modified"
+      }
+    },
+    "projects": {
+      "value": [
+        "CEREBRO"
+      ],
+      "source": "ai_suggested",
+      "status": "confirmed",
+      "user_confirmed": true,
+      "provenance": {
+        "task_id": "TASK-ENRICH-001",
+        "router": "cerebro_router",
+        "router_version": "0.1",
+        "route": "local",
+        "provider": "local_ollama",
+        "model": "llama3.2:latest",
+        "latency_seconds": 8.977,
+        "escalated": false
+      },
+      "review": {
+        "reviewer": "artifact_owner",
+        "original_ai_value": [
+          [
+            ""
+          ],
+          ""
+        ],
+        "final_value": [
+          "CEREBRO"
+        ],
+        "action": "modified"
+      }
+    },
+    "topics": {
+      "value": [
+        "Digital Knowledge Twin",
+        "Provenance",
+        "Knowledge Fragments",
+        "Source Artifacts",
+        "Assisted Recollection"
+      ],
+      "source": "ai_suggested",
+      "status": "confirmed",
+      "user_confirmed": true,
+      "provenance": {
+        "task_id": "TASK-ENRICH-001",
+        "router": "cerebro_router",
+        "router_version": "0.1",
+        "route": "local",
+        "provider": "local_ollama",
+        "model": "llama3.2:latest",
+        "latency_seconds": 8.977,
+        "escalated": false
+      },
+      "review": {
+        "reviewer": "artifact_owner",
+        "original_ai_value": [
+          [
+            "Knowledge Management",
+            "Digital Twinning"
+          ]
+        ],
+        "final_value": [
+          "Digital Knowledge Twin",
+          "Provenance",
+          "Knowledge Fragments",
+          "Source Artifacts",
+          "Assisted Recollection"
+        ],
+        "action": "modified"
+      }
+    },
+    "tags": {
+      "value": [
+        "CEREBRO",
+        "knowledge",
+        "provenance",
+        "recollection"
+      ],
+      "source": "ai_suggested",
+      "status": "confirmed",
+      "user_confirmed": true,
+      "provenance": {
+        "task_id": "TASK-ENRICH-001",
+        "router": "cerebro_router",
+        "router_version": "0.1",
+        "route": "local",
+        "provider": "local_ollama",
+        "model": "llama3.2:latest",
+        "latency_seconds": 8.977,
+        "escalated": false
+      },
+      "review": {
+        "reviewer": "artifact_owner",
+        "original_ai_value": [],
+        "final_value": [
+          "CEREBRO",
+          "knowledge",
+          "provenance",
+          "recollection"
+        ],
+        "action": "modified"
+      }
+    }
+  }
+}
