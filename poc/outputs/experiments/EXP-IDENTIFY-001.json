@@ -1,0 +1,30 @@
+{
+  "experiment_id": "EXP-IDENTIFY-001",
+  "artifact": {
+    "filename": "D5_Assignment.zip",
+    "sha256": "f3143d4eaedb927eee64ade1eb3d4f0794c6d0323c42ef750d08d7087f083aaf",
+    "artifact_type": "ZIP",
+    "modality": "archive",
+    "container": "ZIP"
+  },
+  "identification": {
+    "status": "IDENTIFIED",
+    "method": "deterministic_container_inspection",
+    "evidence": [],
+    "filename_consistency": "MATCH"
+  },
+  "routing": {
+    "required_capability": "UNRESOLVED",
+    "resolved": false
+  },
+  "integrity": {
+    "original_preserved": true,
+    "sha256_preserved": true,
+    "ai_used": false,
+    "artifact_registered": false,
+    "knowledge_constructed": false
+  },
+  "experiment_status": "PARTIAL_PASS",
+  "next_action": "RESOLVE_CAPABILITY_ROUTING_GAP",
+  "recorded_at": "2026-09-24T09:03:40.464511+00:00"
+}
