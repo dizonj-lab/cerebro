@@ -61,8 +61,9 @@ No AI in this phase: `provenance.ai_enrichment` is `null` on every artifact.
 | Block-level source locations           | COMPLETE |
 | Chunking                               | COMPLETE (not yet consumed) |
 | Extraction wired into upload           | COMPLETE |
-| Knowledge fragments + embeddings       | NOT STARTED |
-| Semantic search                        | NOT STARTED |
+| Knowledge fragments + embeddings       | COMPLETE |
+| Search API                             | COMPLETE |
+| Search UI                              | NOT STARTED (needs a work package) |
 | AI enrichment                          | NOT STARTED |
 | Images / OCR / audio                   | DEFERRED (P2) |
 
@@ -84,6 +85,33 @@ document text with it. The original bytes are stored verbatim, so
 registration still re-verifies the checksum against the source rather than
 against anything derived.
 
+Registering an artifact chunks its extracted text into knowledge fragments,
+embeds each one, and makes it searchable: USER -> ARTIFACT -> KNOWLEDGE
+FRAGMENT -> SOURCE LOCATION. Approval is the only gate into retrieval, so an
+unapproved artifact can never be searched. The step is idempotent by content
+hash, so a retry adds what is missing and duplicates nothing.
+
+Embeddings are `float4[]` columns with brute-force cosine behind a
+`VectorIndex` interface; pgvector is not available in the target PostgreSQL.
+Vectors are L2-normalised on write, so similarity is a dot product.
+
+Two providers, both local. `hashing` is the default: deterministic, offline,
+384 dimensions, and what the tests use — it is a hashing trick over words, so
+it finds lexical overlap, not meaning, and is not presented as semantic
+search. `ollama` (nomic-embed-text) is a learned model on the user's own
+machine, opt-in via `CEREBRO_EMBEDDING_PROVIDER=ollama`. **There is no cloud
+provider**, and a failing local provider does not fall back to one: it refuses
+registration and says why, because a different provider writes a different
+vector space and a cloud one would send content the user never consented to
+send. Provider, model and dimensions are stored with every vector and search
+filters on all three, so vectors from two spaces are never compared.
+
+A fragment scoring zero or below is not returned. An unrelated passage
+offered as a weak match is an unrelated passage offered as evidence.
+
+The search API is done; there is no search UI yet. The sidebar Search entry
+stays inert until a work package covers it.
+
 Images, OCR and audio remain deferred.
 
 ## Verification
@@ -95,7 +123,7 @@ Images, OCR and audio remain deferred.
 | UI/UX       | APPROVED             |
 | Regression  | PASS                 |
 
-**Engineering** — Backend: 97 pytest tests green against a real PostgreSQL 16
+**Engineering** — Backend: 115 pytest tests green against a real PostgreSQL 16
 database. Frontend: `tsc --noEmit` clean, ESLint clean, production build clean.
 Kubernetes manifests parse as valid YAML.
 

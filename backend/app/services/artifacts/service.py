@@ -21,6 +21,7 @@ from app.services.artifacts.extraction import (
     ExtractionResult,
     adapter_for,
 )
+from app.services.artifacts.fragments import build_for_artifact
 from app.services.artifacts.inspection import inspect_artifact
 from app.services.artifacts.metadata import extract_text_metadata
 from app.services.artifacts.registration import RegistrationRejected, register_artifact
@@ -274,6 +275,13 @@ def review(db: Session, artifact: Artifact, *, metadata: dict, approve: bool) ->
         "source_verified": True,
         **registered["integrity"],
     }
+    db.flush()
+
+    # Approval is the gate into retrieval: fragments are built here and
+    # nowhere else, so an unapproved artifact can never be searched. Building
+    # them in this transaction means a failure rolls the registration back
+    # rather than leaving a registered artifact no query can reach.
+    build_for_artifact(db, artifact, document=extracted_document(artifact))
     db.flush()
     return artifact
 

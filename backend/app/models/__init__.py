@@ -1,5 +1,13 @@
 from app.models.artifact import Artifact
+from app.models.fragment import FragmentEmbedding, KnowledgeFragment
 from app.models.profile import UserPreferences, UserProfile
 from app.models.user import User
 
-__all__ = ["User", "UserProfile", "UserPreferences", "Artifact"]
+__all__ = [
+    "User",
+    "UserProfile",
+    "UserPreferences",
+    "Artifact",
+    "KnowledgeFragment",
+    "FragmentEmbedding",
+]

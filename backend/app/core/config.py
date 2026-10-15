@@ -36,6 +36,16 @@ class Settings(BaseSettings):
     s3_secret_key: str = "cerebro_dev_password"
     s3_secure: bool = False
 
+    # Embeddings. "hashing" is deterministic and offline, and is what the test
+    # suite uses. "ollama" is a learned model on the user's own machine, opt-in
+    # because it needs `ollama pull nomic-embed-text` first. There is no cloud
+    # provider, by design.
+    embedding_provider: str = "hashing"
+    embedding_dimensions: int = 384
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_embedding_model: str = "nomic-embed-text"
+    ollama_embedding_dimensions: int = 768
+
     # Upload limits
     max_upload_bytes: int = 25 * 1024 * 1024
 

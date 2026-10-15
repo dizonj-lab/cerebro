@@ -20,6 +20,7 @@ from app.schemas.artifact import (
     ArtifactSummary,
 )
 from app.services.artifacts import service
+from app.services.artifacts.fragments import FragmentsUnavailable
 from app.services.artifacts.registration import RegistrationRejected
 
 router = APIRouter(prefix="/api/artifacts", tags=["artifacts"])
@@ -121,6 +122,15 @@ def review(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Registration refused: {exc}",
+        ) from None
+    except FragmentsUnavailable as exc:
+        # The artifact stays unregistered. Registering something that cannot
+        # be retrieved would show it in the library as trusted evidence that
+        # no query can reach.
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Registration stopped before completing: {exc}",
         ) from None
     except service.ArtifactRejected as exc:
         db.rollback()
