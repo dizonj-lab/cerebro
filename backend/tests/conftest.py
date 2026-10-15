@@ -28,16 +28,24 @@ from app.models import (  # noqa: E402,F401
 )
 
 
-@pytest.fixture(scope="session", autouse=True)
+# Database fixtures are deliberately NOT autouse. Pure-logic suites —
+# extraction, chunking, the registration gate — are then runnable with no
+# PostgreSQL at all:
+#
+#     pytest tests/test_extraction.py
+#
+# Anything needing the database asks for `db` or `client`, which pull the
+# schema and cleanup fixtures in behind them.
+@pytest.fixture(scope="session")
 def _schema():
     Base.metadata.create_all(bind=engine)
     yield
     Base.metadata.drop_all(bind=engine)
 
 
-@pytest.fixture(autouse=True)
-def _clean_users():
-    """Each test starts from an empty users table."""
+@pytest.fixture
+def _clean_users(_schema):
+    """Each test starts from an empty database and an empty object store."""
     clear_filesystem_store(_TEST_STORAGE)
     with SessionLocal() as db:
         db.query(Artifact).delete()
@@ -49,13 +57,13 @@ def _clean_users():
 
 
 @pytest.fixture
-def db():
+def db(_clean_users):
     with SessionLocal() as session:
         yield session
 
 
 @pytest.fixture
-def client():
+def client(_clean_users):
     with TestClient(app) as c:
         yield c
 

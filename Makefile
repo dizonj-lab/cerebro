@@ -20,7 +20,7 @@ WEB_PORT ?= 3000
 
 .DEFAULT_GOAL := help
 .PHONY: help build load deploy up down status logs wait urls port-forward validate diagrams \
-        compose-up compose-down compose-logs test-backend test-e2e
+        backend-venv test-unit test-backend test-e2e compose-up compose-down compose-logs
 
 help: ## Show available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -106,7 +106,22 @@ diagrams: ## Regenerate the C4 diagrams from the Structurizr model
 
 ## --- Tests -----------------------------------------------------------------
 
-test-backend: ## Run backend tests (needs a local PostgreSQL)
+backend-venv: ## Create backend/.venv and install dependencies (first run only)
+	@if [ ! -x backend/.venv/bin/pytest ]; then \
+		echo "Creating backend/.venv (first run, takes a minute)..."; \
+		cd backend && python3 -m venv .venv && . .venv/bin/activate && \
+			pip install -q --upgrade pip && pip install -q -e ".[dev]"; \
+	fi
+
+test-unit: backend-venv ## Run the tests that need no database (extraction, chunking)
+	cd backend && . .venv/bin/activate && \
+		pytest tests/test_extraction.py -q
+
+test-backend: backend-venv ## Run every backend test (needs PostgreSQL on :5432)
+	@# The suite uses its own database. Create it if the compose stack is up;
+	@# harmless and ignored when it already exists or compose is not running.
+	-@docker compose exec -T postgres psql -U cerebro -d cerebro \
+		-c "CREATE DATABASE cerebro_test" >/dev/null 2>&1 || true
 	cd backend && . .venv/bin/activate && pytest -q
 
 test-e2e: ## Run end-to-end tests against an already-running stack (WEB_PORT=3000)
