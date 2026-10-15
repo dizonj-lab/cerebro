@@ -13,9 +13,15 @@ What a model may propose is deliberately narrow:
 
 * `title` and `description` — generative by nature, labelled `ai_suggested`,
   and never presented as established fact.
-* `topics` and `tags` — checked against the document before being accepted.
-  A phrase the document does not contain is dropped, however plausible. This
-  is the guard that stops a model inventing subject matter.
+* `topics`, `tags`, `people`, `organizations` and `projects` — checked
+  against the document before being accepted. An entry the document does not
+  contain is dropped, however plausible. This is the guard that stops a model
+  inventing subject matter or, worse, inventing a person.
+
+  Naming the people and organizations a document mentions is the one thing
+  here that statistics cannot do: telling a person from a company needs
+  knowledge of the world, not word counts. It is also where a model is most
+  tempting to trust and least safe to, so the grounding check matters most.
 
 It may not propose an author or a creation date at all. Those are claims
 about the world, and a model reading the text cannot establish them.
@@ -36,13 +42,23 @@ _INSTRUCTION = """You are given the text of a document. Reply with JSON only, \
 no prose, no code fences, matching exactly this shape:
 
 {"title": string or null, "description": string or null, \
-"topics": array of strings, "tags": array of strings}
+"topics": array of strings, "tags": array of strings, \
+"people": array of strings, "organizations": array of strings, \
+"projects": array of strings}
 
 Rules:
 - title: the document's actual title if the text makes it clear, else null.
 - description: at most two sentences describing what the document is about.
 - topics: up to 6 subjects, each a phrase that appears in the text verbatim.
 - tags: up to 8 single keywords, each a word that appears in the text.
+- people: named individuals the text mentions, spelled exactly as the text
+  spells them. Only actual people. Not companies, teams or job titles.
+- organizations: companies, institutions and bodies the text names, spelled
+  exactly as the text spells them.
+- projects: named projects, products or initiatives, spelled exactly as the
+  text spells them.
+- Every entry in every array must appear in the text word for word. If you
+  cannot find it in the text, leave it out.
 - Do not guess an author or a date. Do not invent anything not in the text.
 - If the text is too short or unclear to judge, use null and empty arrays.
 
@@ -88,7 +104,13 @@ class OllamaEnricher:
             suggestions["description"] = description
             methods["description"] = "ai_suggested"
 
-        for field, limit in (("topics", 6), ("tags", 8)):
+        for field, limit in (
+            ("topics", 6),
+            ("tags", 8),
+            ("people", 12),
+            ("organizations", 12),
+            ("projects", 12),
+        ):
             grounded, dropped = _grounded(body.get(field), haystack, limit)
             if grounded:
                 suggestions[field] = grounded

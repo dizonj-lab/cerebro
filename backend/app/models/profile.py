@@ -17,6 +17,8 @@ from app.db.base import Base
 RESPONSE_STYLES = ("concise", "balanced", "detailed")
 AI_PROCESSING_MODES = ("local", "cloud")
 KNOWLEDGE_VISIBILITY = ("private", "shared")
+# "system" follows the operating system setting.
+THEMES = ("system", "light", "dark")
 
 
 class UserProfile(Base):
@@ -70,6 +72,10 @@ class UserPreferences(Base):
     knowledge_visibility: Mapped[str] = mapped_column(
         String(20), default="private", nullable=False
     )
+    # "system" follows the operating system; "light" and "dark" are explicit.
+    # Stored per account so the choice follows the user between machines, and
+    # mirrored to the browser so the first paint does not flash the wrong one.
+    theme: Mapped[str] = mapped_column(String(10), default="system", nullable=False)
 
     # --- AI & privacy -----------------------------------------------------
     # Local is the default. Cloud requires explicit consent; nothing in CEREBRO

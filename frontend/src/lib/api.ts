@@ -117,6 +117,8 @@ export interface CerebroPreferences {
   ai_suggestions: boolean;
   recall_suggestions: boolean;
   knowledge_visibility: string;
+  /** "system" | "light" | "dark" */
+  theme: string;
   ai_processing_mode: "local" | "cloud";
   local_provider: string | null;
   local_model: string | null;

@@ -34,7 +34,7 @@ export function Toggle({ checked, onChange, label, description, disabled }: Togg
         <span
           aria-hidden="true"
           className={cn(
-            "absolute top-0.5 size-4 rounded-full bg-white shadow-subtle transition-transform duration-150",
+            "absolute top-0.5 size-4 rounded-full bg-surface shadow-subtle transition-transform duration-150",
             checked ? "translate-x-[1.125rem]" : "translate-x-0.5",
           )}
         />

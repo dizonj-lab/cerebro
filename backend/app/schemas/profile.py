@@ -9,7 +9,12 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
-from app.models.profile import AI_PROCESSING_MODES, KNOWLEDGE_VISIBILITY, RESPONSE_STYLES
+from app.models.profile import (
+    AI_PROCESSING_MODES,
+    KNOWLEDGE_VISIBILITY,
+    RESPONSE_STYLES,
+    THEMES,
+)
 
 MAX_TAGS = 20
 MAX_TAG_LENGTH = 60
@@ -80,6 +85,7 @@ class PreferencesUpdate(BaseModel):
     ai_suggestions: bool | None = None
     recall_suggestions: bool | None = None
     knowledge_visibility: Literal[KNOWLEDGE_VISIBILITY] | None = None  # type: ignore[valid-type]
+    theme: Literal[THEMES] | None = None  # type: ignore[valid-type]
 
     ai_processing_mode: Literal[AI_PROCESSING_MODES] | None = None  # type: ignore[valid-type]
     local_provider: str | None = Field(default=None, max_length=60)
@@ -97,6 +103,7 @@ class PreferencesResponse(BaseModel):
     ai_suggestions: bool
     recall_suggestions: bool
     knowledge_visibility: str
+    theme: str
     ai_processing_mode: str
     local_provider: str | None
     local_model: str | None

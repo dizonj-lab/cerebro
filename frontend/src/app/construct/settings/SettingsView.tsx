@@ -15,6 +15,8 @@ import { Toggle } from "@/components/ui/Toggle";
 import { ApiError, api } from "@/lib/api";
 import type { CerebroAccount, CerebroPreferences } from "@/lib/api";
 import { cn } from "@/lib/cn";
+import { applyTheme, isTheme, rememberTheme, storedTheme } from "@/lib/theme";
+import type { Theme } from "@/lib/theme";
 
 const TABS = ["Preferences", "AI & Privacy", "Account"] as const;
 type Tab = (typeof TABS)[number];
@@ -31,6 +33,13 @@ export function SettingsView() {
       .then(([p, a]) => {
         setPrefs(p);
         setAccount(a);
+        // The account is the authority. A browser that remembered something
+        // else — a different machine, or a choice made elsewhere — is
+        // corrected here rather than left to disagree.
+        if (isTheme(p.theme) && p.theme !== storedTheme()) {
+          applyTheme(p.theme);
+          rememberTheme(p.theme);
+        }
       })
       .catch((e) =>
         setError(e instanceof ApiError ? e.message : "Could not load your settings."),
@@ -45,6 +54,15 @@ export function SettingsView() {
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not save that change.");
     }
+  }
+
+  async function changeTheme(theme: Theme) {
+    // Applied immediately, because a theme control that waits for a round
+    // trip feels broken. The account is still the authority: if the save
+    // fails the error is shown and the next load corrects the browser.
+    applyTheme(theme);
+    rememberTheme(theme);
+    await patch({ theme });
   }
 
   if (loading) return <LoadingState label="Loading settings" className="mt-2" />;
@@ -89,6 +107,23 @@ export function SettingsView() {
                 <option value="concise">Concise</option>
                 <option value="balanced">Balanced</option>
                 <option value="detailed">Detailed</option>
+              </Select>
+            </FormField>
+
+            <FormField
+              htmlFor="theme"
+              label="Appearance"
+              className="max-w-xs pb-3"
+              hint="Saved to your account, so it follows you between machines."
+            >
+              <Select
+                id="theme"
+                value={isTheme(prefs.theme) ? prefs.theme : "system"}
+                onChange={(e) => void changeTheme(e.target.value as Theme)}
+              >
+                <option value="system">Match my system</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
               </Select>
             </FormField>
 

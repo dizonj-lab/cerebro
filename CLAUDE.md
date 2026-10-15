@@ -51,7 +51,11 @@ docs/                                               architecture, contracts, sta
 ## Conventions
 
 - Design tokens live in `frontend/src/app/globals.css`. Never hard-code a colour
-  in a component; add or use a token.
+  in a component; add or use a token. The dark theme re-points the same tokens,
+  so a hard-coded colour breaks it — `text-white` on the accent became
+  `text-accent-ink` for exactly this reason. Appearance is a user preference
+  (`system` | `light` | `dark`), mirrored to localStorage so the first paint
+  does not flash.
 - Components layer strictly: tokens → `components/ui` primitives → CEREBRO
   components → pages. Do not style a page independently.
 - Auth logic stays out of presentation components — use `lib/api.ts` (browser)

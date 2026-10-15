@@ -67,6 +67,7 @@ No AI in this phase: `provenance.ai_enrichment` is `null` on every artifact.
 | Metadata enrichment (deterministic)    | COMPLETE |
 | Metadata enrichment (local LLM)        | COMPLETE — untested against a live Ollama |
 | Open the original document             | COMPLETE |
+| Light / dark appearance                | COMPLETE |
 | AI enrichment                          | NOT STARTED |
 | Images / OCR / audio                   | DEFERRED (P2) |
 
@@ -134,6 +135,11 @@ asserts, and the statistical fallbacks only fill what is still empty.
 
 Four rules constrain it:
 
+* **People, organizations and projects come only from a model.** Telling a
+  person from a company needs knowledge of the world, not word counts, so the
+  statistical engine never proposes them — and the model's suggestions are
+  dropped unless the document contains them verbatim. An invented person is
+  the worst thing enrichment could produce.
 * **`author` and `created_date` come only from document metadata.** They are
   claims about the world that reading the text cannot establish, so no
   engine — statistical or generative — may propose them.
@@ -142,6 +148,10 @@ Four rules constrain it:
 * **Nothing is padded.** A document with no recurring subject matter gets no
   topics, and an unclear language is left blank. A list filled out to look
   thorough is fabrication.
+* **Recurrence is the evidence, and names lead the tags.** A term must repeat
+  before it can be a topic or a tag, and words the document capitalises are
+  preferred — frequency alone surfaced words like "driven" and "represents",
+  which are true of the text and useless as tags.
 * **Suggestions are drafts.** Each field shows how it was arrived at, and
   only approval marks it `human_confirmed`.
 
@@ -171,6 +181,22 @@ would be served back as HTML from the application's own origin. PDFs and text
 open inline; Office documents download, since no browser renders them.
 Filenames are sanitised before going into a `Content-Disposition` header.
 
+### Appearance
+
+Light, dark, or follow the operating system, chosen in Settings and stored on
+the account so it follows the user between machines. The browser keeps a copy
+so the first paint is correct rather than flashing the wrong theme.
+
+Components never ask which theme is active: the design tokens re-point, and
+the components keep using the tokens. `--color-accent-ink` was added for text
+placed on the accent, because the dark theme's accent is light and white on it
+would fail contrast.
+
+Every dark pair was checked against WCAG AA on all four surfaces — the lowest
+is `ink-subtle` on `surface-subtle` at 5.54:1, against a 4.5:1 requirement —
+and axe-core runs over the dark theme in the end-to-end suite. A dark palette
+that fails contrast is worse than none: it looks considered and is not.
+
 Images, OCR and audio remain deferred.
 
 ## Verification
@@ -182,11 +208,11 @@ Images, OCR and audio remain deferred.
 | UI/UX       | APPROVED             |
 | Regression  | PASS                 |
 
-**Engineering** — Backend: 134 pytest tests green against a real PostgreSQL 16
+**Engineering** — Backend: 138 pytest tests green against a real PostgreSQL 16
 database. Frontend: `tsc --noEmit` clean, ESLint clean, production build clean.
 Kubernetes manifests parse as valid YAML.
 
-**Functional** — 49 Playwright end-to-end tests green in Chromium against the
+**Functional** — 58 Playwright end-to-end tests green in Chromium against the
 running stack (Next.js + FastAPI + PostgreSQL), covering Phase 1 TESTs 1–9 and
 the Phase 1.5 profile, preferences, consent and isolation cases.
 

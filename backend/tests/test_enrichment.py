@@ -231,3 +231,72 @@ def test_an_unreachable_model_falls_back_to_deterministic_only():
     assert result.suggestions == {}
     assert result.ai_used is False
     assert any("could not be reached" in note for note in result.notes)
+
+
+def test_tags_prefer_names_the_document_repeats():
+    """Frequency alone surfaces words like "driven". Tags should name things."""
+    from app.services.artifacts.enrichment.keyphrases import extract
+
+    text = (
+        "Acme Corp met with Globex about the Atlas migration. Atlas will move to "
+        "Acme Corp data centres in March. Globex asked for a revised Atlas timeline, "
+        "and Acme Corp agreed to send the Atlas plan. The migration covers forty "
+        "database clusters and the reporting pipeline. Database performance during "
+        "migration is the main risk, so the pipeline runs in parallel for two weeks. "
+        "Reporting must stay available throughout the migration. Globex signs off the "
+        "timeline once the database tests pass."
+    )
+    topics, tags = extract(text)
+
+    # Names, in the document's own spelling, not lowercased guesses.
+    assert "Globex" in tags
+    # Weak verbs and connectives never reach either list.
+    for junk in ("driven", "represents", "based", "across"):
+        assert junk not in tags
+        assert junk not in [t.lower() for t in topics]
+    # Topics and tags never name the same thing twice.
+    assert not ({t.lower() for t in topics} & {t.lower() for t in tags})
+
+
+def test_a_word_used_once_is_never_a_tag():
+    """A tag is a claim that the document is about something."""
+    from app.services.artifacts.enrichment.keyphrases import extract
+
+    text = (
+        "The committee approved the drainage easement for the northern parcel. "
+        "Nothing else was discussed at any length by anyone present today."
+    )
+    _topics, tags = extract(text)
+    assert tags == []
+
+
+def test_the_model_may_name_people_and_organizations_it_can_point_to():
+    """Entity recognition is the one thing statistics cannot do here."""
+    from app.services.artifacts.enrichment.llm import OllamaEnricher
+
+    text = "Acme Corp met with Globex about Atlas. Ada Lovelace led the review."
+    enricher = OllamaEnricher()
+    enricher._ask = lambda _text: {  # noqa: SLF001 - exercising the response handler
+        "people": ["Ada Lovelace", "Grace Hopper"],
+        "organizations": ["Acme Corp", "Globex", "Initech"],
+        "projects": ["Atlas"],
+    }
+
+    result = enricher.enrich(text=text, properties={}, filename="a.pdf")
+
+    # Grounded entries kept, invented ones dropped — including the invented
+    # person, which is the worst thing a model here could fabricate.
+    assert result.suggestions["people"] == ["Ada Lovelace"]
+    assert result.suggestions["organizations"] == ["Acme Corp", "Globex"]
+    assert result.suggestions["projects"] == ["Atlas"]
+    assert any("Dropped 1 suggested people" in note for note in result.notes)
+
+
+def test_statistics_never_name_people_or_organizations(client, signed_in):
+    """Telling a person from a company needs knowledge, not word counts."""
+    content = b"Ada Lovelace met Charles Babbage. Ada Lovelace wrote the notes.\n" * 3
+    body = post(client, "entities.txt", content).json()
+
+    assert body["metadata"]["people"] == []
+    assert body["metadata"]["organizations"] == []
+    assert body["metadata"]["projects"] == []

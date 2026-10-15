@@ -27,6 +27,10 @@
   --color-accent: #2a5d9f;        /* 6.64:1 against white, both directions */
   --color-accent-hover: #234f88;
   --color-accent-subtle: #eef3fa;
+  /* Text and icons placed ON the accent. A token rather than `text-white`
+     because the dark theme needs the opposite: its accent is light, and
+     white on it would fail contrast. */
+  --color-accent-ink: #ffffff;
 
   /* --- Semantic, used only where meaning demands it -------------------- */
   --color-danger: #b42318;        /* 6.57:1 */
@@ -47,9 +51,84 @@
 }
 
 /* ==========================================================================
+   Dark theme
+   The same tokens, re-pointed. Components never ask which theme is active:
+   they use the token, and the token changes. Every pair below was checked
+   against WCAG AA on all four surfaces — the lowest is ink-subtle on
+   surface-subtle at 5.54:1, against a 4.5:1 requirement.
+
+   Two selectors, in this order:
+     - `[data-theme="dark"]`  an explicit choice, which must win;
+     - the media query, for "follow the system", skipped when the user has
+       explicitly chosen light.
+   ========================================================================== */
+
+@layer theme {
+  :root[data-theme="dark"],
+  :root[data-theme="dark"] * {
+    --color-canvas: #0f1216;
+    --color-surface: #15191f;
+    --color-surface-subtle: #1b2027;
+    --color-surface-sunken: #0b0e12;
+
+    --color-ink: #e9ecf1;         /* 15.86:1 on canvas */
+    --color-ink-muted: #aab3c0;   /*  8.87:1 on canvas */
+    --color-ink-subtle: #8d97a6;  /*  6.36:1 on canvas, 5.54:1 on subtle */
+
+    --color-line: #262c35;
+    --color-line-strong: #39414d;
+
+    --color-accent: #7fa9e2;      /*  7.76:1 on canvas */
+    --color-accent-hover: #9cbdea;
+    --color-accent-subtle: #1a2534;
+    --color-accent-ink: #0f1216;  /*  7.76:1 against the accent */
+
+    --color-danger: #f08b7f;      /*  7.78:1 on canvas */
+    --color-danger-subtle: #2a1715;
+    --color-success: #5bd09b;
+
+    /* Shadows read as haze on a dark surface; depth comes from the borders
+       the components already have. */
+    --shadow-subtle: 0 1px 2px 0 rgb(0 0 0 / 0.5);
+    --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.6), 0 1px 2px -1px rgb(0 0 0 / 0.4);
+
+    color-scheme: dark;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]):not([data-theme="dark"]),
+    :root:not([data-theme="light"]):not([data-theme="dark"]) * {
+      --color-canvas: #0f1216;
+      --color-surface: #15191f;
+      --color-surface-subtle: #1b2027;
+      --color-surface-sunken: #0b0e12;
+
+      --color-ink: #e9ecf1;
+      --color-ink-muted: #aab3c0;
+      --color-ink-subtle: #8d97a6;
+
+      --color-line: #262c35;
+      --color-line-strong: #39414d;
+
+      --color-accent: #7fa9e2;
+      --color-accent-hover: #9cbdea;
+      --color-accent-subtle: #1a2534;
+      --color-accent-ink: #0f1216;
+
+      --color-danger: #f08b7f;
+      --color-danger-subtle: #2a1715;
+      --color-success: #5bd09b;
+
+      --shadow-subtle: 0 1px 2px 0 rgb(0 0 0 / 0.5);
+      --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.6), 0 1px 2px -1px rgb(0 0 0 / 0.4);
+
+      color-scheme: dark;
+    }
+  }
+}
+
+/* ==========================================================================
    Base
-   A single deliberate light theme. CEREBRO ships one consistent surface
-   rather than a partially considered dark variant.
    ========================================================================== */
 
 @layer base {

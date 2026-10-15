@@ -15,7 +15,7 @@ export default function LandingPage() {
     <div className="flex min-h-dvh flex-col">
       <a
         href="#main"
-        className="sr-only-focusable absolute left-4 top-4 z-50 rounded-md bg-accent px-3 py-2 text-sm text-white"
+        className="sr-only-focusable absolute left-4 top-4 z-50 rounded-md bg-accent px-3 py-2 text-sm text-accent-ink"
       >
         Skip to content
       </a>

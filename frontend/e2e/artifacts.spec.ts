@@ -184,9 +184,16 @@ test("a PDF's own metadata prefills the form, labelled as its own", async ({ pag
   await page.locator('input[type="file"]').setInputFiles({
     name: "revenue-report.pdf",
     mimeType: "application/pdf",
+    // Long enough for recurrence to mean something: topics and tags both
+    // require a term to repeat, so a two-line document yields neither.
     buffer: makePdf([
-      "Quarterly revenue grew twelve percent. Revenue growth was driven by",
-      "enterprise subscriptions. Enterprise customers renewed at a higher rate.",
+      "Acme Corp met with Globex about the Atlas migration. Atlas will move",
+      "to Acme Corp data centres in March. Globex asked for a revised Atlas",
+      "timeline, and Acme Corp agreed to send the Atlas plan. The migration",
+      "covers forty database clusters and the reporting pipeline. Database",
+      "performance during migration is the main risk, so the pipeline runs",
+      "in parallel. Reporting stays available throughout the migration, and",
+      "Globex signs off the timeline once the database tests pass.",
     ]),
   });
 
@@ -196,8 +203,14 @@ test("a PDF's own metadata prefills the form, labelled as its own", async ({ pag
   // the shared text.
   await expect(page.locator("#topics-hint")).toContainText(/words the document repeats/i);
   await expect(page.locator("#tags-hint")).toContainText(/words the document repeats/i);
-  await expect(page.getByLabel("Topics")).toBeVisible();
+  // Topics and tags are filled from the document, and tags keep the
+  // document's own spelling of a name rather than lowercasing it.
+  await expect(page.getByText("Atlas", { exact: true }).first()).toBeVisible();
   await expect(page.getByLabel("Tags")).toBeVisible();
+  // Entity fields exist but statistics never fill them.
+  await expect(page.getByLabel("People")).toBeVisible();
+  await expect(page.getByLabel("Organizations")).toBeVisible();
+  await expect(page.getByLabel("Projects")).toBeVisible();
   // Author is not invented for a document that does not state one.
   await expect(page.getByLabel("Author")).toHaveValue("");
 });
