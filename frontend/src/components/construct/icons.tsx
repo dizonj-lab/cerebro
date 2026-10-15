@@ -105,3 +105,45 @@ export const IconSettings = () => (
     <path d="M10 2.75v1.6M10 15.65v1.6M17.25 10h-1.6M4.35 10h-1.6M15.13 4.87l-1.13 1.13M6 14l-1.13 1.13M15.13 15.13 14 14M6 6 4.87 4.87" />
   </Icon>
 );
+
+/** Added for the dashboard shell. Same 20x20 stroke grid as the rest. */
+export const IconCollections = () => (
+  <Icon>
+    <path d="M3.5 6.5h13v9a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z" />
+    <path d="M5.5 4.5h9M6.5 2.5h7" />
+  </Icon>
+);
+
+export const IconTags = () => (
+  <Icon>
+    <path d="M10.5 3.5H16a.5.5 0 0 1 .5.5v5.5L9 17 3 11z" />
+    <circle cx="13" cy="7" r="1" />
+  </Icon>
+);
+
+export const IconAgents = () => (
+  <Icon>
+    <rect x="4.5" y="7" width="11" height="8" rx="2" />
+    <path d="M10 4.5V7M7.5 11h.01M12.5 11h.01" />
+  </Icon>
+);
+
+export const IconHelp = () => (
+  <Icon>
+    <circle cx="10" cy="10" r="7" />
+    <path d="M8.2 8a1.9 1.9 0 1 1 2.6 1.8c-.5.2-.8.6-.8 1.1v.4M10 14h.01" />
+  </Icon>
+);
+
+export const IconBell = () => (
+  <Icon>
+    <path d="M6 8.5a4 4 0 1 1 8 0c0 2.5.6 3.6 1.2 4.3.3.3.1.7-.3.7H5.1c-.4 0-.6-.4-.3-.7C5.4 12.1 6 11 6 8.5Z" />
+    <path d="M8.5 16a1.7 1.7 0 0 0 3 0" />
+  </Icon>
+);
+
+export const IconPlus = () => (
+  <Icon>
+    <path d="M10 4.5v11M4.5 10h11" />
+  </Icon>
+);

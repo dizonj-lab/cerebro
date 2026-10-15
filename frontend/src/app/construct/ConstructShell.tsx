@@ -17,6 +17,7 @@ interface ConstructShellProps {
 export function ConstructShell({ user, children }: ConstructShellProps) {
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [railCollapsed, setRailCollapsed] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
 
   async function handleLogout() {
@@ -40,6 +41,8 @@ export function ConstructShell({ user, children }: ConstructShellProps) {
         loggingOut={loggingOut}
         sidebarOpen={sidebarOpen}
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
+        railCollapsed={railCollapsed}
+        onToggleRail={() => setRailCollapsed((v) => !v)}
       />
 
       <div className="flex flex-1">
@@ -48,6 +51,7 @@ export function ConstructShell({ user, children }: ConstructShellProps) {
           loggingOut={loggingOut}
           open={sidebarOpen}
           onNavigate={() => setSidebarOpen(false)}
+          collapsed={railCollapsed}
         />
 
         {/*
@@ -63,7 +67,7 @@ export function ConstructShell({ user, children }: ConstructShellProps) {
           />
         )}
 
-        <main className="flex-1 px-6 py-10 sm:px-10">{children}</main>
+        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
       </div>
     </div>
   );

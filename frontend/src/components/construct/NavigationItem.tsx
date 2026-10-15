@@ -18,6 +18,11 @@ interface NavigationItemProps {
   nested?: boolean;
   /** When set the item navigates; otherwise it is a button. */
   href?: string;
+  /**
+   * Rail mode: the label is hidden visually but kept for screen readers, and
+   * the native tooltip carries it for sighted users.
+   */
+  collapsed?: boolean;
 }
 
 export function NavigationItem({
@@ -28,10 +33,13 @@ export function NavigationItem({
   onClick,
   nested = false,
   href,
+  collapsed = false,
 }: NavigationItemProps) {
   const classes = cn(
     "flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm",
     "transition-colors duration-150",
+    // The rail is desktop-only; the off-canvas panel keeps its labels.
+    collapsed && "lg:justify-center lg:px-0",
     nested && "pl-9",
     active
       ? "bg-accent-subtle font-medium text-accent"
@@ -46,10 +54,11 @@ export function NavigationItem({
         href={href}
         onClick={onClick}
         aria-current={active ? "page" : undefined}
+        title={collapsed ? label : undefined}
         className={classes}
       >
         {!nested && icon}
-        <span className="truncate">{label}</span>
+        <span className={cn("truncate", collapsed && "lg:sr-only")}>{label}</span>
       </Link>
     );
   }
@@ -60,11 +69,11 @@ export function NavigationItem({
       onClick={onClick}
       aria-current={active ? "page" : undefined}
       aria-disabled={placeholder || undefined}
-      title={placeholder ? `${label} — coming soon` : undefined}
+      title={placeholder ? `${label} — coming soon` : collapsed ? label : undefined}
       className={classes}
     >
       {!nested && icon}
-      <span className="truncate">{label}</span>
+      <span className={cn("truncate", collapsed && "lg:sr-only")}>{label}</span>
     </button>
   );
 }

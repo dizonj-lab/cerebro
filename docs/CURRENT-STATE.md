@@ -68,6 +68,7 @@ No AI in this phase: `provenance.ai_enrichment` is `null` on every artifact.
 | Metadata enrichment (local LLM)        | COMPLETE — untested against a live Ollama |
 | Open the original document             | COMPLETE |
 | Light / dark appearance                | COMPLETE |
+| Dashboard                              | COMPLETE — against the approved reference |
 | AI enrichment                          | NOT STARTED |
 | Images / OCR / audio                   | DEFERRED (P2) |
 
@@ -197,6 +198,35 @@ is `ink-subtle` on `surface-subtle` at 5.54:1, against a 4.5:1 requirement —
 and axe-core runs over the dark theme in the end-to-end suite. A dark palette
 that fails contrast is worse than none: it looks considered and is not.
 
+### Dashboard
+
+Built to the approved reference at `docs/design/cerebro-dashboard-reference.png`,
+in both themes. One `GET /api/dashboard` call fills every panel, so the page
+does not fan out on load, and nothing on it calls a language model.
+
+Only registered artifacts count as knowledge. An artifact awaiting review
+appears in Recent Ingestions, because the user has to act on it, but it is not
+counted as a document, a fragment or a topic.
+
+Three gaps are shown as such rather than filled with invented data:
+
+* **Projects do not exist.** The Personal/Project selector offers Project and
+  disables it, instead of relabelling personal data.
+* **No storage quota exists.** Storage shows bytes used and says "No quota
+  set"; a percentage would need a denominator we would have to invent.
+* **Notifications have no backend.** The bell renders as unavailable and never
+  carries a badge, which would be a fabricated count.
+
+The Knowledge Map draws topics joined by the documents that carry both. That
+is co-occurrence, the only relationship the data supports, and the caption
+says so — it is not a semantic graph. Assisted Recollection is the same
+evidence: the user's own topics with the documents behind them, not generated
+recommendations. Search and Galaxy have no routes yet, so those controls stay
+placeholders per CLAUDE.md.
+
+Charts are inline SVG. The project has no charting library, and a donut and a
+bar strip do not justify adding one that would then need theming and bundling.
+
 Images, OCR and audio remain deferred.
 
 ## Verification
@@ -208,7 +238,7 @@ Images, OCR and audio remain deferred.
 | UI/UX       | APPROVED             |
 | Regression  | PASS                 |
 
-**Engineering** — Backend: 138 pytest tests green against a real PostgreSQL 16
+**Engineering** — Backend: 149 pytest tests green against a real PostgreSQL 16
 database. Frontend: `tsc --noEmit` clean, ESLint clean, production build clean.
 Kubernetes manifests parse as valid YAML.
 

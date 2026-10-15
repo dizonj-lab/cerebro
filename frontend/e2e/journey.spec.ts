@@ -58,8 +58,8 @@ test("TEST 2 — new user signs up and lands in The Construct", async ({ page })
   await signUp(page, account);
 
   await expect(page).toHaveURL(/\/construct$/);
-  await expect(page.getByRole("heading", { level: 1 })).toContainText(/Good (morning|afternoon|evening)/);
-  await expect(page.getByText("Your knowledge twin begins here.")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(/Welcome back/);
+  await expect(page.getByText("Your knowledge. Connected. Discover more.")).toBeVisible();
 });
 
 test("TEST 2 — validation blocks an empty submission", async ({ page }) => {
@@ -199,7 +199,7 @@ test("TEST 7 — session survives a page refresh", async ({ page }) => {
   await page.reload();
 
   await expect(page).toHaveURL(/\/construct$/);
-  await expect(page.getByRole("heading", { level: 1 })).toContainText(/Good (morning|afternoon|evening)/);
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(/Welcome back/);
 });
 
 test("TEST 7 — an authenticated user visiting /login is sent to The Construct", async ({ page }) => {

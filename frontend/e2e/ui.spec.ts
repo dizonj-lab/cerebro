@@ -151,7 +151,7 @@ test("TEST 9 — The Construct is usable at desktop width", async ({ page }) => 
   await page.waitForURL(/\/construct$/);
 
   await expect(page.locator("nav[aria-label='Workspace']")).toBeVisible();
-  await expect(page.getByRole("heading", { level: 1 })).toContainText(/Good (morning|afternoon|evening)/);
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(/Welcome back/);
 
   const nav = page.locator("nav[aria-label='Workspace']");
 
@@ -160,8 +160,18 @@ test("TEST 9 — The Construct is usable at desktop width", async ({ page }) => 
     await expect(nav.getByRole("link", { name: item, exact: true })).toBeVisible();
   }
 
-  // Still inert placeholders for later work packages.
-  for (const item of ["Search", "Recall", "Timeline", "Galaxy", "What-If"]) {
+  // Still inert placeholders for later work packages. The menu is the one in
+  // the approved dashboard design; these have no routes yet.
+  for (const item of [
+    "Search",
+    "Galaxy",
+    "Timeline",
+    "Assisted Recollection",
+    "Collections",
+    "Tags",
+    "Agents",
+    "Help",
+  ]) {
     await expect(nav.getByRole("button", { name: item, exact: true })).toBeVisible();
   }
 });

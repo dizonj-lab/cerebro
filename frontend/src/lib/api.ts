@@ -198,6 +198,37 @@ export interface CerebroArtifact extends CerebroArtifactSummary {
   preview: string | null;
 }
 
+/** One request serves the whole dashboard. */
+export interface CerebroDashboard {
+  documents: { total: number; new_this_week: number };
+  fragments: { total: number; new_this_week: number };
+  topics: { total: number; new_this_week: number };
+  /** quota_bytes and percent stay null until a quota exists. */
+  storage: { bytes: number; quota_bytes: number | null; percent: number | null };
+  recent: {
+    id: string;
+    filename: string;
+    modality: string;
+    size_bytes: number;
+    status: CerebroArtifactSummary["status"];
+    created_at: string;
+  }[];
+  activity: { date: string; count: number }[];
+  topic_distribution: { slices: { label: string; count: number }[]; total: number };
+  knowledge_map: {
+    center: string | null;
+    nodes: { label: string; count: number }[];
+    edges: { source: string; target: string; weight: number }[];
+    /** What an edge means. Co-occurrence, not an inferred semantic relation. */
+    basis: string;
+  };
+  recollection: {
+    topic: string;
+    document_count: number;
+    artifacts: { id: string; filename: string; modality: string }[];
+  }[];
+}
+
 export const api = {
   signup: (input: { display_name: string; email: string; password: string }) =>
     request<CerebroUser>("/api/auth/signup", {
@@ -235,6 +266,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+
+  dashboard: () => request<CerebroDashboard>("/api/dashboard"),
 
   artifacts: () =>
     request<{ items: CerebroArtifactSummary[]; total: number }>("/api/artifacts"),
