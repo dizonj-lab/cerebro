@@ -4,6 +4,7 @@ namespace: cerebro
 resources:
   - 00-namespace.yaml
   - 10-postgres.yaml
+  - 15-minio.yaml
   - 20-api.yaml
   - 30-web.yaml
   - 40-ingress.yaml

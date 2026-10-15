@@ -66,7 +66,7 @@ Ordered so each package depends only on the ones above it.
 
 | # | Work package                | Adds                                                        |
 | - | --------------------------- | ----------------------------------------------------------- |
-| 2 | Artifact Ingestion          | Artifact upload; object store (MinIO); `artifacts` table; Library view |
+| ~~2~~ | ~~Artifact Ingestion~~  | **DONE** — upload, inspection, object store, review gate, registration, Library |
 | 3 | Processing pipeline         | `cerebro-worker`; event bus (Kafka); OCR, speech transcription, vision |
 | 4 | Semantic search             | Embeddings; vector store (Qdrant); Search view              |
 | 5 | Knowledge graph             | Entity and relationship extraction; graph store (Neo4j); Connect |
@@ -81,7 +81,9 @@ placeholders, so the shape of the product is visible without the functionality.
 
 1. Run `make up` on a machine with Docker and a cluster; report anything that
    fails at runtime. This is the only unproven part of the stack.
-2. Begin work package 2 — Artifact Ingestion.
+2. Begin work package 3 — the processing pipeline (worker, event bus, OCR,
+   transcription), which unlocks the non-text modalities ingestion currently
+   refuses.
 
 Completed: brand artwork supplied and in use; Kubernetes schema approved; UI
 approved; `v0.1-construct` tagged.

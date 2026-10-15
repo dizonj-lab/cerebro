@@ -62,13 +62,20 @@ function humanise(field: string): string {
   return field.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+interface RequestInitEx extends RequestInit {
+  /** Send the body untouched (FormData), letting the browser set the boundary. */
+  rawBody?: boolean;
+}
+
+async function request<T>(path: string, init?: RequestInitEx): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
       credentials: "include",
-      headers: { "Content-Type": "application/json", ...init?.headers },
+      headers: init?.rawBody
+        ? { ...init?.headers }
+        : { "Content-Type": "application/json", ...init?.headers },
     });
   } catch {
     // Network-level failure: the API is unreachable, not rejecting us.
@@ -127,6 +134,41 @@ export interface CerebroAccount {
   last_login_at: string | null;
 }
 
+export interface CerebroArtifactMetadata {
+  title: string | null;
+  description: string | null;
+  language: string | null;
+  author: string | null;
+  created_date: string | null;
+  topics: string[];
+  people: string[];
+  organizations: string[];
+  projects: string[];
+  tags: string[];
+}
+
+export interface CerebroArtifactSummary {
+  id: string;
+  filename: string;
+  modality: string;
+  size_bytes: number;
+  status: "inspected" | "approved" | "registered" | "rejected";
+  sha256: string;
+  title: string | null;
+  created_at: string;
+  registered_at: string | null;
+}
+
+export interface CerebroArtifact extends CerebroArtifactSummary {
+  content_type: string | null;
+  metadata: CerebroArtifactMetadata;
+  field_methods: Record<string, string>;
+  inspection: Record<string, never> | Record<string, unknown>;
+  provenance: Record<string, unknown>;
+  integrity: Record<string, boolean>;
+  preview: string | null;
+}
+
 export const api = {
   signup: (input: { display_name: string; email: string; password: string }) =>
     request<CerebroUser>("/api/auth/signup", {
@@ -164,4 +206,25 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+
+  artifacts: () =>
+    request<{ items: CerebroArtifactSummary[]; total: number }>("/api/artifacts"),
+
+  artifact: (id: string) => request<CerebroArtifact>(`/api/artifacts/${id}`),
+
+  uploadArtifact: (file: File) => {
+    const body = new FormData();
+    body.append("file", file);
+    // No Content-Type header: the browser must set the multipart boundary.
+    return request<CerebroArtifact>("/api/artifacts", { method: "POST", body, rawBody: true });
+  },
+
+  reviewArtifact: (id: string, input: { metadata: CerebroArtifactMetadata; approve: boolean }) =>
+    request<CerebroArtifact>(`/api/artifacts/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+
+  deleteArtifact: (id: string) =>
+    request<void>(`/api/artifacts/${id}`, { method: "DELETE" }),
 };

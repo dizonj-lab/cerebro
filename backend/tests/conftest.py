@@ -1,5 +1,6 @@
 """Test fixtures. These run against a real PostgreSQL database, not a stub."""
 import os
+import tempfile
 
 # Point the application at the test database before any app module is imported,
 # since settings are cached and the engine is created at import time.
@@ -7,14 +8,24 @@ os.environ.setdefault(
     "CEREBRO_DATABASE_URL",
     "postgresql+psycopg://cerebro:cerebro_dev_password@127.0.0.1:5432/cerebro_test",
 )
+# Artifact bytes go to a throwaway directory, never the development store.
+_TEST_STORAGE = tempfile.mkdtemp(prefix="cerebro-test-artifacts-")
+os.environ["CEREBRO_STORAGE_BACKEND"] = "filesystem"
+os.environ["CEREBRO_STORAGE_PATH"] = _TEST_STORAGE
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
+from app.core.storage import clear_filesystem_store  # noqa: E402
 from app.db.base import Base  # noqa: E402
 from app.db.session import SessionLocal, engine  # noqa: E402
 from app.main import app  # noqa: E402
-from app.models import User, UserPreferences, UserProfile  # noqa: E402,F401
+from app.models import (  # noqa: E402,F401
+    Artifact,
+    User,
+    UserPreferences,
+    UserProfile,
+)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -27,7 +38,9 @@ def _schema():
 @pytest.fixture(autouse=True)
 def _clean_users():
     """Each test starts from an empty users table."""
+    clear_filesystem_store(_TEST_STORAGE)
     with SessionLocal() as db:
+        db.query(Artifact).delete()
         db.query(UserProfile).delete()
         db.query(UserPreferences).delete()
         db.query(User).delete()
@@ -54,3 +67,20 @@ def valid_signup():
         "email": "ada@example.com",
         "password": "analytical-engine-1843",
     }
+
+
+@pytest.fixture
+def text_file():
+    """A small valid UTF-8 text artifact."""
+    return (
+        "benchmark_001.txt",
+        b"CEREBRO is a Digital Knowledge Twin.\nIt preserves provenance to source artifacts.\n",
+        "text/plain",
+    )
+
+
+@pytest.fixture
+def upload(client, text_file):
+    """Upload the sample artifact and return the response body."""
+    name, content, ctype = text_file
+    return client.post("/api/artifacts", files={"file": (name, content, ctype)}).json()

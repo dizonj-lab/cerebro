@@ -51,8 +51,10 @@ export function Sidebar({ onLogout, loggingOut = false, open = false, onNavigate
         </div>
 
         <Group label="Knowledge">
-          <NavigationItem label="Library" icon={<IconLibrary />} placeholder />
-          <NavigationItem label="Ingest" icon={<IconIngest />} placeholder />
+          <NavigationItem label="Library" icon={<IconLibrary />} href="/construct/library"
+            active={pathname.startsWith("/construct/library")} onClick={onNavigate} />
+          <NavigationItem label="Ingest" icon={<IconIngest />} href="/construct/ingest"
+            active={pathname.startsWith("/construct/ingest")} onClick={onNavigate} />
         </Group>
 
         <Group label="Retrieve">

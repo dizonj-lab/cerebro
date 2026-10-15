@@ -18,6 +18,8 @@ stringData:
   # unless this is at least 32 characters and not the built-in default.
   CEREBRO_JWT_SECRET: local-dev-only-secret-32-characters-minimum-abcdef
   CEREBRO_DATABASE_URL: postgresql+psycopg://cerebro:cerebro_dev_password@cerebro-postgres:5432/cerebro
+  CEREBRO_S3_ACCESS_KEY: cerebro
+  CEREBRO_S3_SECRET_KEY: cerebro_dev_password
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -34,6 +36,10 @@ data:
   CEREBRO_CORS_ORIGINS: http://cerebro.localhost,http://localhost:3000
   CEREBRO_COOKIE_SECURE: "false"   # set true once served over HTTPS
   CEREBRO_COOKIE_SAMESITE: lax
+  # Artifact bytes live in MinIO, addressed by in-cluster Service DNS.
+  CEREBRO_STORAGE_BACKEND: s3
+  CEREBRO_S3_ENDPOINT: cerebro-minio:9000
+  CEREBRO_S3_BUCKET: cerebro-artifacts
 ---
 apiVersion: apps/v1
 kind: Deployment

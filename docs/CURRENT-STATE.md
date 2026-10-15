@@ -1,6 +1,6 @@
 # CEREBRO — Current State
 
-Last updated: 2026-09-18 (Phase 1.5)
+Last updated: 2026-10-15 (Phase 2 — Artifact Ingestion)
 
 ## EXPERIENCE FOUNDATION
 
@@ -33,6 +33,27 @@ Connect · Reason · Recall*) is applied throughout.
 | Profile completion       | COMPLETE |
 | AI & Privacy settings    | COMPLETE (configuration only — no LLM calls) |
 
+## PHASE 2 — ARTIFACT INGESTION
+
+| Component                   | Status   |
+| --------------------------- | -------- |
+| Upload + deterministic inspection | COMPLETE |
+| Object storage (filesystem / MinIO) | COMPLETE |
+| Deterministic metadata extraction | COMPLETE |
+| Human review + approval gate | COMPLETE |
+| Registration with checksum re-verification | COMPLETE |
+| Library view                | COMPLETE |
+
+The capability modules are ported from the knowledge pipeline PoC
+(`poc/src/`, experiments EXP-INGEST-001..006), so artifacts registered by the
+application satisfy the contract the PoC benchmark validated. The port was
+checked against the PoC's own benchmark artifact: it reproduces the recorded
+SHA-256 of `ART-0001` exactly.
+
+Text only in this phase, and no AI: `provenance.ai_enrichment` is `null` on
+every artifact. Other modalities need extraction capabilities (OCR,
+transcription) that belong to a later phase.
+
 ## Verification
 
 | Dimension   | Result               |
@@ -42,11 +63,11 @@ Connect · Reason · Recall*) is applied throughout.
 | UI/UX       | APPROVED             |
 | Regression  | PASS                 |
 
-**Engineering** — Backend: 55 pytest tests green against a real PostgreSQL 16
+**Engineering** — Backend: 75 pytest tests green against a real PostgreSQL 16
 database. Frontend: `tsc --noEmit` clean, ESLint clean, production build clean.
 Kubernetes manifests parse as valid YAML.
 
-**Functional** — 39 Playwright end-to-end tests green in Chromium against the
+**Functional** — 47 Playwright end-to-end tests green in Chromium against the
 running stack (Next.js + FastAPI + PostgreSQL), covering Phase 1 TESTs 1–9 and
 the Phase 1.5 profile, preferences, consent and isolation cases.
 

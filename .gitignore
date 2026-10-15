@@ -36,3 +36,6 @@ cerebro_poc/
 .ipynb_checkpoints/
 __pycache__/
 *.pyc
+
+# Local artifact bytes (filesystem object store)
+backend/var/

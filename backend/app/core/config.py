@@ -26,6 +26,19 @@ class Settings(BaseSettings):
     # CORS — the web origin(s) permitted to call this API with credentials
     cors_origins: str = "http://localhost:3000"
 
+    # Object storage. "filesystem" locally and in tests; "s3" for MinIO in
+    # compose and Kubernetes.
+    storage_backend: str = "filesystem"
+    storage_path: str = "./var/artifacts"
+    s3_endpoint: str = "minio:9000"
+    s3_bucket: str = "cerebro-artifacts"
+    s3_access_key: str = "cerebro"
+    s3_secret_key: str = "cerebro_dev_password"
+    s3_secure: bool = False
+
+    # Upload limits
+    max_upload_bytes: int = 25 * 1024 * 1024
+
     environment: str = "development"
 
     @model_validator(mode="after")

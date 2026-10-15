@@ -99,3 +99,26 @@ Cloud AI processing requires `cloud_ai_consent`. Setting
 `ai_processing_mode: "cloud"` without it leaves the mode at `local`, and
 withdrawing consent returns the mode to `local`. The consent timestamp is
 server-set. No API credentials are stored on these records.
+
+## Phase 2 — artifacts
+
+Ownership always comes from the session. No route accepts an owner id, and
+every lookup is scoped to the authenticated user, so a guessed artifact id
+returns 404 rather than another person's document.
+
+| Method | Path                    | Notes                                              |
+| ------ | ----------------------- | -------------------------------------------------- |
+| POST   | `/api/artifacts`        | multipart upload. Inspects, stores, drafts metadata |
+| GET    | `/api/artifacts`        | The owner's library                                 |
+| GET    | `/api/artifacts/{id}`   | Detail, including a text preview                    |
+| PATCH  | `/api/artifacts/{id}`   | Save reviewed metadata; `approve: true` registers   |
+| DELETE | `/api/artifacts/{id}`   | Removes the row and the stored bytes                |
+
+Upload is refused (400) for an empty file, a file over the limit, or any
+modality other than text in this phase. Re-uploading bytes already in the
+library returns 409 — uniqueness is on `(owner_id, sha256)`.
+
+Registration fails closed. It requires human review, explicit approval, and a
+checksum that still matches the stored bytes; if the bytes have drifted since
+inspection the artifact stays unregistered and the endpoint returns 409.
+`provenance.ai_enrichment` is `null` throughout this phase.
