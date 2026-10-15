@@ -57,9 +57,10 @@ spec:
         fsGroup: 1000
       containers:
         - name: minio
-          # minio/minio no longer resolves on Docker Hub. Set this to a
-          # registry reference you can actually pull before applying.
-          image: quay.io/minio/minio:latest
+          # Replace before applying. minio/minio is 404 on Docker Hub and
+          # quay.io/minio/minio returns 401; see docs/DEVELOPMENT.md for what
+          # was verified. This manifest is not applied by default.
+          image: REPLACE_ME_WITH_A_PULLABLE_S3_IMAGE
           args: ["server", "/data", "--console-address", ":9001"]
           ports:
             - name: s3

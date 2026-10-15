@@ -142,15 +142,23 @@ MinIO is opt-in:
 CEREBRO_STORAGE_BACKEND=s3 docker compose --profile minio up -d --build
 ```
 
-**`minio/minio` no longer resolves on Docker Hub** (it returns 404), so the
-image reference is configurable via `CEREBRO_MINIO_IMAGE`. Find one you can
-pull before enabling the profile, for example:
+MinIO images are no longer anonymously pullable. Checked 2026-10-15:
 
-```bash
-docker pull quay.io/minio/minio:latest
-```
+| Reference                   | Result                          |
+| --------------------------- | ------------------------------- |
+| `minio/minio`               | 404 on Docker Hub — repo gone   |
+| `minio/mc`                  | 404 on Docker Hub — repo gone   |
+| `quay.io/minio/minio`       | 401 unauthorized                |
+| `bitnami/minio`             | repo exists, **0 tags**         |
+| `bitnamilegacy/minio`       | 1027 tags, newest `2025.7.23-debian-12-r5`, amd64 + arm64 |
 
-The same applies to `k8s/15-minio.yaml`.
+So `CEREBRO_MINIO_IMAGE` has no default and the profile refuses to start
+without one. `bitnamilegacy/minio` is the only verified-pullable option, but
+Bitnami's image uses different paths and entrypoint conventions, so the service
+definition needs adjusting for it — that has not been done or tested.
+
+None of this blocks anything: the filesystem backend is the default and the
+one the test suite covers. The same note applies to `k8s/15-minio.yaml`.
 
 ### Secrets
 

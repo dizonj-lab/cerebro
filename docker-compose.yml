@@ -90,7 +90,7 @@ services:
       api:
         condition: service_healthy
   minio:
-    image: ${CEREBRO_MINIO_IMAGE:-quay.io/minio/minio:latest}
+    image: ${CEREBRO_MINIO_IMAGE:?set CEREBRO_MINIO_IMAGE to a pullable S3 image}
     command:
     - server
     - /data
