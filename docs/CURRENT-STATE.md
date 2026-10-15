@@ -104,6 +104,7 @@ without loss.
 | PostgreSQL       | RUNNING (local cluster, `cerebro` + `cerebro_test`) |
 | cerebro-api      | RUNNING (uvicorn, port 8000)                        |
 | cerebro-web      | RUNNING (Next.js, port 3000)                        |
+| Docker Compose   | **VERIFIED** — running on the product owner's machine, 2026-10-15 |
 | Kubernetes       | SCHEMA APPROVED — **not yet applied to a cluster**      |
 | cerebro-worker   | NOT PRESENT (not required by this work package)     |
 
@@ -115,10 +116,20 @@ The manifests render with kustomize and pass `kubeconform -strict` against the
 Kubernetes 1.31 schemas (`make validate`), and the schema was approved by the
 product owner on 18 September 2026.
 
-They have still **never been applied and the images have never been built**:
-this environment has no Docker daemon and no cluster. Approval covers the
-design, not a runtime proving — `make up` on a machine with Docker and a
-cluster remains the outstanding step.
+**Docker Compose is proven.** On 2026-10-15 the product owner built the images
+and ran the four-service stack (`postgres`, `migrate`, `api`, `web`) on macOS
+with `make compose-up WEB_PORT=3100`. That is the first runtime verification of
+the containerised stack; everything before it was schema validation only.
+
+**Kubernetes is still unproven.** The manifests render with kustomize and pass
+`kubeconform -strict` against the Kubernetes 1.31 schemas (`make validate`),
+and the schema was approved on 18 September 2026 — but they have never been
+applied to a cluster. Approval covers the design, not a runtime proving;
+`make up` on a machine with a cluster remains the outstanding step.
+
+Artifact bytes use the filesystem object store, written to a Docker volume.
+MinIO is opt-in and currently has no pullable public image — see
+`docs/DEVELOPMENT.md`.
 
 An ingress controller is no longer required. The web pod proxies `/api` to the
 API service, so `make port-forward` is a complete working deployment;
