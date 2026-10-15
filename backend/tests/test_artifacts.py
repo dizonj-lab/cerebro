@@ -47,11 +47,13 @@ def test_upload_rejects_empty_file(client, signed_in):
     assert post(client, "empty.txt", b"").status_code == 400
 
 
-def test_upload_rejects_binary_in_this_phase(client, signed_in, db):
+def test_upload_rejects_a_modality_with_no_extractor(client, signed_in, db):
+    """Images need OCR, which does not exist yet. Say so, store nothing."""
     r = post(client, "image.png", b"\x89PNG\r\n\x1a\n" + b"\x00" * 64, "image/png")
     assert r.status_code == 400
-    assert "text" in r.json()["detail"].lower()
-    # Nothing is stored when inspection refuses.
+    detail = r.json()["detail"]
+    # The message names what CEREBRO can read, so the refusal is actionable.
+    assert ".pdf" in detail and ".docx" in detail
     assert db.scalars(select(Artifact)).all() == []
 
 
@@ -217,3 +219,126 @@ def test_one_user_cannot_reach_another_users_artifact(client, valid_signup, db):
 
     assert db.scalars(select(Artifact)).one().filename == "mine.txt"
     assert cookie
+
+
+# --- extraction on upload --------------------------------------------------
+
+def test_upload_extracts_a_pdf(client, signed_in, db):
+    """A PDF is uploadable, and what is reviewed is its extracted text."""
+    from tests.fixtures import make_pdf
+
+    content = make_pdf(["Provenance survives extraction.", "Page two of the source."])
+    r = post(client, "report.pdf", content, "application/pdf")
+    assert r.status_code == 201, r.text
+    body = r.json()
+
+    assert body["modality"] == "pdf"
+    assert body["extraction"]["structure"]["pages"] == 2
+    assert body["extraction"]["ai_used"] is False
+    assert body["provenance"]["text_extraction"]["adapter"] == "PdfAdapter"
+    assert body["provenance"]["ai_enrichment"] is None
+    # The preview is extracted text, not the unreadable PDF bytes.
+    assert "Provenance survives extraction." in body["preview"]
+    assert "%PDF" not in body["preview"]
+
+    # The original bytes are kept verbatim, so registration can re-verify the
+    # checksum against the source rather than against anything derived.
+    row = db.scalars(select(Artifact)).one()
+    assert get_object_store().get(row.storage_key) == content
+
+
+def test_extraction_blocks_are_stored_with_their_pages(client, signed_in, db):
+    """The derived object keeps per-block provenance for later chunking."""
+    import json
+
+    from tests.fixtures import make_pdf
+
+    post(client, "two.pdf", make_pdf(["Alpha text.", "Beta text."]), "application/pdf")
+    row = db.scalars(select(Artifact)).one()
+
+    key = row.extraction["object_key"]
+    assert key != row.storage_key
+    document = json.loads(get_object_store().get(key))
+    pages = {b["location"]["page"] for b in document["blocks"]}
+    assert pages == {1, 2}
+    assert any("Alpha" in b["text"] for b in document["blocks"])
+
+
+def test_upload_extracts_a_docx_with_sections(client, signed_in):
+    from tests.fixtures import make_docx
+
+    content = make_docx(
+        title="Knowledge Twin",
+        paragraphs=["A paragraph under the heading."],
+        table=[["Field", "Value"], ["Modality", "office"]],
+    )
+    r = post(client, "notes.docx", content, "application/vnd.openxmlformats-officedocument"
+             ".wordprocessingml.document")
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["modality"] == "office"
+    assert "A paragraph under the heading." in body["preview"]
+    assert "Modality | office" in body["preview"]
+
+
+def test_upload_extracts_a_pptx_with_notes(client, signed_in):
+    from tests.fixtures import make_pptx
+
+    content = make_pptx([("Slide one", "Body of slide one.", "Speaker notes here.")])
+    r = post(client, "deck.pptx", content, "application/vnd.openxmlformats-officedocument"
+             ".presentationml.presentation")
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["modality"] == "office"
+    assert body["extraction"]["structure"]["slides"] == 1
+    assert "Speaker notes here." in body["preview"]
+
+
+def test_upload_refuses_a_scanned_pdf_rather_than_storing_nothing(client, signed_in, db):
+    """No text layer means no retrievable content. Refuse, do not register."""
+    from tests.fixtures import make_pdf
+
+    r = post(client, "scan.pdf", make_pdf(["", ""]), "application/pdf")
+    assert r.status_code == 400
+    assert "ocr" in r.json()["detail"].lower()
+    assert db.scalars(select(Artifact)).all() == []
+
+
+def test_upload_refuses_a_file_whose_bytes_contradict_its_name(client, signed_in, db):
+    """A renamed file is caught by its signature, not trusted by extension."""
+    r = post(client, "invoice.pdf", b"\x89PNG\r\n\x1a\n" + b"\x00" * 64, "application/pdf")
+    assert r.status_code == 400
+    assert "do not match its name" in r.json()["detail"]
+    assert db.scalars(select(Artifact)).all() == []
+
+
+def test_deleting_an_artifact_removes_the_extraction_too(client, signed_in, db):
+    from tests.fixtures import make_pdf
+
+    artifact_id = post(
+        client, "gone.pdf", make_pdf(["Transient."]), "application/pdf"
+    ).json()["id"]
+    row = db.scalars(select(Artifact)).one()
+    key = row.extraction["object_key"]
+
+    assert client.delete(f"/api/artifacts/{artifact_id}").status_code == 204
+    with pytest.raises(FileNotFoundError):
+        get_object_store().get(key)
+
+
+def test_a_registered_pdf_carries_its_extraction_provenance(client, signed_in):
+    """Approval registers the artifact; extraction evidence survives it."""
+    from tests.fixtures import make_pdf
+
+    artifact_id = post(
+        client, "approved.pdf", make_pdf(["Reviewed content."]), "application/pdf"
+    ).json()["id"]
+    r = client.patch(
+        f"/api/artifacts/{artifact_id}", json={"metadata": APPROVED, "approve": True}
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "registered"
+    assert body["integrity"]["source_verified"] is True
+    assert body["extraction"]["structure"]["pages"] == 1
+    assert body["provenance"]["text_extraction"]["ai_used"] is False

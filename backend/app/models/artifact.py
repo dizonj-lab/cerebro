@@ -7,7 +7,7 @@ so a registered artifact can be audited without replaying the pipeline.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, String, func
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, String, func, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -43,6 +43,13 @@ class Artifact(Base):
     artifact_metadata: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     field_methods: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     provenance: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    # Summary of text extraction: which adapter ran, how much it found, where
+    # the full result is stored. The blocks themselves are a derived object in
+    # the object store, not a row payload — a long PDF would otherwise put
+    # megabytes of text in every library query.
+    extraction: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
     integrity: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
 
     registered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

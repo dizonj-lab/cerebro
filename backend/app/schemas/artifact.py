@@ -77,6 +77,7 @@ class ArtifactDetail(ArtifactSummary):
     metadata: ArtifactMetadata
     field_methods: dict = Field(default_factory=dict)
     inspection: dict = Field(default_factory=dict)
+    extraction: dict = Field(default_factory=dict)
     provenance: dict = Field(default_factory=dict)
     integrity: dict = Field(default_factory=dict)
     # Short preview of the stored text, for the review screen.

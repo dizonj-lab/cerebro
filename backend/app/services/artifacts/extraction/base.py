@@ -40,6 +40,17 @@ class Block:
     # "paragraph" | "heading" | "table" | "notes" | "body"
     kind: str = "body"
 
+    def as_dict(self) -> dict:
+        return {"text": self.text, "kind": self.kind, "location": self.location.as_dict()}
+
+    @classmethod
+    def from_dict(cls, raw: dict) -> Block:
+        return cls(
+            text=raw["text"],
+            kind=raw.get("kind", "body"),
+            location=SourceLocation(**raw.get("location", {})),
+        )
+
 
 @dataclass
 class ExtractionResult:
@@ -62,6 +73,22 @@ class ExtractionResult:
             "ai_used": False,
         }
 
+    def as_document(self) -> dict:
+        """The full result, blocks included — for storage, not for a row.
+
+        `as_dict` is the summary that goes on the artifact; this is what gets
+        written to the object store and read back to chunk.
+        """
+        return {**self.as_dict(), "blocks": [b.as_dict() for b in self.blocks]}
+
+    @classmethod
+    def from_document(cls, raw: dict) -> ExtractionResult:
+        return cls(
+            blocks=[Block.from_dict(b) for b in raw.get("blocks", [])],
+            structure=raw.get("structure", {}),
+            errors=raw.get("errors", []),
+        )
+
 
 class ExtractionFailed(ValueError):
     """The adapter could not read this artifact."""
@@ -72,5 +99,9 @@ class ExtractionAdapter(Protocol):
 
     modality: str
     extensions: tuple[str, ...]
+    # What `inspect_artifact` should have detected from the bytes for this
+    # extension. The filename is a claim; these are the evidence that backs
+    # it, so a .exe renamed to .pdf is refused instead of extracted.
+    signature_modalities: tuple[str, ...]
 
     def extract(self, content: bytes, *, filename: str) -> ExtractionResult: ...

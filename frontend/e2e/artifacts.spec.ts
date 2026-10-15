@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { makeAccount, signUp } from "./helpers";
+import { makePdf } from "./pdf";
 
 test.beforeEach(async ({ page }) => {
   page.on("console", (msg) => {
@@ -49,14 +50,16 @@ test("upload inspects the file and drafts metadata without AI", async ({ page })
   await expect(page.getByText(/Digital Knowledge Twin/).first()).toBeVisible();
 });
 
-test("binary files are refused in this phase", async ({ page }) => {
+test("a modality with no extractor is refused, and says what is supported", async ({ page }) => {
   await signedIn(page, "a-binary");
   await page.goto("/construct/ingest");
   await page.locator('input[type="file"]').setInputFiles({
     name: "image.png", mimeType: "image/png",
     buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]),
   });
-  await expect(page.getByTestId("form-error")).toContainText(/text artifacts/i);
+  // Images need OCR, which does not exist yet. The refusal names what does.
+  await expect(page.getByTestId("form-error")).toContainText(/cannot read this file type/i);
+  await expect(page.getByTestId("form-error")).toContainText(/\.pdf/);
 });
 
 test("review, register, and the artifact becomes trusted", async ({ page }) => {
@@ -129,4 +132,46 @@ test("one user never sees another user's artifacts", async ({ browser }) => {
 
   await a.close();
   await b.close();
+});
+
+
+// --- extraction -----------------------------------------------------------
+
+test("a PDF is uploadable and reviewed as its extracted text", async ({ page }) => {
+  await signedIn(page, "a-pdf");
+  await page.goto("/construct/ingest");
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "source-report.pdf",
+    mimeType: "application/pdf",
+    buffer: makePdf(["CEREBRO end to end extraction.", "Second line of the source."]),
+  });
+
+  await expect(page.getByRole("heading", { name: "Review artifact" })).toBeVisible();
+  await expect(page.getByText("source-report.pdf").first()).toBeVisible();
+  // What the human reviews is the extracted text, and the screen says so.
+  await expect(page.getByText(/Extracted text from 1 page/)).toBeVisible();
+  await expect(page.getByText(/CEREBRO end to end extraction/).first()).toBeVisible();
+  await expect(page.getByText("no AI has read this artifact")).toBeVisible();
+
+  // It registers like any other artifact, and reaches the library.
+  await page.getByLabel("Title").fill("Source Report");
+  await page.getByRole("button", { name: /confirm and register/i }).click();
+  await expect(page.getByText(/checksum-verified/i)).toBeVisible();
+
+  await page.goto("/construct/library");
+  await expect(page.getByText("Source Report")).toBeVisible();
+});
+
+test("a file whose bytes contradict its name is refused", async ({ page }) => {
+  await signedIn(page, "a-renamed");
+  await page.goto("/construct/ingest");
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "invoice.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47]), Buffer.alloc(64)]),
+  });
+
+  await expect(page.getByText(/do not match its name/)).toBeVisible();
+  // Nothing was stored, so the upload surface is still offered.
+  await expect(page.getByRole("button", { name: "Choose a file" })).toBeVisible();
 });

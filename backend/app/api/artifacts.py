@@ -44,6 +44,7 @@ def _detail(a: Artifact, *, preview: bool = True) -> ArtifactDetail:
         metadata=ArtifactMetadata(**(a.artifact_metadata or {})),
         field_methods=a.field_methods or {},
         inspection=a.inspection or {},
+        extraction=a.extraction or {},
         provenance=a.provenance or {},
         integrity=a.integrity or {},
         preview=service.preview_text(a) if preview else None,

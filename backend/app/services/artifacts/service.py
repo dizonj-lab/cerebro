@@ -4,7 +4,9 @@ Sequences the ported PoC capabilities and persists the result. Owns no
 inspection or registration logic of its own — those stay in their modules
 so the contract the PoC validated is the one the application enforces.
 """
+import json
 import uuid
+from contextlib import suppress
 from datetime import UTC, datetime
 
 from sqlalchemy import func, select
@@ -12,6 +14,12 @@ from sqlalchemy.orm import Session
 
 from app.core.storage import get_object_store
 from app.models.artifact import Artifact
+from app.services.artifacts.extraction import (
+    SUPPORTED_EXTENSIONS,
+    ExtractionFailed,
+    ExtractionResult,
+    adapter_for,
+)
 from app.services.artifacts.inspection import inspect_artifact
 from app.services.artifacts.metadata import extract_text_metadata
 from app.services.artifacts.registration import RegistrationRejected, register_artifact
@@ -35,6 +43,52 @@ def _storage_key(owner_id: uuid.UUID, artifact_id: uuid.UUID, filename: str) -> 
     return f"{owner_id}/{artifact_id}.{safe}"
 
 
+def _extraction_key(storage_key: str) -> str:
+    """Key of the derived extraction result beside the original bytes."""
+    return f"{storage_key}.extraction.json"
+
+
+def _select_adapter(filename: str, inspection: dict):
+    """Pick the extraction adapter, refusing anything the bytes contradict."""
+    adapter = adapter_for(filename)
+    if adapter is None:
+        raise ArtifactRejected(
+            "CEREBRO cannot read this file type yet. Supported: "
+            f"{', '.join(SUPPORTED_EXTENSIONS)}. Images and audio need OCR and "
+            "transcription, which arrive in a later phase."
+        )
+
+    detected = inspection["identification"]["detected_modality"]
+    if detected not in adapter.signature_modalities:
+        # The extension claims one thing and the bytes show another. Trust the
+        # bytes: extracting on the strength of a filename is how a renamed
+        # file gets treated as a document.
+        raise ArtifactRejected(
+            f"The contents of this file do not match its name: it is named like "
+            f"{adapter.modality} but its bytes look like '{detected}'."
+        )
+    return adapter
+
+
+def _extraction_summary(result: ExtractionResult, *, adapter, key: str) -> dict:
+    return {**result.as_dict(), "modality": adapter.modality, "object_key": key}
+
+
+def extracted_document(artifact: Artifact) -> ExtractionResult | None:
+    """Read back the stored extraction, or None if it is not retrievable."""
+    key = (artifact.extraction or {}).get("object_key")
+    if not key:
+        return None
+    try:
+        raw = get_object_store().get(key)
+    except FileNotFoundError:
+        return None
+    try:
+        return ExtractionResult.from_document(json.loads(raw.decode("utf-8")))
+    except (ValueError, KeyError):
+        return None
+
+
 def ingest(
     db: Session, *, owner_id: uuid.UUID, filename: str, content: bytes,
     content_type: str | None, max_bytes: int,
@@ -52,14 +106,8 @@ def ingest(
         )
 
     inspection = inspect_artifact(filename, content)
-    modality = inspection["identification"]["detected_modality"]
-
-    # This phase handles text only. Other modalities need extraction
-    # capabilities (OCR, transcription) that belong to a later phase.
-    if modality != "text":
-        raise ArtifactRejected(
-            f"Only text artifacts are supported in this phase; detected '{modality}'."
-        )
+    adapter = _select_adapter(filename, inspection)
+    modality = adapter.modality
 
     sha256 = inspection["file"]["sha256"]
     existing = db.scalar(
@@ -68,13 +116,26 @@ def ingest(
     if existing is not None:
         raise DuplicateArtifact(existing.filename)
 
-    # Safe: inspection has already confirmed valid UTF-8 for text modality.
-    text = content.decode("utf-8")
-    md = extract_text_metadata(filename=filename, text=text, sha256=sha256)
+    # Extract before storing anything. A file whose text cannot be read is
+    # refused outright rather than registered as an empty artifact — an
+    # artifact with no retrievable content is worse than no artifact.
+    try:
+        extracted = adapter.extract(content, filename=filename)
+    except ExtractionFailed as exc:
+        raise ArtifactRejected(str(exc)) from None
+
+    md = extract_text_metadata(filename=filename, text=extracted.text, sha256=sha256)
 
     artifact_id = uuid.uuid4()
     key = _storage_key(owner_id, artifact_id, filename)
-    uri = get_object_store().put(key, content)
+    store = get_object_store()
+    uri = store.put(key, content)
+    # Blocks keep their page or slide, so a chunk built from them later can
+    # still point back at where in the document it came from.
+    store.put(
+        _extraction_key(key),
+        json.dumps(extracted.as_document(), ensure_ascii=False).encode("utf-8"),
+    )
 
     artifact = Artifact(
         id=artifact_id,
@@ -90,9 +151,15 @@ def ingest(
         inspection=inspection,
         artifact_metadata=md["extracted_metadata"],
         field_methods=md["field_methods"],
+        extraction=_extraction_summary(extracted, adapter=adapter, key=_extraction_key(key)),
         provenance={
             "inspection": md["provenance"]["method"],
             "extraction": "deterministic_metadata_extraction",
+            "text_extraction": {
+                "method": "deterministic_extraction",
+                "adapter": type(adapter).__name__,
+                "ai_used": False,
+            },
             "ai_enrichment": None,
             "human_review": None,
             "registration": None,
@@ -195,17 +262,33 @@ def review(db: Session, artifact: Artifact, *, metadata: dict, approve: bool) ->
 
 
 def preview_text(artifact: Artifact) -> str | None:
-    """First characters of the stored text, for the review screen."""
-    if artifact.modality != "text":
-        return None
-    try:
-        raw = get_object_store().get(artifact.storage_key)
-    except FileNotFoundError:
-        return None
-    return raw.decode("utf-8", errors="replace")[:PREVIEW_CHARS]
+    """First characters of the extracted text, for the review screen.
+
+    The extracted text, not the raw bytes: a PDF's bytes are not readable,
+    and the extracted text is what the rest of the pipeline will work from,
+    so it is also what the human should be reviewing.
+    """
+    document = extracted_document(artifact)
+    if document is None:
+        # Artifacts registered before extraction was wired in have no derived
+        # object. Their bytes were text, so they can be read directly.
+        if artifact.modality != "text":
+            return None
+        try:
+            raw = get_object_store().get(artifact.storage_key)
+        except FileNotFoundError:
+            return None
+        return raw.decode("utf-8", errors="replace")[:PREVIEW_CHARS]
+    return document.text[:PREVIEW_CHARS]
 
 
 def delete(db: Session, artifact: Artifact) -> None:
-    get_object_store().delete(artifact.storage_key)
+    store = get_object_store()
+    key = (artifact.extraction or {}).get("object_key")
+    if key:
+        # Derived data, so a missing object is not a failure worth surfacing.
+        with suppress(FileNotFoundError):
+            store.delete(key)
+    store.delete(artifact.storage_key)
     db.delete(artifact)
     db.flush()

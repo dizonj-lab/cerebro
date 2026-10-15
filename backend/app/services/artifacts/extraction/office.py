@@ -16,6 +16,7 @@ from app.services.artifacts.extraction.base import (
 
 class DocxAdapter:
     modality = "office"
+    signature_modalities = ("container",)
     extensions = (".docx",)
 
     def extract(self, content: bytes, *, filename: str) -> ExtractionResult:
@@ -85,6 +86,7 @@ class DocxAdapter:
 
 class PptxAdapter:
     modality = "office"
+    signature_modalities = ("container",)
     extensions = (".pptx",)
 
     def extract(self, content: bytes, *, filename: str) -> ExtractionResult:

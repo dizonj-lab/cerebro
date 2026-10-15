@@ -1,6 +1,6 @@
 # CEREBRO — Current State
 
-Last updated: 2026-10-15 (Phase 2 — Artifact Ingestion)
+Last updated: 2026-10-15 (Phase 3 — Multimodal Ingestion, increment 1)
 
 ## EXPERIENCE FOUNDATION
 
@@ -51,9 +51,40 @@ application satisfy the contract the PoC benchmark validated. The port was
 checked against the PoC's own benchmark artifact: it reproduces the recorded
 SHA-256 of `ART-0001` exactly.
 
-Text only in this phase, and no AI: `provenance.ai_enrichment` is `null` on
-every artifact. Other modalities need extraction capabilities (OCR,
-transcription) that belong to a later phase.
+No AI in this phase: `provenance.ai_enrichment` is `null` on every artifact.
+
+## PHASE 3 — MULTIMODAL INGESTION
+
+| Component                              | Status   |
+| -------------------------------------- | -------- |
+| Extraction adapters (PDF, DOCX, PPTX, text) | COMPLETE |
+| Block-level source locations           | COMPLETE |
+| Chunking                               | COMPLETE (not yet consumed) |
+| Extraction wired into upload           | COMPLETE |
+| Knowledge fragments + embeddings       | NOT STARTED |
+| Semantic search                        | NOT STARTED |
+| AI enrichment                          | NOT STARTED |
+| Images / OCR / audio                   | DEFERRED (P2) |
+
+PDF, Word, PowerPoint, plain text and Markdown are uploadable. Extraction is
+deterministic — `pypdf`, `python-docx`, `python-pptx`, no AI and no network —
+and every block keeps the page, slide or section it came from, so a chunk
+built from it later can still point back at the source.
+
+Two refusals are deliberate. A PDF with no text layer is rejected rather than
+registered empty: an artifact with no retrievable content is worse than no
+artifact, and OCR is a later phase. And a file whose bytes contradict its
+extension is rejected, so renaming an image to `.pdf` does not get it treated
+as a document.
+
+The extracted blocks are a derived object in the object store, beside the
+original bytes and keyed `<storage_key>.extraction.json`. The artifact row
+carries only a summary, so a library query does not drag megabytes of
+document text with it. The original bytes are stored verbatim, so
+registration still re-verifies the checksum against the source rather than
+against anything derived.
+
+Images, OCR and audio remain deferred.
 
 ## Verification
 
@@ -64,11 +95,11 @@ transcription) that belong to a later phase.
 | UI/UX       | APPROVED             |
 | Regression  | PASS                 |
 
-**Engineering** — Backend: 75 pytest tests green against a real PostgreSQL 16
+**Engineering** — Backend: 97 pytest tests green against a real PostgreSQL 16
 database. Frontend: `tsc --noEmit` clean, ESLint clean, production build clean.
 Kubernetes manifests parse as valid YAML.
 
-**Functional** — 47 Playwright end-to-end tests green in Chromium against the
+**Functional** — 49 Playwright end-to-end tests green in Chromium against the
 running stack (Next.js + FastAPI + PostgreSQL), covering Phase 1 TESTs 1–9 and
 the Phase 1.5 profile, preferences, consent and isolation cases.
 

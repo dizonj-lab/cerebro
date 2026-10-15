@@ -15,6 +15,7 @@ from app.services.artifacts.extraction.base import (
 
 class PdfAdapter:
     modality = "pdf"
+    signature_modalities = ("pdf",)
     extensions = (".pdf",)
 
     def extract(self, content: bytes, *, filename: str) -> ExtractionResult:

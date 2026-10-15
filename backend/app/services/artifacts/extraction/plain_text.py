@@ -9,6 +9,7 @@ from app.services.artifacts.extraction.base import (
 
 class PlainTextAdapter:
     modality = "text"
+    signature_modalities = ("text",)
     extensions = (".txt", ".md", ".markdown")
 
     def extract(self, content: bytes, *, filename: str) -> ExtractionResult:

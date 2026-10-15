@@ -159,11 +159,25 @@ export interface CerebroArtifactSummary {
   registered_at: string | null;
 }
 
+/** Summary of deterministic text extraction. Empty for artifacts ingested
+ *  before extraction was wired into upload. */
+export interface CerebroArtifactExtraction {
+  block_count?: number;
+  character_count?: number;
+  structure?: Record<string, number>;
+  errors?: string[];
+  method?: string;
+  ai_used?: boolean;
+  modality?: string;
+  object_key?: string;
+}
+
 export interface CerebroArtifact extends CerebroArtifactSummary {
   content_type: string | null;
   metadata: CerebroArtifactMetadata;
   field_methods: Record<string, string>;
   inspection: Record<string, never> | Record<string, unknown>;
+  extraction: CerebroArtifactExtraction;
   provenance: Record<string, unknown>;
   integrity: Record<string, boolean>;
   preview: string | null;

@@ -14,7 +14,11 @@ import { LoadingState } from "@/components/ui/LoadingState";
 import { TagInput } from "@/components/ui/TagInput";
 import { Textarea } from "@/components/ui/Textarea";
 import { ApiError, api } from "@/lib/api";
-import type { CerebroArtifact, CerebroArtifactMetadata } from "@/lib/api";
+import type {
+  CerebroArtifact,
+  CerebroArtifactExtraction,
+  CerebroArtifactMetadata,
+} from "@/lib/api";
 import { cn } from "@/lib/cn";
 
 const EMPTY: CerebroArtifactMetadata = {
@@ -28,6 +32,17 @@ function toDraft(m: CerebroArtifactMetadata): CerebroArtifactMetadata {
     title: m.title ?? "", description: m.description ?? "",
     language: m.language ?? "", author: m.author ?? "", created_date: m.created_date ?? "",
   };
+}
+
+// Names what the extractor actually found. Nothing is inferred: an artifact
+// ingested before extraction was wired in reports no structure at all rather
+// than a fabricated page count.
+function describeStructure(extraction: CerebroArtifactExtraction): string {
+  const structure = extraction.structure ?? {};
+  const counts = (["pages", "slides", "paragraphs"] as const)
+    .filter((k) => typeof structure[k] === "number")
+    .map((k) => `${structure[k]} ${structure[k] === 1 ? k.slice(0, -1) : k}`);
+  return counts.length > 0 ? `from ${counts.join(", ")}` : "";
 }
 
 function IngestInner() {
@@ -101,7 +116,7 @@ function IngestInner() {
         description={
           artifact
             ? "CEREBRO inspected the file and drafted what it could establish. Confirm it before registering."
-            : "Add a text document. Nothing is registered until you confirm what CEREBRO got right."
+            : "Add a document. Nothing is registered until you confirm what CEREBRO got right."
         }
         action={
           <Link href="/construct/library">
@@ -127,15 +142,16 @@ function IngestInner() {
             dragging ? "border-accent bg-accent-subtle" : "border-line-strong bg-surface-subtle",
           )}
         >
-          <p className="text-sm font-medium text-ink">Drop a text file here</p>
+          <p className="text-sm font-medium text-ink">Drop a document here</p>
           <p className="mx-auto mt-1.5 max-w-sm text-xs text-ink-muted">
-            Plain text and Markdown, up to 25MB. Other formats need extraction capabilities that
-            arrive in a later phase.
+            PDF, Word, PowerPoint, plain text and Markdown, up to 25MB. Text is extracted
+            deterministically — no AI reads your document. Scanned pages and audio need OCR and
+            transcription, which arrive in a later phase.
           </p>
           <input
             ref={fileRef}
             type="file"
-            accept=".txt,.md,text/plain,text/markdown"
+            accept=".pdf,.docx,.pptx,.txt,.md,.markdown,application/pdf,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation"
             className="sr-only"
             onChange={(e) => {
               const f = e.target.files?.[0];
@@ -169,13 +185,19 @@ function IngestInner() {
             </div>
 
             {artifact.preview && (
+              <p className="mt-4 text-xs font-medium text-ink-muted">
+                Extracted text {describeStructure(artifact.extraction)}
+              </p>
+            )}
+
+            {artifact.preview && (
               <pre className="mt-4 max-h-36 overflow-auto rounded-md border border-line bg-surface p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap text-ink-muted">
                 {artifact.preview}
               </pre>
             )}
 
             <p className="mt-3 text-xs text-ink-subtle">
-              Inspected deterministically — no AI has read this artifact.
+              Inspected and extracted deterministically — no AI has read this artifact.
             </p>
           </section>
 

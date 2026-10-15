@@ -87,6 +87,16 @@ docs/                                               architecture, contracts, sta
   set to 32+ characters.
 - Sidebar items other than Dashboard are inert placeholders for future work
   packages. Do not wire them up without an explicit work package.
+- Extracted text is a **derived object** in the object store, keyed
+  `<storage_key>.extraction.json`; the artifact row holds only a summary in
+  `extraction`. Never put document text on the row — a library query would
+  then carry megabytes of it. The original bytes are stored verbatim so
+  registration re-verifies the checksum against the source, never the derived
+  text.
+- An upload is refused when the bytes contradict the extension, and when a PDF
+  has no text layer. Both are deliberate: the filename is a claim and the bytes
+  are the evidence, and an artifact with no retrievable content must not enter
+  the library.
 - Brand name, tagline and pillars come from the `BRAND` constant in
   `src/components/brand/Logo.tsx`. Do not retype them in a page.
 - The brand mark is the supplied artwork at `public/brand/cerebro-mark.png`.
