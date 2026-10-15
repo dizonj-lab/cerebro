@@ -229,6 +229,82 @@ export interface CerebroDashboard {
   }[];
 }
 
+/* --- Knowledge Galaxy ---------------------------------------------------- */
+
+export interface GraphNode {
+  id: string;
+  label: string;
+  /** "cluster" (a confirmed topic) or "fragment" (a knowledge fragment). */
+  type: "cluster" | "fragment";
+  category: string;
+  document_count: number;
+  fragment_count: number;
+  relationship_count: number;
+  provenance: string;
+  source_artifact_id: string | null;
+  source_fragment_id: string | null;
+  source_location: Record<string, number | string> | null;
+  source_filename: string | null;
+  source_title: string | null;
+  excerpt: string | null;
+  kind: string | null;
+}
+
+export interface GraphEdge {
+  id: string;
+  source: string;
+  target: string;
+  /** "co_occurrence" or "contains" — never a verified semantic relation. */
+  kind: string;
+  weight: number;
+  relevance: string;
+}
+
+export interface CerebroGalaxy {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  clusters: string[];
+  truncated: boolean;
+}
+
+export interface CerebroNodeDetails {
+  id: string;
+  label: string;
+  type: string;
+  category: string;
+  description: string | null;
+  provenance: string;
+  fragment_count: number;
+  document_count: number;
+  created_at: string | null;
+  source_artifact_id: string | null;
+  source_fragment_id: string | null;
+  source_location: Record<string, number | string> | null;
+  related: { id: string; label: string; relevance: string; explanation: string }[];
+  documents: {
+    artifact_id: string;
+    filename: string;
+    title: string | null;
+    source_location: Record<string, number | string> | null;
+    excerpt: string | null;
+  }[];
+  people: { name: string; documents: string[] }[];
+}
+
+export interface CerebroTimelineEvent {
+  id: string;
+  artifact_id: string;
+  title: string;
+  filename: string;
+  date: string;
+  /** Where the date came from. Never inferred. */
+  basis: "document_metadata" | "registered_at";
+  category: string;
+  topics: string[];
+  description: string | null;
+  modality: string;
+}
+
 export const api = {
   signup: (input: { display_name: string; email: string; password: string }) =>
     request<CerebroUser>("/api/auth/signup", {
@@ -268,6 +344,18 @@ export const api = {
     }),
 
   dashboard: () => request<CerebroDashboard>("/api/dashboard"),
+
+  galaxy: () => request<CerebroGalaxy>("/api/graph"),
+
+  /** One cluster's fragments, fetched when it is opened. */
+  expandCluster: (topic: string) =>
+    request<CerebroGalaxy>(`/api/graph/expand?topic=${encodeURIComponent(topic)}`),
+
+  graphNode: (id: string) =>
+    request<CerebroNodeDetails>(`/api/graph/node?id=${encodeURIComponent(id)}`),
+
+  knowledgeTimeline: () =>
+    request<{ events: CerebroTimelineEvent[] }>("/api/graph/timeline"),
 
   artifacts: () =>
     request<{ items: CerebroArtifactSummary[]; total: number }>("/api/artifacts"),

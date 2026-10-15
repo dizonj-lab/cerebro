@@ -90,7 +90,7 @@ export function DashboardView({ firstName, focus, profile }: DashboardViewProps)
             </Card>
 
             <Card className="min-w-0 lg:col-span-1">
-              <CardHeader title="Knowledge Map" action="View Galaxy" />
+              <CardHeader title="Knowledge Map" action="View Galaxy" href="/construct/galaxy" />
               {loading ? <Skeleton className="h-[210px]" /> : data && <KnowledgeMap graph={data.knowledge_map} />}
             </Card>
 

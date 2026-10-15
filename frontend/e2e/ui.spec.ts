@@ -156,7 +156,7 @@ test("TEST 9 — The Construct is usable at desktop width", async ({ page }) => 
   const nav = page.locator("nav[aria-label='Workspace']");
 
   // Wired-up destinations are links.
-  for (const item of ["Library", "Ingest", "Profile", "Settings"]) {
+  for (const item of ["Library", "Ingest", "Galaxy", "Profile", "Settings"]) {
     await expect(nav.getByRole("link", { name: item, exact: true })).toBeVisible();
   }
 
@@ -164,7 +164,6 @@ test("TEST 9 — The Construct is usable at desktop width", async ({ page }) => 
   // the approved dashboard design; these have no routes yet.
   for (const item of [
     "Search",
-    "Galaxy",
     "Timeline",
     "Assisted Recollection",
     "Collections",

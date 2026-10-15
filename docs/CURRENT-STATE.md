@@ -69,6 +69,9 @@ No AI in this phase: `provenance.ai_enrichment` is `null` on every artifact.
 | Open the original document             | COMPLETE |
 | Light / dark appearance                | COMPLETE |
 | Dashboard                              | COMPLETE — against the approved reference |
+| Knowledge Galaxy (P0)                  | COMPLETE |
+| Knowledge Timeline                     | COMPLETE |
+| Assisted Recollection chat (P2)        | NOT STARTED |
 | AI enrichment                          | NOT STARTED |
 | Images / OCR / audio                   | DEFERRED (P2) |
 
@@ -227,7 +230,35 @@ placeholders per CLAUDE.md.
 Charts are inline SVG. The project has no charting library, and a donut and a
 bar strip do not justify adding one that would then need theming and bundling.
 
-Images, OCR and audio remain deferred.
+### Knowledge Galaxy and Timeline
+
+`/construct/galaxy`, built to the approved reference. Clusters are topics a
+human confirmed on registered artifacts; opening one fetches its fragments,
+each resolving to artifact, fragment and source location. Details are fetched
+per node and cached, so the whole graph is never loaded.
+
+**No edge is a verified semantic relationship, and none is presented as one.**
+Cluster edges are co-occurrence — a registered document carries both topics —
+and the panel says exactly that for every relationship. Relevance is words
+("Highly Related", "Related", "Potential Connection"), never a percentage
+posing as certainty. People appear only where a human confirmed them; none are
+inferred.
+
+Timeline dates are the date the document states, or the date it was
+registered, and which one is always shown. No date is inferred.
+
+Rendered as SVG: the node count is capped server-side at a couple of dozen,
+which SVG handles comfortably while keeping nodes focusable and hoverable
+without custom hit-testing. The layout is a deterministic radial arrangement,
+not a force simulation, so there is no animation loop behind the view. If the
+caps are raised past a few hundred nodes, `GalaxyCanvas` is the piece to
+replace — `layout.ts` is already separate for that.
+
+Nothing on the screen calls a language model, including on hover.
+
+Known gaps: the Assisted Recollection chat (P2) is not built — no chat or RAG
+service exists yet. Search, Timeline, Collections, Tags and Agents in the
+sidebar still have no routes.
 
 ## Verification
 
@@ -238,7 +269,7 @@ Images, OCR and audio remain deferred.
 | UI/UX       | APPROVED             |
 | Regression  | PASS                 |
 
-**Engineering** — Backend: 149 pytest tests green against a real PostgreSQL 16
+**Engineering** — Backend: 163 pytest tests green against a real PostgreSQL 16
 database. Frontend: `tsc --noEmit` clean, ESLint clean, production build clean.
 Kubernetes manifests parse as valid YAML.
 
