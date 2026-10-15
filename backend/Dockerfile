@@ -22,6 +22,17 @@ COPY alembic ./alembic
 
 # Run as an unprivileged user.
 RUN useradd --create-home --uid 10001 cerebro
+
+# The filesystem object store's root, created here and owned by the runtime
+# user. This is not cosmetic: a named volume or an emptyDir mounted over a path
+# that does not exist in the image is created owned by root, and the API —
+# running as uid 10001 — then cannot create the per-owner directory inside it.
+# Uploads fail with a bare 500. Docker initialises an empty named volume from
+# the image's directory, ownership included, so creating it here is what makes
+# the mount writable.
+ENV CEREBRO_STORAGE_PATH=/data/artifacts
+RUN mkdir -p /data/artifacts && chown -R 10001:10001 /data
+
 USER cerebro
 
 EXPOSE 8000

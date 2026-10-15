@@ -5,6 +5,7 @@ inspection or registration logic of its own — those stay in their modules
 so the contract the PoC validated is the one the application enforces.
 """
 import json
+import logging
 import uuid
 from contextlib import suppress
 from datetime import UTC, datetime
@@ -24,11 +25,22 @@ from app.services.artifacts.inspection import inspect_artifact
 from app.services.artifacts.metadata import extract_text_metadata
 from app.services.artifacts.registration import RegistrationRejected, register_artifact
 
+logger = logging.getLogger(__name__)
+
 PREVIEW_CHARS = 1200
 
 
 class ArtifactRejected(ValueError):
     """Upload refused before anything was stored."""
+
+
+class ArtifactStorageUnavailable(RuntimeError):
+    """The bytes could not be written to the object store.
+
+    Distinct from a rejection: nothing is wrong with the artifact. Raised so
+    the API can say the store is the problem rather than returning a bare 500,
+    which reaches the browser as plain text and renders as a generic error.
+    """
 
 
 class DuplicateArtifact(ValueError):
@@ -129,13 +141,18 @@ def ingest(
     artifact_id = uuid.uuid4()
     key = _storage_key(owner_id, artifact_id, filename)
     store = get_object_store()
-    uri = store.put(key, content)
-    # Blocks keep their page or slide, so a chunk built from them later can
-    # still point back at where in the document it came from.
-    store.put(
-        _extraction_key(key),
-        json.dumps(extracted.as_document(), ensure_ascii=False).encode("utf-8"),
-    )
+    try:
+        uri = store.put(key, content)
+        # Blocks keep their page or slide, so a chunk built from them later can
+        # still point back at where in the document it came from.
+        store.put(
+            _extraction_key(key),
+            json.dumps(extracted.as_document(), ensure_ascii=False).encode("utf-8"),
+        )
+    except OSError as exc:
+        # The path is in the message, so it is logged rather than returned.
+        logger.exception("Artifact storage write failed for key %s", key)
+        raise ArtifactStorageUnavailable(str(exc)) from None
 
     artifact = Artifact(
         id=artifact_id,

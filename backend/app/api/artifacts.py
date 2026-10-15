@@ -72,6 +72,14 @@ async def upload(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"This file is already in your library as '{exc}'.",
         ) from None
+    except service.ArtifactStorageUnavailable:
+        db.rollback()
+        # Deliberately vague: the underlying message names a server path. The
+        # detail is in the API log, not in the browser.
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="CEREBRO could not store the file. Artifact storage is unavailable.",
+        ) from None
     except service.ArtifactRejected as exc:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from None

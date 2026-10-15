@@ -93,6 +93,15 @@ docs/                                               architecture, contracts, sta
   then carry megabytes of it. The original bytes are stored verbatim so
   registration re-verifies the checksum against the source, never the derived
   text.
+- A container image that writes to a mounted volume must **create and chown the
+  directory itself**. A volume mounted over a path absent from the image is
+  created owned by root, and the API runs as uid 10001 — uploads then fail with
+  a `PermissionError`. FastAPI returns plain text for an unhandled exception, so
+  the browser shows only "Something went wrong." This cost a full debugging
+  cycle; see `backend/Dockerfile`.
+- Run the e2e suite against the **compose containers**, not a locally started
+  `next start`. The two differ: upload is the only multipart request and the
+  only write to a volume, and it was broken in containers while green locally.
 - An upload is refused when the bytes contradict the extension, and when a PDF
   has no text layer. Both are deliberate: the filename is a claim and the bytes
   are the evidence, and an artifact with no retrievable content must not enter

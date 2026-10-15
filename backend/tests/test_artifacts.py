@@ -342,3 +342,35 @@ def test_a_registered_pdf_carries_its_extraction_provenance(client, signed_in):
     assert body["integrity"]["source_verified"] is True
     assert body["extraction"]["structure"]["pages"] == 1
     assert body["provenance"]["text_extraction"]["ai_used"] is False
+
+
+def test_a_storage_failure_says_so_instead_of_a_bare_500(client, signed_in, db):
+    """An unwritable store must not reach the browser as a generic error.
+
+    FastAPI answers an unhandled exception with *plain text*, which the web
+    client cannot parse as JSON, so it renders "Something went wrong." — the
+    exact symptom of an artifact volume the API cannot write to. This asserts
+    the failure is reported as what it is.
+
+    The failure is real, not simulated: a regular file is placed exactly where
+    the owner's directory has to be created, so `mkdir` raises. No mock, and it
+    fails for root too.
+    """
+    from pathlib import Path
+
+    from app.core.config import get_settings
+
+    owner_id = client.get("/api/auth/me").json()["id"]
+    blocker = Path(get_settings().storage_path) / owner_id
+    blocker.parent.mkdir(parents=True, exist_ok=True)
+    blocker.write_text("")
+
+    r = post(client, "unlucky.txt", b"Content that cannot be stored.\n")
+
+    assert r.status_code == 503
+    detail = r.json()["detail"]
+    assert "storage is unavailable" in detail.lower()
+    # The server path stays in the log, not in the response.
+    assert str(blocker) not in detail
+    # Nothing half-written is left behind.
+    assert db.scalars(select(Artifact)).all() == []

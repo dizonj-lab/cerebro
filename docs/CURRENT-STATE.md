@@ -147,10 +147,28 @@ The manifests render with kustomize and pass `kubeconform -strict` against the
 Kubernetes 1.31 schemas (`make validate`), and the schema was approved by the
 product owner on 18 September 2026.
 
-**Docker Compose is proven.** On 2026-10-15 the product owner built the images
-and ran the four-service stack (`postgres`, `migrate`, `api`, `web`) on macOS
-with `make compose-up WEB_PORT=3100`. That is the first runtime verification of
-the containerised stack; everything before it was schema validation only.
+**Docker Compose runs, with one defect found and fixed.** On 2026-10-15 the
+product owner built the images and ran the four-service stack (`postgres`,
+`migrate`, `api`, `web`) on macOS with `make compose-up WEB_PORT=3100`.
+Sign-up, sign-in and the profile pages worked; **artifact upload did not**, and
+had never worked in a container.
+
+The API image did not create `/data/artifacts`, so Docker created the mount
+point for the `artifact-data` volume owned by root. The API runs as uid 10001
+and could not create the per-owner directory inside it. The resulting
+`PermissionError` was unhandled, and FastAPI answers an unhandled exception
+with *plain text*, which the web client cannot parse as JSON — so the browser
+showed only "Something went wrong."
+
+The image now creates the directory and chowns it, and a storage failure is
+reported as a 503 naming storage rather than as a bare 500. Both the
+permission mechanism and the 503 are covered by tests.
+
+The lesson is recorded because it is the fourth time something was declared
+done on schema or local evidence and failed in a container: **the end-to-end
+suite had only ever run against a locally started web server, never against
+the compose containers.** Upload is the only multipart request in the app, and
+the only one that writes to a volume.
 
 **Kubernetes is still unproven.** The manifests render with kustomize and pass
 `kubeconform -strict` against the Kubernetes 1.31 schemas (`make validate`),
