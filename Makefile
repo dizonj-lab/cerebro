@@ -20,7 +20,7 @@ WEB_PORT ?= 3000
 
 .DEFAULT_GOAL := help
 .PHONY: help build load deploy up down status logs wait urls port-forward validate diagrams \
-        backend-venv test-unit test-backend test-e2e compose-up compose-down compose-logs
+        backend-venv frontend-deps test-unit test-backend test-e2e compose-up compose-down compose-logs
 
 help: ## Show available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -124,5 +124,17 @@ test-backend: backend-venv ## Run every backend test (needs PostgreSQL on :5432)
 		-c "CREATE DATABASE cerebro_test" >/dev/null 2>&1 || true
 	cd backend && . .venv/bin/activate && pytest -q
 
-test-e2e: ## Run end-to-end tests against an already-running stack (WEB_PORT=3000)
+frontend-deps: ## Install frontend dependencies and the test browser (first run only)
+	@if [ ! -x frontend/node_modules/.bin/playwright ]; then \
+		echo "Installing frontend dependencies (first run, takes a minute)..."; \
+		cd frontend && npm install; \
+	fi
+	@# Without a local @playwright/test, `npm run test:e2e` silently falls
+	@# through to any `playwright` on PATH — a conda-installed Python one, say,
+	@# which has no `test` command. The guard above is what prevents that.
+	@if [ -z "$$CHROMIUM_PATH" ]; then \
+		cd frontend && npx playwright install chromium; \
+	fi
+
+test-e2e: frontend-deps ## Run end-to-end tests against an already-running stack (WEB_PORT=3000)
 	cd frontend && E2E_BASE_URL=http://localhost:$(WEB_PORT) npm run test:e2e
