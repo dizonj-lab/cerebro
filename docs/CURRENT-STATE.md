@@ -164,6 +164,14 @@ The image now creates the directory and chowns it, and a storage failure is
 reported as a 503 naming storage rather than as a bare 500. Both the
 permission mechanism and the 503 are covered by tests.
 
+Running the suite against containers also exposed a race in the e2e logout
+helper: it returned on the button click without waiting for the logout request
+to finish, so the next navigation could still carry a valid cookie. Fast enough
+to pass against a local server, slow enough to fail against containers. It was
+a test defect, not a hole in the app — the server redirects correctly for a
+missing, empty or invalid cookie — and it was confirmed by delaying the logout
+response and reproducing the failure deliberately.
+
 The lesson is recorded because it is the fourth time something was declared
 done on schema or local evidence and failed in a container: **the end-to-end
 suite had only ever run against a locally started web server, never against

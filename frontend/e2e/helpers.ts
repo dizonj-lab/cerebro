@@ -38,4 +38,10 @@ export async function logIn(page: Page, account: TestAccount) {
 export async function logOut(page: Page) {
   // The sidebar Logout is always present on desktop widths.
   await page.locator("nav[aria-label='Workspace']").getByRole("button", { name: /logout/i }).click();
+  // Wait for the landing page before returning. The handler awaits the API
+  // call and only then navigates, so arriving here is what proves the session
+  // cookie has actually been cleared. Returning on the click alone leaves the
+  // caller's next navigation racing the logout request — fast enough to pass
+  // against a local server, slow enough to fail against containers.
+  await page.waitForURL((url) => url.pathname === "/");
 }
