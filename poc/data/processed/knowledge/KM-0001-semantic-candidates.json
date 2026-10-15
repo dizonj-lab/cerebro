@@ -1,0 +1,46 @@
+{
+  "experiment_id": "EXP-KNOW-002",
+  "knowledge_model": "KM-0001",
+  "embedding": {
+    "provider": "local_ollama",
+    "model": "mxbai-embed-large:latest"
+  },
+  "candidate_relationships": [
+    {
+      "relationship_id": "CAND-0001",
+      "source": "KF-0001",
+      "target": "KF-0003",
+      "type": "SEMANTIC_SIMILARITY",
+      "similarity": 0.7228,
+      "relevance": "Related",
+      "status": "candidate",
+      "method": "embedding_cosine_similarity",
+      "model": "mxbai-embed-large:latest",
+      "matches_controlled_relationship": true
+    },
+    {
+      "relationship_id": "CAND-0002",
+      "source": "KF-0002",
+      "target": "KF-0003",
+      "type": "SEMANTIC_SIMILARITY",
+      "similarity": 0.6948,
+      "relevance": "Related",
+      "status": "candidate",
+      "method": "embedding_cosine_similarity",
+      "model": "mxbai-embed-large:latest",
+      "matches_controlled_relationship": true
+    },
+    {
+      "relationship_id": "CAND-0003",
+      "source": "KF-0001",
+      "target": "KF-0002",
+      "type": "SEMANTIC_SIMILARITY",
+      "similarity": 0.6841,
+      "relevance": "Related",
+      "status": "candidate",
+      "method": "embedding_cosine_similarity",
+      "model": "mxbai-embed-large:latest",
+      "matches_controlled_relationship": true
+    }
+  ]
+}

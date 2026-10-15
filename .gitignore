@@ -1,0 +1,38 @@
+# Claude Code — personal, machine-local overrides (never commit)
+.claude/settings.local.json
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+secrets/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Python
+backend/.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+
+# Playwright
+playwright-report/
+test-results/
+*.egg-info/
+
+# CEREBRO PoC
+cerebro_poc/
+.ipynb_checkpoints/
+__pycache__/
+*.pyc

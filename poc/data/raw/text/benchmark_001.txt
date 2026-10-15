@@ -1,0 +1,1 @@
+CEREBRO is a Digital Knowledge Twin designed to preserve and connect human knowledge. It maintains provenance between knowledge fragments and their original source artifacts. The system supports assisted recollection by allowing users to navigate from knowledge back to its supporting evidence.

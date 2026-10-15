@@ -1,0 +1,179 @@
+{
+  "contract_version": "0.1",
+  "experiment_id": "EXP-INTEGRATION-001",
+  "knowledge_model": "KM-0001",
+  "artifact": {
+    "artifact_id": "ART-0001",
+    "filename": "benchmark_001.txt"
+  },
+  "nodes": [
+    {
+      "fragment_id": "KF-0001",
+      "content": "CEREBRO is a Digital Knowledge Twin designed to preserve and connect human knowledge.",
+      "concepts": [
+        "CEREBRO",
+        "Digital Knowledge Twin",
+        "Human Knowledge"
+      ],
+      "temporal": {
+        "source_date": null,
+        "knowledge_date": null,
+        "ingested_at": "2026-09-24T05:18:04.885262+00:00",
+        "temporal_confidence": {
+          "source_date": "unknown",
+          "knowledge_date": "unknown",
+          "ingested_at": "verified"
+        }
+      },
+      "source": {
+        "artifact_id": "ART-0001",
+        "filename": "benchmark_001.txt",
+        "location": {
+          "type": "character_range",
+          "start": 0,
+          "end": 85
+        },
+        "evidence": "CEREBRO is a Digital Knowledge Twin designed to preserve and connect human knowledge."
+      }
+    },
+    {
+      "fragment_id": "KF-0002",
+      "content": "It maintains provenance between knowledge fragments and their original source artifacts.",
+      "concepts": [
+        "Provenance",
+        "Knowledge Fragment",
+        "Source Artifact"
+      ],
+      "temporal": {
+        "source_date": null,
+        "knowledge_date": null,
+        "ingested_at": "2026-09-24T05:18:04.885262+00:00",
+        "temporal_confidence": {
+          "source_date": "unknown",
+          "knowledge_date": "unknown",
+          "ingested_at": "verified"
+        }
+      },
+      "source": {
+        "artifact_id": "ART-0001",
+        "filename": "benchmark_001.txt",
+        "location": {
+          "type": "character_range",
+          "start": 86,
+          "end": 174
+        },
+        "evidence": "It maintains provenance between knowledge fragments and their original source artifacts."
+      }
+    },
+    {
+      "fragment_id": "KF-0003",
+      "content": "The system supports assisted recollection by allowing users to navigate from knowledge back to its supporting evidence.",
+      "concepts": [
+        "Assisted Recollection",
+        "Knowledge Navigation",
+        "Supporting Evidence"
+      ],
+      "temporal": {
+        "source_date": null,
+        "knowledge_date": null,
+        "ingested_at": "2026-09-24T05:18:04.885262+00:00",
+        "temporal_confidence": {
+          "source_date": "unknown",
+          "knowledge_date": "unknown",
+          "ingested_at": "verified"
+        }
+      },
+      "source": {
+        "artifact_id": "ART-0001",
+        "filename": "benchmark_001.txt",
+        "location": {
+          "type": "character_range",
+          "start": 175,
+          "end": 294
+        },
+        "evidence": "The system supports assisted recollection by allowing users to navigate from knowledge back to its supporting evidence."
+      }
+    }
+  ],
+  "trusted_relationships": [
+    {
+      "relationship_id": "REL-0001",
+      "source": "KF-0001",
+      "target": "KF-0002",
+      "type": "SUPPORTED_BY",
+      "reason": "CEREBRO's Digital Knowledge Twin maintains provenance between knowledge and source artifacts."
+    },
+    {
+      "relationship_id": "REL-0002",
+      "source": "KF-0002",
+      "target": "KF-0003",
+      "type": "ENABLES",
+      "reason": "Provenance enables recollection to resolve knowledge back to supporting evidence."
+    },
+    {
+      "relationship_id": "REL-0003",
+      "source": "KF-0001",
+      "target": "KF-0003",
+      "type": "SUPPORTS",
+      "reason": "The Digital Knowledge Twin supports assisted recollection."
+    }
+  ],
+  "candidate_relationships": [
+    {
+      "relationship_id": "CAND-0001",
+      "source": "KF-0001",
+      "target": "KF-0003",
+      "type": "SEMANTIC_SIMILARITY",
+      "similarity": 0.7228,
+      "relevance": "Related",
+      "status": "candidate",
+      "method": "embedding_cosine_similarity",
+      "model": "mxbai-embed-large:latest",
+      "matches_controlled_relationship": true
+    },
+    {
+      "relationship_id": "CAND-0002",
+      "source": "KF-0002",
+      "target": "KF-0003",
+      "type": "SEMANTIC_SIMILARITY",
+      "similarity": 0.6948,
+      "relevance": "Related",
+      "status": "candidate",
+      "method": "embedding_cosine_similarity",
+      "model": "mxbai-embed-large:latest",
+      "matches_controlled_relationship": true
+    },
+    {
+      "relationship_id": "CAND-0003",
+      "source": "KF-0001",
+      "target": "KF-0002",
+      "type": "SEMANTIC_SIMILARITY",
+      "similarity": 0.6841,
+      "relevance": "Related",
+      "status": "candidate",
+      "method": "embedding_cosine_similarity",
+      "model": "mxbai-embed-large:latest",
+      "matches_controlled_relationship": true
+    }
+  ],
+  "timeline": [
+    {
+      "fragment_id": "KF-0001",
+      "timestamp": "2026-09-24 05:18:04.885262+00:00",
+      "label": "CEREBRO",
+      "event_type": "ingested"
+    },
+    {
+      "fragment_id": "KF-0002",
+      "timestamp": "2026-09-24 05:18:04.885262+00:00",
+      "label": "Provenance",
+      "event_type": "ingested"
+    },
+    {
+      "fragment_id": "KF-0003",
+      "timestamp": "2026-09-24 05:18:04.885262+00:00",
+      "label": "Assisted Recollection",
+      "event_type": "ingested"
+    }
+  ]
+}
