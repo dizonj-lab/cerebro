@@ -69,6 +69,8 @@ services:
       # reach nothing while appearing configured. extra_hosts below makes the
       # same name work on Linux, where Docker does not provide it.
       CEREBRO_ENRICHMENT_LLM: ${CEREBRO_ENRICHMENT_LLM:-none}
+      CEREBRO_RECALL_LLM: ${CEREBRO_RECALL_LLM:-none}
+      CEREBRO_OLLAMA_RECALL_MODEL: ${CEREBRO_OLLAMA_RECALL_MODEL:-llama3.2}
       CEREBRO_EMBEDDING_PROVIDER: ${CEREBRO_EMBEDDING_PROVIDER:-hashing}
       CEREBRO_OLLAMA_BASE_URL: ${CEREBRO_OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       CEREBRO_OLLAMA_ENRICHMENT_MODEL: ${CEREBRO_OLLAMA_ENRICHMENT_MODEL:-llama3.2}

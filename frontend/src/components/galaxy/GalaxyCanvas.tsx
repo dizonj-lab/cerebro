@@ -4,6 +4,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 
 import { layout, VIEWBOX } from "@/components/galaxy/layout";
 import { colorFor, hueFor } from "@/components/galaxy/palette";
+import { api } from "@/lib/api";
 import type { CerebroGalaxy, GraphNode } from "@/lib/api";
 import { cn } from "@/lib/cn";
 
@@ -41,10 +42,21 @@ export function GalaxyCanvas({
   // actual drag maths, because a ref must not be read during render.
   const [dragging, setDragging] = useState(false);
 
-  const positions = useMemo(
-    () => layout(graph.nodes, expandedTopic),
-    [graph.nodes, expandedTopic],
+  // Nodes the user has dragged. The computed layout stays the source of
+  // truth for everything else, so dragging one node never relays the rest.
+  const [moved, setMoved] = useState<Record<string, { x: number; y: number }>>({});
+  const nodeDrag = useRef<{ id: string; x: number; y: number; ox: number; oy: number } | null>(
+    null,
   );
+
+  const positions = useMemo(() => {
+    const base = layout(graph.nodes, expandedTopic);
+    for (const [id, point] of Object.entries(moved)) {
+      const existing = base.get(id);
+      if (existing) base.set(id, { ...existing, ...point });
+    }
+    return base;
+  }, [graph.nodes, expandedTopic, moved]);
 
   // What is "in focus" decides what stays bright and what dims. Hover is a
   // preview; selection persists.
@@ -59,7 +71,10 @@ export function GalaxyCanvas({
     return set;
   }, [focus, graph.edges]);
 
-  const reset = useCallback(() => setView({ scale: 1, x: 0, y: 0 }), []);
+  const reset = useCallback(() => {
+    setView({ scale: 1, x: 0, y: 0 });
+    setMoved({});
+  }, []);
   const zoom = useCallback(
     (factor: number) =>
       setView((v) => ({ ...v, scale: Math.min(3, Math.max(0.5, v.scale * factor)) })),
@@ -182,6 +197,42 @@ export function GalaxyCanvas({
                 transform={`translate(${x} ${y})`}
                 opacity={lit ? 1 : 0.25}
                 onPointerEnter={() => setHovered(node.id)}
+                onPointerDown={(event) => {
+                  // Nodes are draggable so a crowded cluster can be pulled
+                  // apart to read it. Capture on the node, not the canvas.
+                  event.stopPropagation();
+                  const start = positions.get(node.id);
+                  if (!start) return;
+                  nodeDrag.current = {
+                    id: node.id,
+                    x: event.clientX,
+                    y: event.clientY,
+                    ox: start.x,
+                    oy: start.y,
+                  };
+                  (event.target as Element).setPointerCapture?.(event.pointerId);
+                }}
+                onPointerMove={(event) => {
+                  const start = nodeDrag.current;
+                  if (!start || start.id !== node.id) return;
+                  const svg = event.currentTarget.ownerSVGElement;
+                  const scaleX = (svg?.clientWidth ?? VIEWBOX.width) / VIEWBOX.width;
+                  setMoved((current) => ({
+                    ...current,
+                    [node.id]: {
+                      x: start.ox + (event.clientX - start.x) / (scaleX * view.scale),
+                      y: start.oy + (event.clientY - start.y) / (scaleX * view.scale),
+                    },
+                  }));
+                }}
+                onPointerUp={(event) => {
+                  const start = nodeDrag.current;
+                  nodeDrag.current = null;
+                  // A press that did not move is a click, not a drag.
+                  if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > 4) {
+                    event.stopPropagation();
+                  }
+                }}
                 onFocus={() => setHovered(node.id)}
                 onBlur={() => setHovered(null)}
                 onClick={(event) => {
@@ -233,7 +284,15 @@ export function GalaxyCanvas({
       </svg>
 
       {hoveredNode && hoveredPoint && (
-        <HoverCard node={hoveredNode} x={hoveredPoint.x} y={hoveredPoint.y} view={view} />
+        <HoverCard
+          node={hoveredNode}
+          x={hoveredPoint.x}
+          y={hoveredPoint.y}
+          view={view}
+          onOpen={() => onSelect(hoveredNode)}
+          onKeepOpen={() => setHovered(hoveredNode.id)}
+          onDismiss={() => setHovered(null)}
+        />
       )}
 
       <div className="absolute bottom-4 right-4 flex flex-col gap-1.5">
@@ -262,11 +321,17 @@ function HoverCard({
   x,
   y,
   view,
+  onOpen,
+  onKeepOpen,
+  onDismiss,
 }: {
   node: GraphNode;
   x: number;
   y: number;
   view: { scale: number; x: number; y: number };
+  onOpen: () => void;
+  onKeepOpen: () => void;
+  onDismiss: () => void;
 }) {
   const left = ((x + view.x - VIEWBOX.width / 2) * view.scale + VIEWBOX.width / 2) / VIEWBOX.width;
   const top = ((y + view.y - VIEWBOX.height / 2) * view.scale + VIEWBOX.height / 2) / VIEWBOX.height;
@@ -274,7 +339,11 @@ function HoverCard({
   return (
     <div
       role="tooltip"
-      className="pointer-events-none absolute z-20 w-64 rounded-lg border border-white/12 bg-[#101725]/95 p-3 shadow-xl backdrop-blur"
+      // Reachable rather than inert: the card carries actions, so the pointer
+      // has to be able to travel into it without dismissing it.
+      onPointerEnter={onKeepOpen}
+      onPointerLeave={onDismiss}
+      className="absolute z-20 w-64 rounded-lg border border-white/12 bg-[#101725]/95 p-3 shadow-xl backdrop-blur"
       style={{
         // Kept inside the viewport rather than clipped at an edge.
         left: `${Math.min(62, Math.max(2, left * 100 + 3))}%`,
@@ -303,7 +372,25 @@ function HoverCard({
           {node.source_location?.page ? ` · page ${node.source_location.page}` : ""}
         </p>
       )}
-      <p className="mt-2 text-[0.625rem] text-white/40">Click to open details</p>
+      <div className="mt-2.5 flex flex-wrap gap-2 border-t border-white/10 pt-2.5">
+        <button
+          type="button"
+          onClick={onOpen}
+          className="rounded-md bg-white/10 px-2 py-1 text-[0.6875rem] font-medium text-white transition-colors hover:bg-white/20"
+        >
+          Explore
+        </button>
+        {node.source_artifact_id && (
+          <a
+            href={api.artifactContentUrl(node.source_artifact_id)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-md bg-white/10 px-2 py-1 text-[0.6875rem] font-medium text-sky-300 transition-colors hover:bg-white/20"
+          >
+            Open source
+          </a>
+        )}
+      </div>
     </div>
   );
 }

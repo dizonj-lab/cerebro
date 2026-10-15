@@ -71,7 +71,7 @@ No AI in this phase: `provenance.ai_enrichment` is `null` on every artifact.
 | Dashboard                              | COMPLETE — against the approved reference |
 | Knowledge Galaxy (P0)                  | COMPLETE |
 | Knowledge Timeline                     | COMPLETE |
-| Assisted Recollection chat (P2)        | NOT STARTED |
+| Assisted Recollection chat (P2)        | COMPLETE — grounded, local model optional |
 | AI enrichment                          | NOT STARTED |
 | Images / OCR / audio                   | DEFERRED (P2) |
 
@@ -269,7 +269,7 @@ sidebar still have no routes.
 | UI/UX       | APPROVED             |
 | Regression  | PASS                 |
 
-**Engineering** — Backend: 163 pytest tests green against a real PostgreSQL 16
+**Engineering** — Backend: 173 pytest tests green against a real PostgreSQL 16
 database. Frontend: `tsc --noEmit` clean, ESLint clean, production build clean.
 Kubernetes manifests parse as valid YAML.
 

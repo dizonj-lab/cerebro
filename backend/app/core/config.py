@@ -53,6 +53,12 @@ class Settings(BaseSettings):
     enrichment_llm: str = "none"
     ollama_enrichment_model: str = "llama3.2"
 
+    # Assisted Recollection. Retrieval always runs; this adds a local model to
+    # phrase an answer from the retrieved passages. Without it the passages
+    # themselves are returned. No cloud option, by design.
+    recall_llm: str = "none"
+    ollama_recall_model: str = "llama3.2"
+
     # Upload limits
     max_upload_bytes: int = 25 * 1024 * 1024
 

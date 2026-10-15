@@ -201,3 +201,97 @@ test("the galaxy fits a phone without horizontal overflow", async ({ page }) => 
   );
   expect(overflow).toBe(false);
 });
+
+// --- browsing, panels, and grounded chat -----------------------------------
+
+test("a node can be dragged to pull a crowded cluster apart", async ({ page }) => {
+  await openGalaxy(page, "g-drag");
+
+  const node = page.getByRole("button", { name: "Architecture, cluster", exact: true });
+  const before = await node.getAttribute("transform");
+  const box = (await node.boundingBox())!;
+
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 80, box.y + box.height / 2 + 50, { steps: 8 });
+  await page.mouse.up();
+
+  expect(await node.getAttribute("transform")).not.toBe(before);
+});
+
+test("the hover dialog reaches the source file", async ({ page }) => {
+  await openGalaxy(page, "g-hovercard");
+
+  await page.getByRole("button", { name: "Machine Learning, cluster", exact: true }).click();
+  await page.waitForTimeout(600);
+  await page.getByRole("button", { name: /, fragment$/ }).first().hover();
+
+  const open = page.getByRole("tooltip").getByRole("link", { name: "Open source" });
+  await expect(open).toBeVisible();
+  const response = await page.request.get((await open.getAttribute("href"))!);
+  expect(response.status()).toBe(200);
+});
+
+test("the details panel collapses to an icon and comes back", async ({ page }) => {
+  await openGalaxy(page, "g-collapse");
+  await page.getByRole("button", { name: "Architecture, cluster", exact: true }).click();
+  await expect(page.getByRole("complementary")).toBeVisible();
+
+  await page.getByRole("button", { name: "Collapse details panel" }).click();
+  await expect(page.getByRole("complementary").getByRole("tab", { name: "Overview" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Expand details panel" }).click();
+  await expect(page.getByRole("tab", { name: "Overview" })).toBeVisible();
+});
+
+test("the workspace can be maximised and resized", async ({ page }) => {
+  await openGalaxy(page, "g-maximise");
+
+  const canvas = page.getByRole("application", { name: "Knowledge Galaxy" });
+  const before = (await canvas.boundingBox())!.height;
+
+  const handle = page.getByRole("separator", { name: "Resize galaxy" });
+  const box = (await handle.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 120, { steps: 6 });
+  await page.mouse.up();
+  expect((await canvas.boundingBox())!.height).toBeGreaterThan(before);
+
+  await page.getByRole("button", { name: "Full screen" }).click();
+  await expect(page.getByRole("button", { name: "Exit full screen" })).toBeVisible();
+});
+
+test("the chat stays shut until asked, then answers from the library", async ({ page }) => {
+  await openGalaxy(page, "g-chat");
+
+  const calls: string[] = [];
+  page.on("request", (r) => {
+    if (r.url().includes("/api/recall")) calls.push(r.url());
+  });
+
+  await page.getByRole("button", { name: "Architecture, cluster", exact: true }).click();
+  await page.waitForTimeout(400);
+  // Selecting a node must not call the service.
+  expect(calls).toEqual([]);
+
+  await page.getByRole("button", { name: /ask cerebro/i }).click();
+  await expect(page.getByText(/Answers come from your registered documents/)).toBeVisible();
+
+  await page.getByLabel("Ask or describe what you're looking for").fill("Architecture notes");
+  await page.getByRole("button", { name: "Send" }).click();
+
+  // One request, and the reply cites the document it came from.
+  await expect(page.getByRole("link", { name: /Architecture/ }).first()).toBeVisible();
+  expect(calls).toHaveLength(1);
+});
+
+test("the chat says so rather than inventing an answer", async ({ page }) => {
+  await openGalaxy(page, "g-chat-empty");
+
+  await page.getByRole("button", { name: /ask cerebro/i }).click();
+  await page.getByLabel("Ask or describe what you're looking for").fill("zzz unrelated xylophone");
+  await page.getByRole("button", { name: "Send" }).click();
+
+  await expect(page.getByText(/Nothing in your registered documents matches/)).toBeVisible();
+});

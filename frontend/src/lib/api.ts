@@ -305,6 +305,26 @@ export interface CerebroTimelineEvent {
   modality: string;
 }
 
+export interface CerebroRecallSource {
+  index: number;
+  fragment_id: string;
+  artifact_id: string;
+  filename: string;
+  title: string | null;
+  source_location: Record<string, number | string>;
+  excerpt: string;
+  score: number;
+}
+
+export interface CerebroRecallAnswer {
+  /** Null when no local model phrased one; the sources still stand alone. */
+  answer: string | null;
+  sources: CerebroRecallSource[];
+  grounded: boolean;
+  model: string | null;
+  note: string | null;
+}
+
 export const api = {
   signup: (input: { display_name: string; email: string; password: string }) =>
     request<CerebroUser>("/api/auth/signup", {
@@ -346,6 +366,13 @@ export const api = {
   dashboard: () => request<CerebroDashboard>("/api/dashboard"),
 
   galaxy: () => request<CerebroGalaxy>("/api/graph"),
+
+  /** Retrieval-first. The model, if any, only sees retrieved passages. */
+  recall: (input: { question: string; topic?: string | null }) =>
+    request<CerebroRecallAnswer>("/api/recall", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
 
   /** One cluster's fragments, fetched when it is opened. */
   expandCluster: (topic: string) =>
