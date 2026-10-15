@@ -191,11 +191,12 @@ test("a PDF's own metadata prefills the form, labelled as its own", async ({ pag
   });
 
   await expect(page.getByRole("heading", { name: "Review artifact" })).toBeVisible();
-  // Topics come from words the document repeats, and the form says so.
-  await expect(page.getByText(/words the document repeats/i)).toBeVisible();
-  const topics = page.getByLabel("Topics");
-  await expect(topics).toBeVisible();
-  // Tags are editable and present.
+  // Topics and tags both come from words the document repeats, and each field
+  // says so in its own hint — hence locating them separately rather than by
+  // the shared text.
+  await expect(page.locator("#topics-hint")).toContainText(/words the document repeats/i);
+  await expect(page.locator("#tags-hint")).toContainText(/words the document repeats/i);
+  await expect(page.getByLabel("Topics")).toBeVisible();
   await expect(page.getByLabel("Tags")).toBeVisible();
   // Author is not invented for a document that does not state one.
   await expect(page.getByLabel("Author")).toHaveValue("");
