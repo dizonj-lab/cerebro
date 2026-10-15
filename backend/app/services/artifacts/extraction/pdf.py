@@ -5,6 +5,7 @@ than silently producing an empty artifact; OCR is a later phase.
 """
 import io
 
+from app.services.artifacts.extraction import properties as doc_properties
 from app.services.artifacts.extraction.base import (
     Block,
     ExtractionFailed,
@@ -68,5 +69,6 @@ class PdfAdapter:
         return ExtractionResult(
             blocks=blocks,
             structure={"pages": len(reader.pages), "blocks": len(blocks)},
+            properties=doc_properties.from_pdf(reader),
             errors=errors,
         )

@@ -87,6 +87,21 @@ docs/                                               architecture, contracts, sta
   set to 32+ characters.
 - Sidebar items other than Dashboard are inert placeholders for future work
   packages. Do not wire them up without an explicit work package.
+- Enrichment **proposes**, it never establishes. Every field carries its
+  method in `field_methods`, and only approval sets `human_confirmed`.
+  `author` and `created_date` may come **only** from the document's own
+  metadata — no engine, statistical or generative, may propose them. A model's
+  suggested topics and tags are dropped unless they appear in the document
+  verbatim.
+- There is **no cloud AI engine**. A failing local engine falls back to
+  deterministic enrichment, never to a remote service. Say "CEREBRO
+  environment", not "your device", and never claim data never leaves it.
+- Inside a container, `localhost:11434` is the container, not the host. Ollama
+  is reached at `host.docker.internal`, with `extra_hosts: host-gateway` for
+  Linux parity. See `docs/DEVELOPMENT.md`.
+- Switching embedding provider **orphans existing vectors**: provider, model
+  and dimensions are stored per vector and search filters on all three, so
+  artifacts must be re-registered under the new provider to be found.
 - Extracted text is a **derived object** in the object store, keyed
   `<storage_key>.extraction.json`; the artifact row holds only a summary in
   `extraction`. Never put document text on the row — a library query would

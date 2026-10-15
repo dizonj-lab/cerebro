@@ -18,6 +18,7 @@ import type {
   CerebroArtifact,
   CerebroArtifactExtraction,
   CerebroArtifactMetadata,
+  CerebroEnrichmentSuggestion,
 } from "@/lib/api";
 import { cn } from "@/lib/cn";
 
@@ -45,6 +46,21 @@ function describeStructure(extraction: CerebroArtifactExtraction): string {
   return counts.length > 0 ? `from ${counts.join(", ")}` : "";
 }
 
+// How a value was arrived at, in the user's words. Shown per field so a
+// model's guess is never mistaken for something the document asserts.
+const METHOD_HINTS: Record<string, string> = {
+  filename_stem: "Drafted from the filename, not read from the content.",
+  document_metadata: "From the document's own metadata.",
+  keyphrase_extraction: "From words the document repeats. Statistics, not meaning.",
+  "document_metadata+keyphrase_extraction":
+    "The document's own keywords, plus words it repeats.",
+  language_detection: "Detected from the text, and left blank when unclear.",
+  extracted_opening: "A quote of the opening, not a summary.",
+  ai_suggested: "Suggested by the local model. Check it before confirming.",
+  human_confirmed: "You confirmed this.",
+  not_established: "",
+};
+
 function IngestInner() {
   const existingId = useSearchParams().get("artifact");
 
@@ -55,6 +71,8 @@ function IngestInner() {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestion, setSuggestion] = useState<CerebroEnrichmentSuggestion | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -83,6 +101,32 @@ function IngestInner() {
       setBusy(false);
     }
   }, []);
+
+  async function askTheModel() {
+    if (!artifact) return;
+    setError(null);
+    setSuggesting(true);
+    try {
+      const result = await api.suggestArtifact(artifact.id);
+      setSuggestion(result);
+      // Suggestions land in the form, where they can be edited or removed.
+      // They are not saved until the form is submitted, and they stay
+      // unconfirmed until it is approved.
+      setDraft((d) => ({ ...d, ...toDraft({ ...d, ...result.suggestions }) }));
+      setSaved(false);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not ask the local model.");
+    } finally {
+      setSuggesting(false);
+    }
+  }
+
+  // Live methods: a field the model has just proposed reports as such before
+  // anything is saved, so the hint matches what is in the box.
+  function methodOf(field: string): string | undefined {
+    const method = suggestion?.field_methods?.[field] ?? artifact?.field_methods?.[field];
+    return method ? METHOD_HINTS[method] || undefined : undefined;
+  }
 
   function set<K extends keyof CerebroArtifactMetadata>(k: K, v: CerebroArtifactMetadata[K]) {
     setDraft((d) => ({ ...d, [k]: v }));
@@ -196,9 +240,43 @@ function IngestInner() {
               </pre>
             )}
 
+            <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-line pt-4">
+              <a
+                href={api.artifactContentUrl(artifact.id)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-md text-sm font-medium text-accent underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
+              >
+                Open original document
+                <span className="sr-only"> {artifact.filename} in a new tab</span>
+              </a>
+              {!registered && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  loading={suggesting}
+                  onClick={() => void askTheModel()}
+                >
+                  {suggesting ? "Asking the local model" : "Suggest with local AI"}
+                </Button>
+              )}
+            </div>
+
             <p className="mt-3 text-xs text-ink-subtle">
-              Inspected and extracted deterministically — no AI has read this artifact.
+              {suggestion?.ai_used
+                ? `Suggested by ${suggestion.model ?? suggestion.engine}, running in your CEREBRO environment. Check each field before confirming.`
+                : "Inspected and extracted deterministically — no AI has read this artifact."}
             </p>
+
+            {suggestion?.notes?.length ? (
+              <ul className="mt-2 space-y-1">
+                {suggestion.notes.map((note) => (
+                  <li key={note} className="text-xs text-ink-subtle">
+                    {note}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </section>
 
           <form
@@ -213,40 +291,59 @@ function IngestInner() {
             <div className="grid gap-5 sm:grid-cols-2">
               <FormField
                 htmlFor="title" label="Title" className="sm:col-span-2"
-                hint={
-                  artifact.field_methods?.title === "filename_stem"
-                    ? "Drafted from the filename, not read from the content."
-                    : undefined
-                }
+                hint={methodOf("title")}
               >
                 <Input id="title" value={draft.title ?? ""} disabled={registered || busy}
                   onChange={(e) => set("title", e.target.value)} />
               </FormField>
 
-              <FormField htmlFor="description" label="Description" className="sm:col-span-2">
+              <FormField hint={methodOf("description")} htmlFor="description" label="Description" className="sm:col-span-2">
                 <Textarea id="description" rows={3} value={draft.description ?? ""}
                   disabled={registered || busy}
                   onChange={(e) => set("description", e.target.value)} />
               </FormField>
 
-              <FormField htmlFor="author" label="Author">
+              <FormField hint={methodOf("author")} htmlFor="author" label="Author">
                 <Input id="author" value={draft.author ?? ""} disabled={registered || busy}
                   onChange={(e) => set("author", e.target.value)} />
               </FormField>
 
-              <FormField htmlFor="language" label="Language">
+              <FormField hint={methodOf("language")} htmlFor="language" label="Language">
                 <Input id="language" value={draft.language ?? ""} disabled={registered || busy}
                   onChange={(e) => set("language", e.target.value)} />
               </FormField>
 
-              <FormField htmlFor="topics" label="Topics" className="sm:col-span-2">
+              <FormField
+                hint={methodOf("created_date")}
+                htmlFor="created_date"
+                label="Created date"
+                className="sm:col-span-2"
+              >
+                <Input id="created_date" value={draft.created_date ?? ""}
+                  placeholder="YYYY-MM-DD" disabled={registered || busy}
+                  onChange={(e) => set("created_date", e.target.value)} />
+              </FormField>
+
+              <FormField hint={methodOf("topics")} htmlFor="topics" label="Topics" className="sm:col-span-2">
                 <TagInput id="topics" value={draft.topics} disabled={registered || busy}
                   onChange={(v) => set("topics", v)} placeholder="Add a topic and press Enter" />
+              </FormField>
+
+              <FormField hint={methodOf("tags")} htmlFor="tags" label="Tags" className="sm:col-span-2">
+                <TagInput id="tags" value={draft.tags} disabled={registered || busy}
+                  onChange={(v) => set("tags", v)} placeholder="Add a tag and press Enter" />
               </FormField>
 
               <FormField htmlFor="people" label="People" className="sm:col-span-2">
                 <TagInput id="people" value={draft.people} disabled={registered || busy}
                   onChange={(v) => set("people", v)} placeholder="Add a person and press Enter" />
+              </FormField>
+
+              <FormField htmlFor="organizations" label="Organizations" className="sm:col-span-2">
+                <TagInput id="organizations" value={draft.organizations}
+                  disabled={registered || busy}
+                  onChange={(v) => set("organizations", v)}
+                  placeholder="Add an organization and press Enter" />
               </FormField>
 
               <FormField htmlFor="projects" label="Projects" className="sm:col-span-2">

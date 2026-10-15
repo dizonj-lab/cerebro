@@ -57,6 +57,11 @@ class ExtractionResult:
     blocks: list[Block] = field(default_factory=list)
     # Deterministic facts about the document's shape.
     structure: dict = field(default_factory=dict)
+    # The document's own metadata, as the file states it: PDF /Info, Office
+    # core properties. The highest-integrity source of author and date there
+    # is, because the document asserts it rather than anything inferring it.
+    # Absent or blank entries are omitted, never defaulted.
+    properties: dict = field(default_factory=dict)
     errors: list[str] = field(default_factory=list)
 
     @property
@@ -68,6 +73,7 @@ class ExtractionResult:
             "block_count": len(self.blocks),
             "character_count": len(self.text),
             "structure": self.structure,
+            "properties": self.properties,
             "errors": self.errors,
             "method": "deterministic_extraction",
             "ai_used": False,
@@ -86,6 +92,7 @@ class ExtractionResult:
         return cls(
             blocks=[Block.from_dict(b) for b in raw.get("blocks", [])],
             structure=raw.get("structure", {}),
+            properties=raw.get("properties", {}),
             errors=raw.get("errors", []),
         )
 

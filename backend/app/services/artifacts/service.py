@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.core.storage import get_object_store
 from app.models.artifact import Artifact
+from app.services.artifacts.enrichment import enrich
 from app.services.artifacts.extraction import (
     SUPPORTED_EXTENSIONS,
     ExtractionFailed,
@@ -104,7 +105,7 @@ def extracted_document(artifact: Artifact) -> ExtractionResult | None:
 
 def ingest(
     db: Session, *, owner_id: uuid.UUID, filename: str, content: bytes,
-    content_type: str | None, max_bytes: int,
+    content_type: str | None, max_bytes: int, ai_suggestions: bool = True,
 ) -> Artifact:
     """Inspect, store and draft metadata for an uploaded artifact.
 
@@ -139,6 +140,25 @@ def ingest(
 
     md = extract_text_metadata(filename=filename, text=extracted.text, sha256=sha256)
 
+    # Propose what can be grounded in the document. These are suggestions for
+    # the human to confirm at review, not established values: field_methods
+    # records how each one was arrived at, and only approval turns any of them
+    # into "human_confirmed".
+    #
+    # Deliberately deterministic here. Asking a local language model takes
+    # tens of seconds, and an upload that hangs for that long is worse than
+    # one that offers less; the model is asked from the review screen, when
+    # the user asks for it.
+    suggested = enrich(
+        text=extracted.text,
+        properties=extracted.properties,
+        filename=filename,
+        ai_suggestions=ai_suggestions,
+        use_llm=False,
+    )
+    metadata = {**md["extracted_metadata"], **suggested.suggestions}
+    field_methods = {**md["field_methods"], **suggested.methods}
+
     artifact_id = uuid.uuid4()
     key = _storage_key(owner_id, artifact_id, filename)
     store = get_object_store()
@@ -167,18 +187,22 @@ def ingest(
         storage_uri=uri,
         status="inspected",
         inspection=inspection,
-        artifact_metadata=md["extracted_metadata"],
-        field_methods=md["field_methods"],
+        artifact_metadata=metadata,
+        field_methods=field_methods,
         extraction=_extraction_summary(extracted, adapter=adapter, key=_extraction_key(key)),
         provenance={
             "inspection": md["provenance"]["method"],
+            # Deterministic enrichment is recorded here; `ai_enrichment` stays
+            # null unless a language model actually contributed, so the field
+            # keeps meaning "AI touched this".
+            "enrichment": suggested.provenance(),
+            "ai_enrichment": suggested.provenance() if suggested.ai_used else None,
             "extraction": "deterministic_metadata_extraction",
             "text_extraction": {
                 "method": "deterministic_extraction",
                 "adapter": type(adapter).__name__,
                 "ai_used": False,
             },
-            "ai_enrichment": None,
             "human_review": None,
             "registration": None,
             "content_facts": md["content_facts"],
@@ -286,6 +310,11 @@ def review(db: Session, artifact: Artifact, *, metadata: dict, approve: bool) ->
     return artifact
 
 
+def original_bytes(artifact: Artifact) -> bytes:
+    """The artifact's stored bytes, exactly as uploaded."""
+    return get_object_store().get(artifact.storage_key)
+
+
 def preview_text(artifact: Artifact) -> str | None:
     """First characters of the extracted text, for the review screen.
 
@@ -317,3 +346,40 @@ def delete(db: Session, artifact: Artifact) -> None:
     store.delete(artifact.storage_key)
     db.delete(artifact)
     db.flush()
+
+
+def suggest_with_model(db: Session, artifact: Artifact, *, ai_suggestions: bool) -> dict:
+    """Ask the configured local model to propose metadata for this artifact.
+
+    Returns the suggestions and how each was arrived at, without saving them.
+    The user sees them in the form and decides; nothing becomes part of the
+    artifact until they approve it at review.
+    """
+    if artifact.status == "registered":
+        raise ArtifactRejected("This artifact is already registered.")
+
+    document = extracted_document(artifact)
+    if document is None:
+        raise ArtifactRejected("The extracted text for this artifact could not be read.")
+
+    result = enrich(
+        text=document.text,
+        properties=document.properties,
+        filename=artifact.filename,
+        ai_suggestions=ai_suggestions,
+        use_llm=True,
+    )
+    # Record that a model was consulted, even though the suggestions are not
+    # saved: the attempt is part of the artifact's history.
+    if result.ai_used:
+        artifact.provenance = {**artifact.provenance, "ai_enrichment": result.provenance()}
+        db.flush()
+    return {
+        "suggestions": result.suggestions,
+        "field_methods": result.methods,
+        "ai_used": result.ai_used,
+        "engine": result.engine,
+        "model": result.model,
+        "local": result.local,
+        "notes": result.notes,
+    }

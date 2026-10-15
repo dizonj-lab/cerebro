@@ -172,6 +172,19 @@ export interface CerebroArtifactExtraction {
   object_key?: string;
 }
 
+/** Proposed metadata. Nothing is saved until the user approves it. */
+export interface CerebroEnrichmentSuggestion {
+  suggestions: Partial<CerebroArtifactMetadata>;
+  field_methods: Record<string, string>;
+  /** False means no model contributed; `notes` says why. */
+  ai_used: boolean;
+  engine: string;
+  model: string | null;
+  /** False would mean content left the CEREBRO environment. No engine does. */
+  local: boolean;
+  notes: string[];
+}
+
 export interface CerebroArtifact extends CerebroArtifactSummary {
   content_type: string | null;
   metadata: CerebroArtifactMetadata;
@@ -232,6 +245,18 @@ export const api = {
     // No Content-Type header: the browser must set the multipart boundary.
     return request<CerebroArtifact>("/api/artifacts", { method: "POST", body, rawBody: true });
   },
+
+  /**
+   * Where the original uploaded file is served from.
+   *
+   * A URL rather than a fetch: the browser opens it in a tab, so the session
+   * cookie travels with the navigation and nothing has to be held in memory.
+   */
+  artifactContentUrl: (id: string) => `${API_BASE_URL}/api/artifacts/${id}/content`,
+
+  /** Ask the configured local model to propose metadata. Saves nothing. */
+  suggestArtifact: (id: string) =>
+    request<CerebroEnrichmentSuggestion>(`/api/artifacts/${id}/suggest`, { method: "POST" }),
 
   reviewArtifact: (id: string, input: { metadata: CerebroArtifactMetadata; approve: boolean }) =>
     request<CerebroArtifact>(`/api/artifacts/${id}`, {

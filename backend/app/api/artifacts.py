@@ -18,8 +18,10 @@ from app.schemas.artifact import (
     ArtifactMetadata,
     ArtifactReviewRequest,
     ArtifactSummary,
+    EnrichmentSuggestion,
 )
-from app.services.artifacts import service
+from app.services import profiles
+from app.services.artifacts import service, serving
 from app.services.artifacts.fragments import FragmentsUnavailable
 from app.services.artifacts.registration import RegistrationRejected
 
@@ -58,6 +60,10 @@ async def upload(
 ):
     """Upload an artifact: inspect, store, draft metadata. Not yet registered."""
     content = await file.read()
+    # Enrichment honours the user's own setting. Deterministic enrichment —
+    # the document's own metadata and statistics over its text — always runs;
+    # this governs whether a local language model is also asked.
+    preferences = profiles.get_preferences(db, current_user.id)
     try:
         artifact = service.ingest(
             db,
@@ -66,6 +72,7 @@ async def upload(
             content=content,
             content_type=file.content_type,
             max_bytes=settings.max_upload_bytes,
+            ai_suggestions=preferences.ai_suggestions,
         )
     except service.DuplicateArtifact as exc:
         db.rollback()
@@ -139,6 +146,69 @@ def review(
     db.commit()
     db.refresh(artifact)
     return _detail(artifact)
+
+
+@router.get("/{artifact_id}/content")
+def content(artifact_id: uuid.UUID, current_user: CurrentUser, db: DbSession) -> Response:
+    """The original uploaded bytes, for opening the source document.
+
+    Scoped to the owner like every other artifact route, so a guessed id
+    finds nothing rather than someone else's document.
+    """
+    artifact = service.get_for_owner(db, current_user.id, artifact_id)
+    if artifact is None:
+        raise NOT_FOUND
+
+    try:
+        raw = service.original_bytes(artifact)
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="The stored file for this artifact is no longer available.",
+        ) from None
+
+    media_type, inline = serving.media_type_for(artifact.filename)
+    disposition = "inline" if inline else "attachment"
+    return Response(
+        content=raw,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": (
+                f'{disposition}; filename="{serving.safe_filename(artifact.filename)}"'
+            ),
+            # The media type is derived from the extension, not from what the
+            # client claimed. Tell the browser not to second-guess it either.
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "private, no-store",
+        },
+    )
+
+
+@router.post("/{artifact_id}/suggest", response_model=EnrichmentSuggestion)
+def suggest(
+    artifact_id: uuid.UUID, current_user: CurrentUser, db: DbSession
+) -> EnrichmentSuggestion:
+    """Ask the configured local model to propose metadata for this artifact.
+
+    Separate from upload on purpose: a model on a laptop takes tens of
+    seconds, and this is also the point at which the user explicitly asks for
+    it. The suggestions come back for review and are not saved.
+    """
+    artifact = service.get_for_owner(db, current_user.id, artifact_id)
+    if artifact is None:
+        raise NOT_FOUND
+
+    preferences = profiles.get_preferences(db, current_user.id)
+    try:
+        result = service.suggest_with_model(
+            db, artifact, ai_suggestions=preferences.ai_suggestions
+        )
+    except service.ArtifactRejected as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from None
+
+    db.commit()
+    return EnrichmentSuggestion(**result)
 
 
 @router.delete("/{artifact_id}", status_code=status.HTTP_204_NO_CONTENT)

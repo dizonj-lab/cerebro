@@ -64,6 +64,9 @@ No AI in this phase: `provenance.ai_enrichment` is `null` on every artifact.
 | Knowledge fragments + embeddings       | COMPLETE |
 | Search API                             | COMPLETE |
 | Search UI                              | NOT STARTED (needs a work package) |
+| Metadata enrichment (deterministic)    | COMPLETE |
+| Metadata enrichment (local LLM)        | COMPLETE — untested against a live Ollama |
+| Open the original document             | COMPLETE |
 | AI enrichment                          | NOT STARTED |
 | Images / OCR / audio                   | DEFERRED (P2) |
 
@@ -112,6 +115,62 @@ offered as a weak match is an unrelated passage offered as evidence.
 The search API is done; there is no search UI yet. The sidebar Search entry
 stays inert until a work package covers it.
 
+### Metadata enrichment
+
+The review form arrives filled in, from three kinds of evidence in descending
+order of authority:
+
+1. **What the document asserts about itself** — PDF `/Info`, Office core
+   properties. Method `document_metadata`.
+2. **A local language model**, if one is configured and the user asks for it.
+   Method `ai_suggested`.
+3. **Statistics over the document's own words** — keyphrases for topics and
+   tags, language detection, and a verbatim quote of the opening as a
+   description. Methods `keyphrase_extraction`, `language_detection`,
+   `extracted_opening`.
+
+The order is load-bearing: a model can never overwrite what the file itself
+asserts, and the statistical fallbacks only fill what is still empty.
+
+Four rules constrain it:
+
+* **`author` and `created_date` come only from document metadata.** They are
+  claims about the world that reading the text cannot establish, so no
+  engine — statistical or generative — may propose them.
+* **A model's topics and tags are checked against the document** and dropped
+  unless they appear in it verbatim. The number dropped is recorded.
+* **Nothing is padded.** A document with no recurring subject matter gets no
+  topics, and an unclear language is left blank. A list filled out to look
+  thorough is fabrication.
+* **Suggestions are drafts.** Each field shows how it was arrived at, and
+  only approval marks it `human_confirmed`.
+
+`provenance.ai_enrichment` stays `null` unless a model actually contributed,
+so the field keeps meaning "AI touched this". Deterministic enrichment is
+recorded separately under `provenance.enrichment`.
+
+The local model is **a button on the review screen, not part of upload**: a
+model on a laptop takes tens of seconds and an upload must not hang on it. It
+honours the AI suggestions toggle in Settings, and says so plainly when it is
+switched off, unconfigured or unreachable. There is no cloud engine, and a
+failing local engine falls back to deterministic enrichment rather than to
+anything remote.
+
+**Untested against a live Ollama.** The engine's response handling, grounding
+guard and unreachable path are covered by tests, but no Ollama daemon was
+reachable from the environment this was built in. See `docs/DEVELOPMENT.md`
+for setup, including why the base URL inside a container cannot be
+`localhost`.
+
+### Opening the original
+
+The Library and the review screen both link to the uploaded file. The media
+type is derived from the artifact's extension, never from the `content_type`
+the client supplied at upload — otherwise a file uploaded as `text/html`
+would be served back as HTML from the application's own origin. PDFs and text
+open inline; Office documents download, since no browser renders them.
+Filenames are sanitised before going into a `Content-Disposition` header.
+
 Images, OCR and audio remain deferred.
 
 ## Verification
@@ -123,7 +182,7 @@ Images, OCR and audio remain deferred.
 | UI/UX       | APPROVED             |
 | Regression  | PASS                 |
 
-**Engineering** — Backend: 115 pytest tests green against a real PostgreSQL 16
+**Engineering** — Backend: 134 pytest tests green against a real PostgreSQL 16
 database. Frontend: `tsc --noEmit` clean, ESLint clean, production build clean.
 Kubernetes manifests parse as valid YAML.
 

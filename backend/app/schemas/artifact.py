@@ -93,3 +93,18 @@ __all__ = [
     "ArtifactMetadata", "ArtifactReviewRequest", "ArtifactSummary",
     "ArtifactDetail", "ArtifactListResponse", "METADATA_FIELDS",
 ]
+
+
+class EnrichmentSuggestion(BaseModel):
+    """Proposed metadata. Nothing here is saved until the user approves it."""
+
+    suggestions: dict = Field(default_factory=dict)
+    field_methods: dict = Field(default_factory=dict)
+    # False means no model contributed — the configured one was unreachable,
+    # or AI suggestions are switched off in preferences. `notes` says which.
+    ai_used: bool = False
+    engine: str = "none"
+    model: str | None = None
+    # False would mean content left the CEREBRO environment. No engine does.
+    local: bool = True
+    notes: list[str] = Field(default_factory=list)

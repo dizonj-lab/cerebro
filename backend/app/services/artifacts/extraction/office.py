@@ -6,6 +6,7 @@ so it is preserved rather than flattened to a wall of text.
 import io
 import zipfile
 
+from app.services.artifacts.extraction import properties as doc_properties
 from app.services.artifacts.extraction.base import (
     Block,
     ExtractionFailed,
@@ -81,6 +82,7 @@ class DocxAdapter:
                 "headings": headings,
                 "tables": len(document.tables),
             },
+            properties=doc_properties.from_office(document.core_properties),
         )
 
 
@@ -149,4 +151,5 @@ class PptxAdapter:
                 "slides_with_notes": notes_count,
                 "blocks": len(blocks),
             },
+            properties=doc_properties.from_office(deck.core_properties),
         )

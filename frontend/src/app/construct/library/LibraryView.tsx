@@ -54,21 +54,33 @@ export function LibraryView() {
       ) : (
         <ul className="mt-6 divide-y divide-line border-y border-line">
           {items.map((a) => (
-            <li key={a.id}>
+            <li key={a.id} className="flex items-start justify-between gap-3 py-3.5">
+              {/* The row and the open control are siblings: an anchor inside
+                  an anchor is invalid, and nesting them would make the whole
+                  row behave unpredictably. */}
               <Link
                 href={`/construct/ingest?artifact=${a.id}`}
-                className="flex items-start justify-between gap-4 py-3.5 transition-colors hover:bg-surface-subtle"
+                className="-my-1.5 min-w-0 flex-1 rounded-md px-1 py-1.5 transition-colors hover:bg-surface-subtle"
               >
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-medium text-ink">
-                    {a.title || a.filename}
-                  </span>
-                  <span className="mt-0.5 block truncate font-mono text-xs text-ink-subtle">
-                    {a.filename} · {formatBytes(a.size_bytes)} · {a.modality}
-                  </span>
+                <span className="block truncate text-sm font-medium text-ink">
+                  {a.title || a.filename}
                 </span>
-                <ArtifactStatus status={a.status} className="mt-0.5 shrink-0" />
+                <span className="mt-0.5 block truncate font-mono text-xs text-ink-subtle">
+                  {a.filename} · {formatBytes(a.size_bytes)} · {a.modality}
+                </span>
               </Link>
+              <div className="flex shrink-0 items-center gap-3 pt-0.5">
+                <ArtifactStatus status={a.status} />
+                <a
+                  href={api.artifactContentUrl(a.id)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-md text-xs font-medium text-accent underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
+                >
+                  Open original
+                  <span className="sr-only"> document {a.filename} in a new tab</span>
+                </a>
+              </div>
             </li>
           ))}
         </ul>

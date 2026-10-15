@@ -61,6 +61,21 @@ services:
       CEREBRO_S3_ACCESS_KEY: cerebro
       CEREBRO_S3_SECRET_KEY: cerebro_dev_password
       CEREBRO_STORAGE_PATH: /data/artifacts
+      # Local AI, off unless you ask for it. Set these in a .env file beside
+      # this one; see .env.example.
+      #
+      # host.docker.internal is not a nicety here: inside this container,
+      # localhost is the container, so a default of localhost:11434 would
+      # reach nothing while appearing configured. extra_hosts below makes the
+      # same name work on Linux, where Docker does not provide it.
+      CEREBRO_ENRICHMENT_LLM: ${CEREBRO_ENRICHMENT_LLM:-none}
+      CEREBRO_EMBEDDING_PROVIDER: ${CEREBRO_EMBEDDING_PROVIDER:-hashing}
+      CEREBRO_OLLAMA_BASE_URL: ${CEREBRO_OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      CEREBRO_OLLAMA_ENRICHMENT_MODEL: ${CEREBRO_OLLAMA_ENRICHMENT_MODEL:-llama3.2}
+      CEREBRO_OLLAMA_EMBEDDING_MODEL: ${CEREBRO_OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+      CEREBRO_OLLAMA_EMBEDDING_DIMENSIONS: ${CEREBRO_OLLAMA_EMBEDDING_DIMENSIONS:-768}
+    extra_hosts:
+    - host.docker.internal:host-gateway
     ports:
     - ${CEREBRO_API_PORT:-8000}:8000
     depends_on:

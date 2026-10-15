@@ -2,12 +2,28 @@
 import io
 
 
-def make_pdf(pages: list[str]) -> bytes:
+def make_pdf(
+    pages: list[str],
+    *,
+    title: str | None = None,
+    author: str | None = None,
+    subject: str | None = None,
+    keywords: str | None = None,
+) -> bytes:
+    """A PDF, optionally carrying the metadata a real one would."""
     from reportlab.lib.pagesizes import A4
     from reportlab.pdfgen import canvas
 
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
+    if title:
+        c.setTitle(title)
+    if author:
+        c.setAuthor(author)
+    if subject:
+        c.setSubject(subject)
+    if keywords:
+        c.setKeywords(keywords)
     for text in pages:
         y = 800
         for line in text.split("\n"):

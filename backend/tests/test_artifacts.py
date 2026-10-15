@@ -374,3 +374,67 @@ def test_a_storage_failure_says_so_instead_of_a_bare_500(client, signed_in, db):
     assert str(blocker) not in detail
     # Nothing half-written is left behind.
     assert db.scalars(select(Artifact)).all() == []
+
+
+# --- serving the original document -----------------------------------------
+
+def test_the_original_document_can_be_opened(client, signed_in):
+    from tests.fixtures import make_pdf
+
+    content = make_pdf(["The source document itself."])
+    artifact_id = post(client, "source.pdf", content, "application/pdf").json()["id"]
+
+    r = client.get(f"/api/artifacts/{artifact_id}/content")
+    assert r.status_code == 200
+    # Byte-for-byte what was uploaded, so what opens is the real source.
+    assert r.content == content
+    assert r.headers["content-type"] == "application/pdf"
+    assert r.headers["content-disposition"] == 'inline; filename="source.pdf"'
+    assert r.headers["x-content-type-options"] == "nosniff"
+
+
+def test_the_served_type_ignores_what_the_client_claimed(client, signed_in):
+    """A declared text/html must not be served back as HTML from our origin."""
+    artifact_id = post(client, "notes.txt", b"<script>alert(1)</script>\n", "text/html").json()[
+        "id"
+    ]
+
+    r = client.get(f"/api/artifacts/{artifact_id}/content")
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/plain")
+
+
+def test_an_office_document_is_served_as_a_download(client, signed_in):
+    """No browser renders .docx, so offering a download is the honest result."""
+    from tests.fixtures import make_docx
+
+    content = make_docx(title="Doc", paragraphs=["Body."])
+    artifact_id = post(client, "doc.docx", content).json()["id"]
+
+    r = client.get(f"/api/artifacts/{artifact_id}/content")
+    assert r.headers["content-disposition"].startswith("attachment")
+
+
+def test_a_filename_cannot_inject_a_header(client, signed_in):
+    artifact_id = post(client, 'ev"il\r\nX-Injected: yes.txt', b"Body text.\n").json()["id"]
+
+    r = client.get(f"/api/artifacts/{artifact_id}/content")
+    assert "x-injected" not in {k.lower() for k in r.headers}
+    assert "\r" not in r.headers["content-disposition"]
+    assert '"' not in r.headers["content-disposition"].split("filename=")[1].strip('"')
+
+
+def test_one_user_cannot_open_another_users_document(client, valid_signup):
+    client.post("/api/auth/signup", json=valid_signup)
+    artifact_id = post(client, "private.txt", b"Private content here.\n").json()["id"]
+    client.post("/api/auth/logout")
+
+    client.post(
+        "/api/auth/signup",
+        json={
+            "display_name": "Grace Hopper",
+            "email": "grace@example.com",
+            "password": "compiler-1952-nanoseconds",
+        },
+    )
+    assert client.get(f"/api/artifacts/{artifact_id}/content").status_code == 404

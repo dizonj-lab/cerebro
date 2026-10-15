@@ -181,3 +181,69 @@ The images have never been built and the manifests have never been applied: the
 development container has no Docker daemon and no cluster. They are rendered and
 schema-validated against Kubernetes 1.31 (`make validate`), which catches
 structural errors but not runtime ones. See `docs/CURRENT-STATE.md`.
+
+## Local AI with Ollama
+
+Both AI features run on your own machine through Ollama. There is no cloud
+option in CEREBRO, and a local engine that fails is never replaced by one that
+would send your documents elsewhere.
+
+```bash
+ollama pull llama3.2          # metadata suggestions
+ollama pull nomic-embed-text  # embeddings for search
+```
+
+Then create a `.env` beside `docker-compose.yml`:
+
+```bash
+CEREBRO_ENRICHMENT_LLM=ollama
+CEREBRO_OLLAMA_ENRICHMENT_MODEL=llama3.2   # or whatever `ollama list` shows
+CEREBRO_EMBEDDING_PROVIDER=ollama
+```
+
+and restart: `make compose-up WEB_PORT=3100`.
+
+### Why the base URL is not localhost
+
+Inside the API container, `localhost` is the container — not your Mac. A
+default of `http://localhost:11434` would look configured and reach nothing.
+The compose file therefore defaults to `http://host.docker.internal:11434`,
+and declares
+
+```yaml
+extra_hosts:
+  - host.docker.internal:host-gateway
+```
+
+so the same name works on Linux, where Docker does not provide it. Running
+the API directly with `uvicorn` instead needs no override: `localhost` is
+then correct.
+
+### What each setting changes
+
+`CEREBRO_ENRICHMENT_LLM=ollama` adds a **Suggest with local AI** button to the
+review screen. It is a button rather than something that runs on upload
+because a model on a laptop takes tens of seconds, and an upload must not
+hang on it. Deterministic enrichment — the document's own metadata plus
+statistics over its text — runs on upload regardless.
+
+The button respects the **AI suggestions** toggle in Settings. Turned off, the
+model is not asked and the screen says so.
+
+`CEREBRO_EMBEDDING_PROVIDER=ollama` switches search from lexical matching to a
+learned model. **Artifacts registered under the previous provider will stop
+being found**: vectors from two providers are different spaces and are never
+compared, so anything already registered has to be registered again under the
+new one. That is deliberate — comparing across spaces would return confident
+nonsense.
+
+### Checking it works
+
+```bash
+curl -s http://localhost:11434/api/tags | python3 -m json.tool   # from your Mac
+docker compose exec api python -c "import urllib.request; \
+  print(urllib.request.urlopen('http://host.docker.internal:11434/api/tags').status)"
+```
+
+The second command is the one that matters: it asks from inside the container,
+which is where CEREBRO will be asking from.

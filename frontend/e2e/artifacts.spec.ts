@@ -175,3 +175,72 @@ test("a file whose bytes contradict its name is refused", async ({ page }) => {
   // Nothing was stored, so the upload surface is still offered.
   await expect(page.getByRole("button", { name: "Choose a file" })).toBeVisible();
 });
+
+// --- enrichment and the original document ---------------------------------
+
+test("a PDF's own metadata prefills the form, labelled as its own", async ({ page }) => {
+  await signedIn(page, "a-enrich");
+  await page.goto("/construct/ingest");
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "revenue-report.pdf",
+    mimeType: "application/pdf",
+    buffer: makePdf([
+      "Quarterly revenue grew twelve percent. Revenue growth was driven by",
+      "enterprise subscriptions. Enterprise customers renewed at a higher rate.",
+    ]),
+  });
+
+  await expect(page.getByRole("heading", { name: "Review artifact" })).toBeVisible();
+  // Topics come from words the document repeats, and the form says so.
+  await expect(page.getByText(/words the document repeats/i)).toBeVisible();
+  const topics = page.getByLabel("Topics");
+  await expect(topics).toBeVisible();
+  // Tags are editable and present.
+  await expect(page.getByLabel("Tags")).toBeVisible();
+  // Author is not invented for a document that does not state one.
+  await expect(page.getByLabel("Author")).toHaveValue("");
+});
+
+test("the original document can be opened from the review screen", async ({ page }) => {
+  await signedIn(page, "a-open-review");
+  await page.goto("/construct/ingest");
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "source.pdf",
+    mimeType: "application/pdf",
+    buffer: makePdf(["The source document itself."]),
+  });
+  await expect(page.getByRole("heading", { name: "Review artifact" })).toBeVisible();
+
+  const link = page.getByRole("link", { name: /open original document/i });
+  await expect(link).toBeVisible();
+  const href = await link.getAttribute("href");
+  expect(href).toMatch(/\/api\/artifacts\/[0-9a-f-]+\/content$/);
+
+  // It really serves the PDF, rather than just looking like a link.
+  const response = await page.request.get(href!);
+  expect(response.status()).toBe(200);
+  expect(response.headers()["content-type"]).toContain("application/pdf");
+});
+
+test("the library offers the original document for each artifact", async ({ page }) => {
+  await signedIn(page, "a-open-library");
+  await upload(page, "library-source.txt");
+  await page.goto("/construct/library");
+
+  const link = page.getByRole("link", { name: /open original/i }).first();
+  await expect(link).toBeVisible();
+  const response = await page.request.get((await link.getAttribute("href"))!);
+  expect(response.status()).toBe(200);
+  expect(response.headers()["content-type"]).toContain("text/plain");
+});
+
+test("asking the local model says so when none is configured", async ({ page }) => {
+  await signedIn(page, "a-suggest");
+  await upload(page);
+
+  await page.getByRole("button", { name: /suggest with local ai/i }).click();
+  // With no model configured the app says that plainly rather than silently
+  // doing nothing or claiming AI ran.
+  await expect(page.getByText(/no local model is configured/i)).toBeVisible();
+  await expect(page.getByText(/no AI has read this artifact/i)).toBeVisible();
+});

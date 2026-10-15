@@ -46,6 +46,13 @@ class Settings(BaseSettings):
     ollama_embedding_model: str = "nomic-embed-text"
     ollama_embedding_dimensions: int = 768
 
+    # Metadata enrichment. Deterministic enrichment (the document's own
+    # metadata plus statistics over its text) always runs. A local language
+    # model is opt-in: set CEREBRO_ENRICHMENT_LLM=ollama and pull the model.
+    # There is no cloud option, by design.
+    enrichment_llm: str = "none"
+    ollama_enrichment_model: str = "llama3.2"
+
     # Upload limits
     max_upload_bytes: int = 25 * 1024 * 1024
 
