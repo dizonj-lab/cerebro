@@ -90,7 +90,12 @@ services:
       api:
         condition: service_healthy
   minio:
-    image: ${CEREBRO_MINIO_IMAGE:?set CEREBRO_MINIO_IMAGE to a pullable S3 image}
+    # No usable default exists: see docs/DEVELOPMENT.md for what was checked.
+    # A `${VAR:?}` guard is not used here because Compose interpolates every
+    # service even when the profile is off, which would break the default
+    # `docker compose up`. The placeholder fails at pull time instead, naming
+    # the variable to set.
+    image: ${CEREBRO_MINIO_IMAGE:-set-CEREBRO_MINIO_IMAGE-see-docs-DEVELOPMENT-md}
     command:
     - server
     - /data
