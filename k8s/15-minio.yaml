@@ -57,7 +57,9 @@ spec:
         fsGroup: 1000
       containers:
         - name: minio
-          image: minio/minio:latest
+          # minio/minio no longer resolves on Docker Hub. Set this to a
+          # registry reference you can actually pull before applying.
+          image: quay.io/minio/minio:latest
           args: ["server", "/data", "--console-address", ":9001"]
           ports:
             - name: s3

@@ -131,6 +131,27 @@ browser reaches the API through the web origin, not a hard-coded port. Verified
 by running the full end-to-end suite against port 3100 with an unchanged
 build — 31/31.
 
+### Object storage
+
+By default artifact bytes go to a Docker volume through the filesystem backend.
+That needs no extra container and is the backend the test suite covers.
+
+MinIO is opt-in:
+
+```bash
+CEREBRO_STORAGE_BACKEND=s3 docker compose --profile minio up -d --build
+```
+
+**`minio/minio` no longer resolves on Docker Hub** (it returns 404), so the
+image reference is configurable via `CEREBRO_MINIO_IMAGE`. Find one you can
+pull before enabling the profile, for example:
+
+```bash
+docker pull quay.io/minio/minio:latest
+```
+
+The same applies to `k8s/15-minio.yaml`.
+
 ### Secrets
 
 The committed manifests carry development values. Replace them before anything

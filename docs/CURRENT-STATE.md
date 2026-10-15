@@ -38,7 +38,8 @@ Connect · Reason · Recall*) is applied throughout.
 | Component                   | Status   |
 | --------------------------- | -------- |
 | Upload + deterministic inspection | COMPLETE |
-| Object storage (filesystem / MinIO) | COMPLETE |
+| Object storage (filesystem) | COMPLETE |
+| Object storage (MinIO / S3) | OPT-IN — image reference unresolved |
 | Deterministic metadata extraction | COMPLETE |
 | Human review + approval gate | COMPLETE |
 | Registration with checksum re-verification | COMPLETE |
