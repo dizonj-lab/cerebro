@@ -25,6 +25,7 @@ def ask(payload: RecallRequest, current_user: CurrentUser, db: DbSession) -> Rec
             question=payload.question,
             topic=payload.topic,
             ai_suggestions=preferences.ai_suggestions,
+            history=[turn.model_dump() for turn in payload.history],
         )
     )
 
@@ -52,6 +53,7 @@ def ask_streaming(
             question=payload.question,
             topic=payload.topic,
             ai_suggestions=preferences.ai_suggestions,
+            history=[turn.model_dump() for turn in payload.history],
         ):
             yield f"data: {json.dumps(event)}\n\n"
 

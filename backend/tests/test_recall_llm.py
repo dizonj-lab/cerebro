@@ -64,7 +64,7 @@ def test_only_the_retrieved_passages_are_put_in_front_of_the_model(client, libra
     prompt = STATE["last_prompt"]
     assert "retention schedule" in prompt
     # The instruction is the grounding contract, and the question is in it.
-    assert "Use only the passages" in prompt
+    assert "Never use knowledge from outside these passages" in prompt
     assert "How long are ledger exports kept?" in prompt
 
 
@@ -98,7 +98,7 @@ def test_an_unsupported_question_abstains_rather_than_answering(client, library,
     # Either nothing was retrieved — in which case no model was asked at all
     # — or the model was asked and said the passages do not answer it.
     if not body["sources"]:
-        assert body["answer"].startswith("Insufficient evidence")
+        assert body["answer"].startswith("I could not find anything")
         assert body["grounded"] is False
         assert body["model"] is None
     else:
@@ -112,7 +112,7 @@ def test_the_model_is_never_asked_when_nothing_was_retrieved(client, valid_signu
 
     body = client.post("/api/recall", json={"question": "anything at all"}).json()
 
-    assert body["answer"].startswith("Insufficient evidence")
+    assert body["answer"].startswith("I could not find anything")
     assert body["sources"] == []
     assert "last_prompt" not in STATE
 
@@ -200,7 +200,7 @@ def test_the_stream_abstains_on_an_empty_library(client, valid_signup, answering
         received = events(response)
 
     assert received[0] == {"type": "sources", "sources": []}
-    assert received[-1]["answer"].startswith("Insufficient evidence")
+    assert received[-1]["answer"].startswith("I could not find anything")
     assert received[-1]["abstained"] is True
 
 
@@ -251,3 +251,74 @@ def test_backfill_embeds_fragments_that_have_no_vector_for_the_active_model(
     assert client.get("/api/ml/status").json()["embeddings"]["missing"] == 0
     # And the knowledge is retrievable again.
     assert client.post("/api/search", json={"query": "reconciliation"}).json()["total"] >= 1
+
+
+# --- how it reads -----------------------------------------------------------
+
+def test_the_instruction_asks_for_prose_not_a_search_result(client, library, answering):
+    client.post("/api/recall", json={"question": "How long are ledger exports kept?"})
+
+    prompt = STATE["last_prompt"]
+    # Named documents, so the model can say "the retention policy says".
+    assert "from Retention Policy:" in prompt
+    assert "Never open with" in prompt
+    assert "in plain prose" in prompt
+    # The old cap that produced telegraphic answers is gone.
+    assert "at most four sentences" not in prompt
+
+
+def test_search_engine_throat_clearing_is_removed(client, library, answering):
+    STATE["pieces"] = [
+        "Based on the provided passages, ledger exports are kept for seven years [1]."
+    ]
+
+    body = client.post("/api/recall", json={"question": "retention?"}).json()
+
+    assert body["answer"] == "Ledger exports are kept for seven years [1]."
+
+
+def test_a_follow_up_can_refer_to_what_was_said_before(client, library, answering):
+    client.post(
+        "/api/recall",
+        json={
+            "question": "What about the sign-off?",
+            "history": [
+                {"question": "How long are exports kept?", "answer": "Seven years."}
+            ],
+        },
+    )
+
+    prompt = STATE["last_prompt"]
+    assert "They asked: How long are exports kept?" in prompt
+    assert "You answered: Seven years." in prompt
+    # Context for reading the question, explicitly not a source of facts.
+    assert "not as a source of facts" in prompt
+
+
+def test_history_never_becomes_the_evidence(client, valid_signup, answering):
+    """An empty library stays empty however much was said earlier."""
+    client.post("/api/auth/signup", json=valid_signup)
+    STATE.pop("last_prompt", None)
+
+    body = client.post(
+        "/api/recall",
+        json={
+            "question": "And after that?",
+            "history": [{"question": "What happened?", "answer": "The cutover."}],
+        },
+    ).json()
+
+    assert body["sources"] == []
+    assert body["grounded"] is False
+    # Retrieval found nothing, so no model was asked anything at all.
+    assert "last_prompt" not in STATE
+
+
+def test_abstention_sounds_like_a_person(client, valid_signup, answering):
+    client.post("/api/auth/signup", json=valid_signup)
+
+    body = client.post("/api/recall", json={"question": "anything"}).json()
+
+    assert body["answer"].startswith("I could not find anything")
+    # And it says why, rather than leaving them guessing.
+    assert "awaiting review" in body["answer"]

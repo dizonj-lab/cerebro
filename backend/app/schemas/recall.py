@@ -2,10 +2,21 @@
 from pydantic import BaseModel, Field
 
 
+class RecallTurn(BaseModel):
+    """One earlier exchange, for understanding a follow-up question."""
+
+    question: str = Field(max_length=1000)
+    answer: str = Field(max_length=4000)
+
+
 class RecallRequest(BaseModel):
     question: str = Field(min_length=1, max_length=1000)
     # The cluster the user has selected, used as context for the query.
     topic: str | None = Field(default=None, max_length=200)
+    # What was said before, so "what about the other one?" is answerable.
+    # Context for reading the question, never a source of facts: retrieval
+    # still runs fresh against the library every time.
+    history: list[RecallTurn] = Field(default_factory=list, max_length=10)
 
 
 class RecallSource(BaseModel):

@@ -131,7 +131,7 @@ def test_an_unapproved_document_is_never_the_evidence(client, valid_signup, depl
 
     body = client.post("/api/recall", json={"question": "retention schedule"}).json()
 
-    assert body["answer"].startswith("Insufficient evidence")
+    assert body["answer"].startswith("I could not find anything")
     assert body["sources"] == []
     # No passages, so the model was not asked anything at all.
     assert "last_prompt" not in STATE

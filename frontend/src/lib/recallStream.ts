@@ -12,7 +12,12 @@ import type { RecallEvent } from "@/lib/api";
  * citations that resolved and what the run cost.
  */
 export async function streamRecall(
-  input: { question: string; topic?: string | null },
+  input: {
+    question: string;
+    topic?: string | null;
+    /** Earlier turns, so a follow-up can refer to what was just said. */
+    history?: { question: string; answer: string }[];
+  },
   onEvent: (event: RecallEvent) => void,
   signal?: AbortSignal,
 ): Promise<void> {

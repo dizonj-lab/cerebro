@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { api } from "@/lib/api";
 import type { CerebroRecallSource, CerebroRecallTelemetry } from "@/lib/api";
@@ -38,6 +38,9 @@ export function RecollectionPanel({
   const [telemetry, setTelemetry] = useState<CerebroRecallTelemetry | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [asked, setAsked] = useState(false);
+  // One exchange of memory: enough for a follow-up, and it never becomes
+  // evidence — retrieval runs again for every question.
+  const lastExchange = useRef<{ question: string; answer: string } | null>(null);
 
   async function ask(event: React.FormEvent) {
     event.preventDefault();
@@ -51,7 +54,8 @@ export function RecollectionPanel({
     setSources([]);
     setAsked(true);
     try {
-      await streamRecall({ question: text, topic }, (event_) => {
+      const history = lastExchange.current ? [lastExchange.current] : [];
+      await streamRecall({ question: text, topic, history }, (event_) => {
         if (event_.type === "sources") setSources(event_.sources);
         else if (event_.type === "delta") setAnswer((a) => a + event_.text);
         else if (event_.type === "error") setError(event_.message);
@@ -59,7 +63,10 @@ export function RecollectionPanel({
           // The final event carries the whole answer, with citations to
           // passages that do not exist already removed. It replaces the
           // streamed text rather than appending to it.
-          if (event_.answer !== null) setAnswer(event_.answer);
+          if (event_.answer !== null) {
+            setAnswer(event_.answer);
+            lastExchange.current = { question: text, answer: event_.answer };
+          }
           setNote(event_.note);
           setTelemetry(event_.telemetry);
         }

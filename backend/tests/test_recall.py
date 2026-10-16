@@ -43,7 +43,7 @@ def test_a_question_with_no_matching_knowledge_is_answered_honestly(client, sign
     assert body["sources"] == []
     assert body["grounded"] is False
     # The product's exact words for abstaining, which must not drift.
-    assert body["answer"].startswith("Insufficient evidence")
+    assert body["answer"].startswith("I could not find anything")
 
 
 def test_unapproved_documents_are_never_searched(client, signed_in):

@@ -60,8 +60,16 @@ export function RecallChat({ topic }: { topic: string | null }) {
         ),
       );
 
+    // The last few exchanges, so "what about the other one?" is answerable.
+    // Evidence is still retrieved fresh for every question; this only helps
+    // the model read what was asked.
+    const history = turns
+      .filter((turn) => turn.reply?.answer)
+      .slice(-3)
+      .map((turn) => ({ question: turn.question, answer: turn.reply?.answer ?? "" }));
+
     try {
-      await streamRecall({ question: asked, topic }, (e) => {
+      await streamRecall({ question: asked, topic, history }, (e) => {
         if (e.type === "sources") {
           // Evidence first: the citations are readable while the answer is
           // still being written.

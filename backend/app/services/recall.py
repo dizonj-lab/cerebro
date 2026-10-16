@@ -40,23 +40,78 @@ MAX_PASSAGE_CHARS = 700
 
 # The exact words the product uses when the library cannot answer. Abstaining
 # is a result, not a failure, and it must read the same every time.
-INSUFFICIENT = "Insufficient evidence in your registered documents to answer that."
+INSUFFICIENT = (
+    "I could not find anything in your registered documents that speaks to that. "
+    "If the document is in your library but still awaiting review, it is not "
+    "searchable yet."
+)
 
-_INSTRUCTION = """You answer strictly from the passages provided. They come \
-from the user's own documents.
+_INSTRUCTION = """You are CEREBRO, talking with someone about their own \
+documents. You have just read the passages below, which come from documents \
+they uploaded and approved.
 
-Rules:
-- Use only the passages. If they do not contain the answer, say so plainly.
-- Never add facts from your own knowledge.
-- Cite the passages you used by their number, like [1] or [2].
-- Be concise: at most four sentences.
+Answer as a colleague who has read them would: in plain prose, in your own \
+words, at whatever length the question deserves. A simple question gets a \
+sentence. A question about how something works gets a short paragraph.
 
-Question: {question}
+How to write:
+- Start with the answer. Never open with "Based on the passages", "According \
+to the provided context" or anything like it — they already know where this \
+comes from.
+- Refer to documents by their name, the way a person would: "the retention \
+policy says…", not "passage 2 states…".
+- Put a citation like [2] after a specific claim a reader might want to \
+check. Not after every sentence, and never a row of them at the end.
+- Write continuous prose. Only use a list if they asked for a list, or if \
+the answer genuinely is several separate items.
+- If the documents only partly answer the question, say what you found and \
+what is missing, in a sentence. Do not pad it out.
+- If they do not answer it at all, say so directly, mention what the \
+documents are about instead, and stop.
 
-Passages:
+What not to do:
+- Never use knowledge from outside these passages, however confident you \
+are. If you know the answer but the documents do not say it, say they do \
+not say it.
+- Do not invent a document, a date, a name or a citation number.
+- Do not restate the question before answering it.
+{history}
+Their question: {question}
+
+The passages:
 {passages}
 
-Answer:"""
+Your answer:"""
+
+# A couple of turns of context, so a follow-up like "what about the other
+# one?" is answerable. Bounded on purpose: this is conversational memory,
+# not a second retrieval, and a long history would crowd out the evidence.
+MAX_HISTORY_TURNS = 3
+MAX_HISTORY_CHARS = 400
+
+# Openers that make an answer read like a search result rather than a reply.
+# The instruction asks the model not to use them; this removes them when it
+# does anyway, which small models regularly do.
+_BOILERPLATE = re.compile(
+    r"^\s*(?:"
+    r"based on (?:the )?(?:provided |given |retrieved )?(?:passages|context|documents|information)"
+    r"|according to (?:the )?(?:provided |given |retrieved )?(?:passages|context|documents)"
+    r"|from the (?:provided |given |retrieved )?(?:passages|context|documents)"
+    r"|the (?:provided |given |retrieved )?(?:passages|context|documents)"
+    r" (?:say|state|indicate|show)"
+    r"|in summary|to summarise|to summarize"
+    r")\b[,:]?\s*",
+    re.IGNORECASE,
+)
+
+
+def _natural(answer: str) -> str:
+    """Trim the search-engine throat-clearing a small model opens with."""
+    cleaned = _BOILERPLATE.sub("", answer, count=1).lstrip()
+    # Removing the opener can leave a lowercase first word mid-sentence.
+    if cleaned and cleaned[0].islower() and not cleaned.startswith(("http", "[")):
+        cleaned = cleaned[0].upper() + cleaned[1:]
+    return cleaned or answer
 
 
 def _passages(db: Session, owner_id: uuid.UUID, query: str, *, topic: str | None) -> list[dict]:
@@ -177,11 +232,29 @@ def _engine(ai_suggestions: bool) -> tuple[str | None, str | None, str | None]:
     return found.base_url, chosen, None
 
 
-def _prompt(question: str, passages: list[dict]) -> str:
+def _prompt(question: str, passages: list[dict], history: list[dict] | None = None) -> str:
     rendered = "\n\n".join(
-        f"[{p['index']}] ({p['filename']}) {p['excerpt']}" for p in passages
+        # Named rather than numbered alone, so the model can refer to "the
+        # retention policy" the way a person would.
+        f"[{p['index']}] from {p['title'] or p['filename']}: {p['excerpt']}"
+        for p in passages
     )
-    return _INSTRUCTION.format(question=question, passages=rendered)
+
+    conversation = ""
+    for turn in (history or [])[-MAX_HISTORY_TURNS:]:
+        asked = " ".join(str(turn.get("question", "")).split())[:MAX_HISTORY_CHARS]
+        answered = " ".join(str(turn.get("answer", "")).split())[:MAX_HISTORY_CHARS]
+        if asked and answered:
+            conversation += f"\nThey asked: {asked}\nYou answered: {answered}\n"
+    if conversation:
+        conversation = (
+            "\nEarlier in this conversation — use it to understand what they mean "
+            "now, not as a source of facts:\n" + conversation
+        )
+
+    return _INSTRUCTION.format(
+        question=question, passages=rendered, history=conversation
+    )
 
 
 def _abstained(answer: str) -> bool:
@@ -208,6 +281,7 @@ def ask(
     question: str,
     topic: str | None = None,
     ai_suggestions: bool = True,
+    history: list[dict] | None = None,
 ) -> dict:
     """Answer a question from the library, or say why it cannot."""
     try:
@@ -247,7 +321,10 @@ def ask(
 
     try:
         generated = ollama.generate(
-            base_url, model, _prompt(question, passages), operation="recall.answer"
+            base_url,
+            model,
+            _prompt(question, passages, history),
+            operation="recall.answer",
         )
     except ollama.OllamaUnavailable as exc:
         # The passages still stand on their own. There is no cloud fallback.
@@ -260,7 +337,7 @@ def ask(
             "telemetry": None,
         }
 
-    answer, cited = _cite_guard(generated.text, len(passages))
+    answer, cited = _cite_guard(_natural(generated.text), len(passages))
     return {
         "answer": answer,
         "sources": passages,
@@ -287,6 +364,7 @@ def ask_stream(
     question: str,
     topic: str | None = None,
     ai_suggestions: bool = True,
+    history: list[dict] | None = None,
 ) -> Iterator[dict]:
     """The same answer, as events: sources first, then words, then a summary.
 
@@ -334,7 +412,10 @@ def ask_stream(
     generation = None
     try:
         for item in ollama.generate_stream(
-            base_url, model, _prompt(question, passages), operation="recall.answer"
+            base_url,
+            model,
+            _prompt(question, passages, history),
+            operation="recall.answer",
         ):
             if isinstance(item, str):
                 collected.append(item)
@@ -357,7 +438,7 @@ def ask_stream(
     # The guard runs on the whole answer, so a citation split across two
     # stream chunks is still checked. The client replaces the streamed text
     # with this one, which is why the final event carries it in full.
-    answer, cited = _cite_guard("".join(collected), len(passages))
+    answer, cited = _cite_guard(_natural("".join(collected)), len(passages))
     yield {
         "type": "done",
         "answer": answer,
