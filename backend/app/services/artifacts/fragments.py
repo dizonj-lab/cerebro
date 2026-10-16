@@ -19,7 +19,11 @@ from sqlalchemy.orm import Session
 from app.models.artifact import Artifact
 from app.models.fragment import FragmentEmbedding, KnowledgeFragment
 from app.services import telemetry
-from app.services.artifacts.chunking import chunk_blocks
+from app.services.artifacts.chunking import (
+    DEFAULT_CHUNK_CHARS,
+    chunk_blocks,
+    chunking_provenance,
+)
 from app.services.embeddings import EmbeddingFailed, get_embedding_provider
 
 
@@ -46,9 +50,26 @@ def build_for_artifact(db: Session, artifact: Artifact, *, document) -> int:
             "fragments can be built from it."
         )
 
+    started_chunking = time.perf_counter()
     chunks = chunk_blocks(document.blocks)
     if not chunks:
         raise FragmentsUnavailable("Extraction produced no text to build fragments from.")
+
+    provenance = chunking_provenance(
+        chunks,
+        chunk_chars=DEFAULT_CHUNK_CHARS,
+        overlap_chars=round(DEFAULT_CHUNK_CHARS * 0.15),
+    )
+    telemetry.record(
+        "chunking",
+        model=None,
+        duration_ms=int((time.perf_counter() - started_chunking) * 1000),
+        algorithm=f"{provenance['algorithm']} v{provenance['version']}",
+        detail=f"{provenance['chunks']} chunks, ~{provenance['token_estimate']} tokens",
+    )
+    # Recorded on the artifact, so a fragment's origin is answerable later:
+    # which splitter, which version, which budget.
+    artifact.provenance = {**(artifact.provenance or {}), "chunking": provenance}
 
     existing = set(
         db.scalars(

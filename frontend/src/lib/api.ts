@@ -147,6 +147,8 @@ export interface CerebroArtifactMetadata {
   organizations: string[];
   projects: string[];
   tags: string[];
+  technologies: string[];
+  concepts: string[];
 }
 
 export interface CerebroArtifactSummary {
@@ -442,6 +444,16 @@ export interface CerebroMlStatus {
     missing: number;
   };
   retrieval: { vector_index: string; keyword_index: string; fusion: string };
+  /** Null means nothing could measure it; it is shown as N/A, never guessed. */
+  resources: {
+    cpu_percent: number | null;
+    memory_mb: number | null;
+    memory_percent: number | null;
+    gpu_percent: number | null;
+    gpu_memory_mb: number | null;
+    source: string;
+    cpu_note?: string;
+  };
   operations: {
     operation: string;
     model: string | null;
@@ -450,6 +462,9 @@ export interface CerebroMlStatus {
     completion_tokens: number | null;
     algorithm: string | null;
     detail: string | null;
+    status: string;
+    execution_id: string;
+    stage: string | null;
     at: number;
   }[];
 }

@@ -117,6 +117,23 @@ filters on all three, so vectors from two spaces are never compared.
 A fragment scoring zero or below is not returned. An unrelated passage
 offered as a weak match is an unrelated passage offered as evidence.
 
+### Chunking and embeddings
+
+Chunks target roughly 500 tokens with 75 of overlap, sized in characters —
+2000 and 300 at the four-characters-per-token English average — because
+characters are what the splitter can count exactly. Token figures are
+labelled estimates everywhere they appear; the only exact counts CEREBRO has
+are the ones a daemon reports after a generation. Empty chunks and duplicates
+are dropped, so a slide footer repeated across 29 pages costs one vector
+rather than 29. The splitter's name, version and budget are recorded on the
+artifact's provenance.
+
+Embeddings go to Ollama in one batched request (`/api/embed`) rather than one
+call per chunk, which is what made registering a real document feel broken:
+a 29-page PDF is roughly 90 chunks and so was roughly 90 round trips. A
+daemon too old for that endpoint answers 404, and the one-at-a-time path is
+still there for it.
+
 ### Local models
 
 CEREBRO discovers what the local Ollama daemon has rather than requiring it to

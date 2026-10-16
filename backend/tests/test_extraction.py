@@ -122,7 +122,10 @@ def test_chunks_are_contiguous_hashed_and_located():
 
 
 def test_overlap_carries_context_across_the_seam():
-    result = extract(("One. " * 200).encode(), filename="a.txt")
+    # Distinct sentences: a text of one repeated sentence produces identical
+    # chunks, which are deduplicated, so it would measure that instead.
+    body = " ".join(f"Sentence number {i} carries its own words." for i in range(60))
+    result = extract(body.encode(), filename="a.txt")
     with_overlap = chunk_blocks(result.blocks, chunk_chars=300, overlap_chars=100)
     without = chunk_blocks(result.blocks, chunk_chars=300, overlap_chars=0)
     assert len(with_overlap) > len(without)

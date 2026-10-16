@@ -26,6 +26,7 @@ import { cn } from "@/lib/cn";
 const EMPTY: CerebroArtifactMetadata = {
   title: "", description: "", language: "", author: "", created_date: "",
   topics: [], people: [], organizations: [], projects: [], tags: [],
+  technologies: [], concepts: [],
 };
 
 function toDraft(m: CerebroArtifactMetadata): CerebroArtifactMetadata {
@@ -456,6 +457,17 @@ function IngestInner() {
               <FormField htmlFor="projects" label="Projects" className="sm:col-span-2">
                 <TagInput id="projects" value={draft.projects} disabled={registered || busy}
                   onChange={(v) => set("projects", v)} placeholder="Add a project and press Enter" />
+              </FormField>
+
+              <FormField htmlFor="technologies" label="Technologies">
+                <TagInput id="technologies" value={draft.technologies}
+                  disabled={registered || busy} onChange={(v) => set("technologies", v)}
+                  placeholder="Add a technology and press Enter" />
+              </FormField>
+
+              <FormField htmlFor="concepts" label="Key concepts">
+                <TagInput id="concepts" value={draft.concepts} disabled={registered || busy}
+                  onChange={(v) => set("concepts", v)} placeholder="Add a concept and press Enter" />
               </FormField>
             </div>
 

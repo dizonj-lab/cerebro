@@ -11,7 +11,7 @@ from __future__ import annotations
 import pytest
 
 from app.core.config import get_settings
-from app.services import ollama
+from app.services import ollama, telemetry
 from app.services.artifacts import enrichment
 from app.services.embeddings import reset_embedding_provider
 from tests.test_ollama import STATE, daemon  # noqa: F401 - fixture reused
@@ -230,3 +230,77 @@ def test_the_probe_says_so_when_the_daemon_is_absent(client, valid_signup, monke
 
     assert response.status_code == 503
     assert "ollama serve" in response.json()["detail"]
+
+
+# --- the spec's wider entity set -------------------------------------------
+
+def test_technologies_and_concepts_are_suggested_and_grounded(client, valid_signup, deployed):
+    client.post("/api/auth/signup", json=valid_signup)
+    text = (
+        "The Atlas platform runs on PostgreSQL and Kubernetes. "
+        "Retrieval augmented generation underpins the assistant. "
+        "Maria Santos of Acme Inc. owns the rollout.\n"
+    )
+    artifact = client.post(
+        "/api/artifacts", files={"file": ("atlas.txt", text.encode(), "text/plain")}
+    ).json()
+    STATE["pieces"] = [
+        '{"technologies": ["PostgreSQL", "Kubernetes", "Redis"], '
+        '"concepts": ["Retrieval augmented generation"], '
+        '"people": ["Maria Santos"], "organizations": ["Acme Inc."]}'
+    ]
+
+    body = client.post(f"/api/artifacts/{artifact['id']}/suggest").json()
+
+    assert body["suggestions"]["technologies"] == ["PostgreSQL", "Kubernetes"]
+    assert body["suggestions"]["concepts"] == ["Retrieval augmented generation"]
+    # Redis is not in the document, however plausible for this stack.
+    assert "Redis" not in body["suggestions"]["technologies"]
+
+
+def test_a_long_document_is_read_in_windows_not_truncated(client, valid_signup, deployed):
+    """The people in a 29-page deck are mostly not in its first 6000 characters."""
+    from app.services.artifacts.enrichment.llm import MAX_PROMPT_CHARS
+
+    filler = "This paragraph discusses the migration in general terms. " * 200
+    assert len(filler) > MAX_PROMPT_CHARS
+    text = filler + "\nThe closing section names Priya Raman as the accountable owner.\n"
+
+    client.post("/api/auth/signup", json=valid_signup)
+    artifact = client.post(
+        "/api/artifacts", files={"file": ("long.txt", text.encode(), "text/plain")}
+    ).json()
+    STATE["pieces"] = ['{"people": ["Priya Raman"]}']
+
+    body = client.post(f"/api/artifacts/{artifact['id']}/suggest").json()
+
+    # A name only in the tail is still found, and still checked against the
+    # text that was actually read.
+    assert body["suggestions"]["people"] == ["Priya Raman"]
+
+
+def test_god_mode_sees_a_call_while_it_is_still_running(client, valid_signup, deployed):
+    client.post("/api/auth/signup", json=valid_signup)
+    telemetry.clear()
+    STATE["pieces"] = ["ready"]
+
+    client.post("/api/ml/probe")
+    body = client.get("/api/ml/status").json()
+
+    statuses = {(o["operation"], o["status"]) for o in body["operations"]}
+    assert ("ml.probe.generate", "STARTED") in statuses
+    assert ("ml.probe.generate", "COMPLETED") in statuses
+    # Both halves of one execution share an id, so a long run can be followed.
+    ids = {o["execution_id"] for o in body["operations"] if o["operation"] == "ml.probe.generate"}
+    assert len(ids) == 1
+
+
+def test_resources_are_measured_or_reported_as_unavailable(client, valid_signup, deployed):
+    client.post("/api/auth/signup", json=valid_signup)
+
+    resources = client.get("/api/ml/status").json()["resources"]
+
+    # Memory is readable from /proc; a GPU is not visible from here and is
+    # null rather than invented.
+    assert resources["memory_mb"] is not None
+    assert resources["gpu_percent"] is None

@@ -211,6 +211,24 @@ export function GodModePanel() {
         <Row label="Keyword">{ml.retrieval.keyword_index}</Row>
         <Row label="Fusion">{ml.retrieval.fusion}</Row>
 
+        {/* Measured, or N/A. Nothing here is estimated to fill a gap. */}
+        <Row label="CPU">
+          {ml.resources.cpu_percent === null ? "N/A" : `${ml.resources.cpu_percent}%`}
+        </Row>
+        <Row label="Memory">
+          {ml.resources.memory_mb === null ? "N/A" : `${ml.resources.memory_mb} MB`}
+          {ml.resources.memory_percent !== null && (
+            <span className="text-ink-subtle"> · host {ml.resources.memory_percent}%</span>
+          )}
+        </Row>
+        <Row label="GPU">
+          {ml.resources.gpu_percent === null ? (
+            <span className="text-ink-subtle">N/A — not visible from this container</span>
+          ) : (
+            `${ml.resources.gpu_percent}%`
+          )}
+        </Row>
+
         {/* Cloud engine stays listed so the panel cannot be read as hiding
             one. There is none. */}
         <Row label="Cloud engine">
@@ -227,10 +245,25 @@ export function GodModePanel() {
         ) : (
           <ul data-testid="ml-operations" className="flex flex-col gap-1 text-xs">
             {ml.operations.slice(0, 8).map((op, i) => (
-              <li key={`${op.operation}-${op.at}-${i}`} className="flex flex-col">
+              <li key={`${op.execution_id}-${op.status}-${op.at}-${i}`} className="flex flex-col">
                 <span className="text-ink">
+                  {/* An operation in flight reads as running rather than as
+                      a zero-millisecond success. */}
+                  <span
+                    className={
+                      op.status === "FAILED"
+                        ? "text-danger"
+                        : op.status === "STARTED"
+                          ? "text-ink-subtle"
+                          : "text-accent"
+                    }
+                  >
+                    {op.status === "STARTED" ? "running" : op.status.toLowerCase()}
+                  </span>{" "}
                   {op.operation}
-                  <span className="text-ink-subtle"> · {op.duration_ms} ms</span>
+                  {op.status !== "STARTED" && (
+                    <span className="text-ink-subtle"> · {op.duration_ms} ms</span>
+                  )}
                 </span>
                 <span className="truncate text-ink-subtle">
                   {op.model ?? op.algorithm ?? "—"}

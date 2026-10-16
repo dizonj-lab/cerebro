@@ -25,6 +25,7 @@ import re
 import time
 import urllib.error
 import urllib.request
+import uuid
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 
@@ -291,6 +292,17 @@ def generate_stream(
     )
 
     started = time.perf_counter()
+    execution_id = uuid.uuid4().hex[:8]
+    # A 4B model on a laptop takes seconds to a minute. Emitting the start
+    # means GOD MODE shows the call in flight rather than nothing at all
+    # until it returns.
+    record(
+        operation,
+        model=model,
+        duration_ms=0,
+        status="STARTED",
+        execution_id=execution_id,
+    )
     collected: list[str] = []
     filter_ = _ThinkFilter()
     prompt_tokens: int | None = None
@@ -322,6 +334,8 @@ def generate_stream(
             model=model,
             duration_ms=int((time.perf_counter() - started) * 1000),
             detail=f"unreachable: {exc}",
+            status="FAILED",
+            execution_id=execution_id,
         )
         raise OllamaUnavailable(
             f"Could not reach the local model '{model}' at {base_url}."
@@ -339,6 +353,7 @@ def generate_stream(
         duration_ms=duration_ms,
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
+        execution_id=execution_id,
     )
     if not text:
         raise OllamaUnavailable(f"The local model '{model}' returned nothing.")

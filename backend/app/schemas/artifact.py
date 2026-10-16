@@ -37,8 +37,19 @@ class ArtifactMetadata(BaseModel):
     organizations: list[str] = Field(default_factory=list)
     projects: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
+    technologies: list[str] = Field(default_factory=list)
+    concepts: list[str] = Field(default_factory=list)
 
-    @field_validator("topics", "people", "organizations", "projects", "tags", mode="after")
+    @field_validator(
+        "topics",
+        "people",
+        "organizations",
+        "projects",
+        "tags",
+        "technologies",
+        "concepts",
+        mode="after",
+    )
     @classmethod
     def _lists(cls, v: list[str]) -> list[str]:
         return _clean_list(v)

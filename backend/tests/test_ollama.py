@@ -65,7 +65,26 @@ class Handler(BaseHTTPRequestHandler):
                 ).encode()
                 + b"\n"
             )
+        elif self.path == "/api/embed":
+            if STATE.get("no_batch"):
+                # An older daemon, which has only the one-at-a-time endpoint.
+                self._json(404, {"error": "not found"})
+                return
+            STATE["batch_calls"] = STATE.get("batch_calls", 0) + 1
+            texts = request.get("input", [])
+            if STATE.get("short_batch"):
+                texts = texts[:-1]
+            width = STATE.get("dimensions", 768)
+            self._json(
+                200,
+                {
+                    "embeddings": [
+                        [(sum(t.encode()) % (i + 7)) / 7 for i in range(width)] for t in texts
+                    ]
+                },
+            )
         elif self.path == "/api/embeddings":
+            STATE["single_calls"] = STATE.get("single_calls", 0) + 1
             width = STATE.get("dimensions", 768)
             # A deterministic but model-shaped vector; the width is what the
             # application has to agree with.
@@ -227,3 +246,49 @@ def test_embeddings_are_unit_length(daemon, monkeypatch):
 
     # Normalised on write, so cosine similarity is a dot product.
     assert abs(sum(v * v for v in vector) ** 0.5 - 1.0) < 1e-6
+
+
+def test_a_batch_is_one_request_not_one_per_text(daemon, monkeypatch):
+    """87 round trips for one PDF is what made registering feel broken."""
+    from app.services import embeddings
+
+    monkeypatch.setattr(get_settings(), "embedding_provider", "auto")
+    ollama.reset_discovery()
+    embeddings.reset_embedding_provider()
+    provider = embeddings.get_embedding_provider()
+
+    vectors = provider.embed([f"chunk number {i}" for i in range(40)])
+
+    assert len(vectors) == 40
+    assert STATE.get("batch_calls") == 1
+    assert STATE.get("single_calls", 0) == 0
+
+
+def test_an_older_daemon_still_works_one_text_at_a_time(daemon, monkeypatch):
+    """/api/embed is recent; a 404 is a capability answer, not a failure."""
+    from app.services import embeddings
+
+    STATE["no_batch"] = True
+    monkeypatch.setattr(get_settings(), "embedding_provider", "auto")
+    ollama.reset_discovery()
+    embeddings.reset_embedding_provider()
+    provider = embeddings.get_embedding_provider()
+
+    vectors = provider.embed(["one", "two", "three"])
+
+    assert len(vectors) == 3
+    assert STATE.get("single_calls") == 3
+
+
+def test_a_short_batch_is_refused_rather_than_misaligned(daemon):
+    """Fewer vectors than texts would attach embeddings to the wrong chunks."""
+    from app.services.embeddings import EmbeddingFailed
+    from app.services.embeddings.ollama import OllamaEmbedder
+
+    STATE["short_batch"] = True
+    provider = OllamaEmbedder(
+        base_url=daemon, model="nomic-embed-text:latest", dimensions=768
+    )
+
+    with pytest.raises(EmbeddingFailed):
+        provider.embed(["a", "b", "c"])

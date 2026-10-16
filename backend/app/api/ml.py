@@ -68,6 +68,10 @@ def status(current_user: CurrentUser, db: DbSession) -> dict:
             "keyword_index": "postgresql full-text, GIN",
             "fusion": "reciprocal rank fusion, k=60",
         },
+        # Real figures from /proc, with null where nothing can measure it —
+        # a GPU bar nobody read would be the worst thing this window could
+        # contain.
+        "resources": telemetry.resources(),
         "operations": telemetry.recent(),
     }
 

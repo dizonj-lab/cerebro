@@ -13,9 +13,21 @@ from dataclasses import dataclass
 
 from app.services.artifacts.extraction import Block
 
-DEFAULT_CHUNK_CHARS = 1200
-DEFAULT_OVERLAP_CHARS = 150
+# Sized in characters, targeted in tokens: roughly 500 tokens per chunk with
+# 75 of overlap, at the ~4 characters per token English averages. Characters
+# are what the splitter can count exactly — tokenising would mean shipping a
+# tokeniser per model and still being wrong for the next one.
+CHARS_PER_TOKEN = 4
+TARGET_TOKENS = 500
+OVERLAP_TOKENS = 75
+DEFAULT_CHUNK_CHARS = TARGET_TOKENS * CHARS_PER_TOKEN
+DEFAULT_OVERLAP_CHARS = OVERLAP_TOKENS * CHARS_PER_TOKEN
 MIN_CHUNK_CHARS = 80
+
+# Bumped whenever the splitting rules change, so an artifact's provenance
+# says which version produced its fragments.
+CHUNKER = "structure_aware_sentence_packing"
+CHUNKER_VERSION = 2
 
 # Sentence boundary: terminator followed by whitespace. Deliberately simple
 # and deterministic — no model, no language detection.
@@ -30,6 +42,16 @@ class Chunk:
     source_location: dict
     kind: str
 
+    @property
+    def token_estimate(self) -> int:
+        """Characters over an average, not a tokeniser's count.
+
+        Named an estimate because that is what it is: the real count depends
+        on the model's vocabulary, and the only exact numbers CEREBRO has are
+        the ones a daemon reports after the fact.
+        """
+        return max(1, round(len(self.content) / CHARS_PER_TOKEN))
+
     def as_dict(self) -> dict:
         return {
             "ordinal": self.ordinal,
@@ -37,7 +59,23 @@ class Chunk:
             "content_sha256": self.content_sha256,
             "source_location": self.source_location,
             "kind": self.kind,
+            "token_estimate": self.token_estimate,
         }
+
+
+def chunking_provenance(chunks: list[Chunk], *, chunk_chars: int, overlap_chars: int) -> dict:
+    """What produced these fragments, recorded on the artifact."""
+    return {
+        "algorithm": CHUNKER,
+        "version": CHUNKER_VERSION,
+        "chunk_chars": chunk_chars,
+        "overlap_chars": overlap_chars,
+        "target_tokens": TARGET_TOKENS,
+        "chunks": len(chunks),
+        "token_estimate": sum(c.token_estimate for c in chunks),
+        # An estimate, and labelled as one everywhere it travels.
+        "token_method": f"characters/{CHARS_PER_TOKEN}",
+    }
 
 
 def _sentences(text: str) -> list[tuple[str, int, int]]:
@@ -54,7 +92,7 @@ def chunk_blocks(
     blocks: list[Block],
     *,
     chunk_chars: int = DEFAULT_CHUNK_CHARS,
-    overlap_chars: int = DEFAULT_OVERLAP_CHARS,
+    overlap_chars: int | None = None,
 ) -> list[Chunk]:
     """Chunk within block boundaries, packing sentences up to the budget.
 
@@ -62,17 +100,37 @@ def chunk_blocks(
     blocks (a heading, a slide title) become their own chunk rather than being
     merged into unrelated neighbours.
     """
+    # Overlap follows the chunk size unless it is given: 15% of the budget,
+    # which is the 75-in-500-token ratio. A fixed default would exceed a
+    # smaller chunk size and be rejected.
+    if overlap_chars is None:
+        overlap_chars = max(1, round(chunk_chars * OVERLAP_TOKENS / TARGET_TOKENS))
     if chunk_chars < MIN_CHUNK_CHARS:
         raise ValueError(f"chunk_chars must be at least {MIN_CHUNK_CHARS}")
     if overlap_chars >= chunk_chars:
         raise ValueError("overlap_chars must be smaller than chunk_chars")
 
     chunks: list[Chunk] = []
+    seen: set[str] = set()
     for block in blocks:
-        chunks.extend(
-            _chunk_block(block, len(chunks), chunk_chars=chunk_chars,
-                         overlap_chars=overlap_chars)
-        )
+        for chunk in _chunk_block(
+            block, len(chunks), chunk_chars=chunk_chars, overlap_chars=overlap_chars
+        ):
+            # Blank chunks carry nothing and identical ones cost an embedding
+            # each while adding no retrievable knowledge — a repeated slide
+            # footer across 29 pages is 29 copies of the same vector.
+            if not chunk.content.strip() or chunk.content_sha256 in seen:
+                continue
+            seen.add(chunk.content_sha256)
+            chunks.append(
+                Chunk(
+                    ordinal=len(chunks) + 1,
+                    content=chunk.content,
+                    content_sha256=chunk.content_sha256,
+                    source_location=chunk.source_location,
+                    kind=chunk.kind,
+                )
+            )
     return chunks
 
 

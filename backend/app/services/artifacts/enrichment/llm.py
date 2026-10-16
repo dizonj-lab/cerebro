@@ -44,7 +44,8 @@ no prose, no code fences, matching exactly this shape:
 {"title": string or null, "description": string or null, \
 "topics": array of strings, "tags": array of strings, \
 "people": array of strings, "organizations": array of strings, \
-"projects": array of strings}
+"projects": array of strings, "technologies": array of strings, \
+"concepts": array of strings}
 
 Rules:
 - title: the document's actual title if the text makes it clear, else null.
@@ -57,6 +58,10 @@ Rules:
   exactly as the text spells them.
 - projects: named projects, products or initiatives, spelled exactly as the
   text spells them.
+- technologies: named tools, languages, frameworks, platforms and standards
+  the text mentions, spelled exactly as the text spells them.
+- concepts: the ideas and methods the document is about, each a phrase that
+  appears in the text.
 - Every entry in every array must appear in the text word for word. If you
   cannot find it in the text, leave it out.
 - Do not guess an author or a date. Do not invent anything not in the text.
@@ -77,11 +82,18 @@ class OllamaEnricher:
         self.model = model
 
     def enrich(self, *, text: str, properties: dict, filename: str) -> Enrichment:
-        # The model only sees the opening of a long document, so grounding is
-        # checked against that same span: a name "found" in a part the model
-        # never read would be a coincidence, not evidence.
-        text = text[:MAX_PROMPT_CHARS]
-        body = self._ask(text)
+        # A long document is read in windows rather than truncated: the
+        # people and projects in a 29-page deck are mostly not in its first
+        # six thousand characters. Each window is a separate, bounded call —
+        # nothing is sent that exceeds the model's context — and the results
+        # are merged. Windows are capped so a book cannot cost an hour.
+        windows = _windows(text)
+        bodies = [body for body in (self._ask(w) for w in windows) if body is not None]
+        body = _merge(bodies) if bodies else None
+        # Grounding is checked against exactly what was read, so a name
+        # "found" in a part the model never saw would be coincidence, not
+        # evidence.
+        text = "\n".join(windows)
         if body is None:
             return Enrichment(
                 engine=self.name,
@@ -115,6 +127,8 @@ class OllamaEnricher:
             ("people", 12),
             ("organizations", 12),
             ("projects", 12),
+            ("technologies", 12),
+            ("concepts", 8),
         ):
             grounded, dropped, found = _grounded(
                 body.get(field), haystack, limit, source=text
@@ -260,3 +274,66 @@ def _grounded(
         if len(kept) == limit:
             break
     return kept, dropped, evidence
+
+
+# A window is sized to the prompt budget; the cap bounds what one document
+# can cost. Ten windows of 6000 characters covers roughly sixty pages, after
+# which the remainder is not read rather than read badly.
+MAX_WINDOWS = 10
+
+
+def _windows(text: str) -> list[str]:
+    """Split a long document into bounded, slightly overlapping reads.
+
+    The overlap matters: a name landing on a window boundary would otherwise
+    be cut in half and found in neither.
+    """
+    if len(text) <= MAX_PROMPT_CHARS:
+        return [text]
+
+    overlap = 200
+    out: list[str] = []
+    start = 0
+    while start < len(text) and len(out) < MAX_WINDOWS:
+        out.append(text[start : start + MAX_PROMPT_CHARS])
+        start += MAX_PROMPT_CHARS - overlap
+    return out
+
+
+def _merge(bodies: list[dict]) -> dict:
+    """Combine window replies: first title and description, union of lists.
+
+    The first window's title is the document's title — later windows are
+    looking at its middle, where a heading is a section, not the document.
+    """
+    merged: dict = {}
+    # Author and date are carried through deliberately, though no engine may
+    # propose them: the handler downstream records that a model tried, and
+    # dropping them here would silence that.
+    for key in ("title", "description", "author", "created_date", "date"):
+        for body in bodies:
+            value = _clean_text(body.get(key))
+            if value:
+                merged[key] = value
+                break
+
+    for key in (
+        "topics",
+        "tags",
+        "people",
+        "organizations",
+        "projects",
+        "technologies",
+        "concepts",
+    ):
+        seen: set[str] = set()
+        values: list[str] = []
+        for body in bodies:
+            for item in body.get(key) or []:
+                text = _clean_text(item)
+                if text and text.lower() not in seen:
+                    seen.add(text.lower())
+                    values.append(text)
+        if values:
+            merged[key] = values
+    return merged

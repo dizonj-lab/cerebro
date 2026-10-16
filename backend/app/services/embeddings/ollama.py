@@ -22,6 +22,13 @@ from app.services.embeddings.base import EmbeddingFailed
 DEFAULT_MODEL = "nomic-embed-text"
 DEFAULT_DIMENSIONS = 768
 _TIMEOUT_SECONDS = 30
+# A batch is many texts through the model in one request, so it is allowed
+# proportionally longer than a single embedding.
+_BATCH_TIMEOUT_SECONDS = 300
+
+
+class _BatchUnsupported(Exception):
+    """This daemon has no /api/embed. Fall back to one call per text."""
 
 
 class OllamaEmbedder:
@@ -41,7 +48,54 @@ class OllamaEmbedder:
         self.dimensions = dimensions
 
     def embed(self, texts: list[str]) -> list[list[float]]:
-        return [self._one(text) for text in texts]
+        """Embed a batch in as few round trips as possible.
+
+        Ollama's /api/embed takes a list and runs it through the model in one
+        request. One HTTP call per chunk meant 87 round trips for a 29-page
+        PDF, which is most of what made registering a real document feel
+        broken. Older daemons have only /api/embeddings, which is one text
+        per call, so that stays as the fallback.
+        """
+        if not texts:
+            return []
+        try:
+            return self._batch(texts)
+        except _BatchUnsupported:
+            return [self._one(text) for text in texts]
+
+    def _batch(self, texts: list[str]) -> list[list[float]]:
+        payload = json.dumps({"model": self.model, "input": texts}).encode("utf-8")
+        request = urllib.request.Request(  # noqa: S310 - fixed http scheme, local daemon
+            f"{self.base_url}/api/embed",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=_BATCH_TIMEOUT_SECONDS) as response:
+                body = json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            # 404 means this daemon predates /api/embed. Anything else is a
+            # real failure and must not be silently retried one by one.
+            if exc.code == 404:
+                raise _BatchUnsupported from None
+            raise EmbeddingFailed(
+                f"Ollama returned {exc.code} embedding with '{self.model}'."
+            ) from None
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            raise EmbeddingFailed(
+                f"Could not reach Ollama at {self.base_url}. Is it running, and has "
+                f"'{self.model}' been pulled?"
+            ) from exc
+        except json.JSONDecodeError as exc:
+            raise EmbeddingFailed("Ollama returned a response that was not JSON.") from exc
+
+        vectors = body.get("embeddings")
+        if not isinstance(vectors, list) or len(vectors) != len(texts):
+            raise EmbeddingFailed(
+                f"Ollama returned {len(vectors) if isinstance(vectors, list) else 0} "
+                f"embeddings for {len(texts)} texts."
+            )
+        return [self._normalise(v) for v in vectors]
 
     def measure(self, text: str) -> list[float]:
         """Embed without the width check, to learn an unknown model's width."""
@@ -65,7 +119,9 @@ class OllamaEmbedder:
         except json.JSONDecodeError as exc:
             raise EmbeddingFailed("Ollama returned a response that was not JSON.") from exc
 
-        vector = body.get("embedding")
+        return self._normalise(body.get("embedding"), check_width=check_width)
+
+    def _normalise(self, vector: object, *, check_width: bool = True) -> list[float]:
         if not isinstance(vector, list) or not vector:
             raise EmbeddingFailed(f"Ollama returned no embedding for model '{self.model}'.")
         if check_width and len(vector) != self.dimensions:
@@ -75,6 +131,5 @@ class OllamaEmbedder:
                 f"Ollama model '{self.model}' returned {len(vector)} dimensions, "
                 f"but {self.dimensions} were configured."
             )
-
-        norm = math.sqrt(sum(v * v for v in vector))
+        norm = math.sqrt(sum(float(v) * float(v) for v in vector))
         return [float(v) / norm for v in vector] if norm else [float(v) for v in vector]
