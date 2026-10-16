@@ -36,11 +36,18 @@ class Settings(BaseSettings):
     s3_secret_key: str = "cerebro_dev_password"
     s3_secure: bool = False
 
-    # Embeddings. "hashing" is deterministic and offline, and is what the test
-    # suite uses. "ollama" is a learned model on the user's own machine, opt-in
-    # because it needs `ollama pull nomic-embed-text` first. There is no cloud
-    # provider, by design.
-    embedding_provider: str = "hashing"
+    # Embeddings. "auto" is the default: use a pretrained embedder from the
+    # local Ollama daemon when one is installed, and the deterministic
+    # hashing embedder when it is not. "hashing" and "ollama" pin the choice
+    # — the test suite pins hashing so its vectors are reproducible. There is
+    # no cloud provider, by design.
+    #
+    # Note that provider, model and width are stored with every vector and
+    # search filters on all three, so a change of provider orphans existing
+    # vectors until they are backfilled. That is why the active provider and
+    # the number of fragments missing a vector for it are reported by
+    # /api/ml/status rather than left to be discovered through empty results.
+    embedding_provider: str = "auto"
     embedding_dimensions: int = 384
     ollama_base_url: str = "http://localhost:11434"
     ollama_embedding_model: str = "nomic-embed-text"
@@ -48,15 +55,18 @@ class Settings(BaseSettings):
 
     # Metadata enrichment. Deterministic enrichment (the document's own
     # metadata plus statistics over its text) always runs. A local language
-    # model is opt-in: set CEREBRO_ENRICHMENT_LLM=ollama and pull the model.
-    # There is no cloud option, by design.
-    enrichment_llm: str = "none"
+    # model is used automatically when the Ollama daemon is running and has
+    # one; "off" pins it to deterministic enrichment only. No cloud option,
+    # by design.
+    enrichment_llm: str = "auto"
     ollama_enrichment_model: str = "llama3.2"
 
-    # Assisted Recollection. Retrieval always runs; this adds a local model to
-    # phrase an answer from the retrieved passages. Without it the passages
-    # themselves are returned. No cloud option, by design.
-    recall_llm: str = "none"
+    # Assisted Recollection. Retrieval always runs; this adds a local model
+    # to phrase an answer from the retrieved passages. "auto" uses whatever
+    # the local daemon has; "off" returns the passages only. It used to
+    # default to off, which made a working feature look like a broken one.
+    # No cloud option, by design.
+    recall_llm: str = "auto"
     ollama_recall_model: str = "llama3.2"
 
     # Upload limits

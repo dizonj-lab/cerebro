@@ -325,7 +325,27 @@ export interface CerebroRecallAnswer {
   grounded: boolean;
   model: string | null;
   note: string | null;
+  /** Passages the answer cited, after citations to absent passages were cut. */
+  cited?: number[];
+  abstained?: boolean;
+  telemetry?: CerebroRecallTelemetry | null;
 }
+
+/** One event from the streaming endpoint. */
+export type RecallEvent =
+  | { type: "sources"; sources: CerebroRecallSource[] }
+  | { type: "delta"; text: string }
+  | { type: "error"; message: string }
+  | {
+      type: "done";
+      answer: string | null;
+      grounded: boolean;
+      model: string | null;
+      note: string | null;
+      abstained: boolean;
+      cited: number[];
+      telemetry: CerebroRecallTelemetry | null;
+    };
 
 export type SearchMode = "keyword" | "semantic" | "hybrid";
 export type SearchScope = "all" | "library" | "knowledge";
@@ -385,6 +405,48 @@ export interface CerebroSearchResults {
   took_ms: number;
   /** Set when half a hybrid search was unavailable. */
   note: string | null;
+}
+
+export interface CerebroRecallTelemetry {
+  model: string;
+  duration_ms: number | null;
+  /** Counted by the local daemon, not estimated in the browser. */
+  prompt_tokens: number | null;
+  completion_tokens: number | null;
+  passages: number;
+  top_score: number;
+}
+
+export interface CerebroMlStatus {
+  ollama: {
+    reachable: boolean;
+    base_url: string | null;
+    models: string[];
+    answering_model: string | null;
+    embedding_model: string | null;
+    error: string | null;
+  };
+  embeddings: {
+    provider: string;
+    model: string;
+    dimensions: number;
+    /** False for the deterministic hashing embedder, which is not learned. */
+    pretrained: boolean;
+    fragments: number;
+    embedded: number;
+    missing: number;
+  };
+  retrieval: { vector_index: string; keyword_index: string; fusion: string };
+  operations: {
+    operation: string;
+    model: string | null;
+    duration_ms: number;
+    prompt_tokens: number | null;
+    completion_tokens: number | null;
+    algorithm: string | null;
+    detail: string | null;
+    at: number;
+  }[];
 }
 
 export interface CerebroBulkUpload {
@@ -459,6 +521,19 @@ export const api = {
     request<{ prefix: string; suggestions: string[] }>(
       `/api/search/suggestions?q=${encodeURIComponent(prefix)}`,
     ),
+
+  /** What AI and ML is actually installed, selected and running. */
+  mlStatus: () => request<CerebroMlStatus>("/api/ml/status"),
+
+  /** Embed fragments that have no vector for the active model. */
+  backfillEmbeddings: () =>
+    request<{
+      provider: string;
+      model: string;
+      dimensions: number;
+      embedded: number;
+      remaining: number;
+    }>("/api/ml/embeddings/backfill", { method: "POST" }),
 
   /** Retrieval-first. The model, if any, only sees retrieved passages. */
   recall: (input: { question: string; topic?: string | null }) =>

@@ -330,5 +330,7 @@ test("the chat says so rather than inventing an answer", async ({ page }) => {
   await page.getByLabel("Ask or describe what you're looking for").fill("zzz unrelated xylophone");
   await page.getByRole("button", { name: "Send" }).click();
 
-  await expect(page.getByText(/Nothing in your registered documents matches/)).toBeVisible();
+  // The product's words for abstaining. Retrieval found nothing, so no model
+  // was asked and nothing was invented.
+  await expect(page.getByText(/Insufficient evidence/)).toBeVisible();
 });

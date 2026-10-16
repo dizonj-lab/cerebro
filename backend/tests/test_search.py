@@ -476,6 +476,6 @@ def test_suggestions_are_owner_scoped(client, signed_in, valid_signup):
     assert client.get("/api/search/suggestions", params={"q": "reten"}).json()["suggestions"] == []
 
 
-def test_search_requires_a_session(client):
+def test_suggestions_and_search_require_a_session(client):
     assert client.post("/api/search", json={"query": "anything"}).status_code == 401
     assert client.get("/api/search/suggestions", params={"q": "a"}).status_code == 401

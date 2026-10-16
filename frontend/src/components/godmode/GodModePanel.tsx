@@ -3,14 +3,15 @@
 import { useEffect, useState } from "react";
 
 import { api, ApiError } from "@/lib/api";
-import type { CerebroDashboard, CerebroPreferences } from "@/lib/api";
+import type { CerebroDashboard, CerebroMlStatus, CerebroPreferences } from "@/lib/api";
 
 const REFRESH_MS = 15_000;
 
 interface Telemetry {
   dashboard: CerebroDashboard;
   preferences: CerebroPreferences;
-  /** Round trip for the dashboard request, measured in this browser. */
+  ml: CerebroMlStatus;
+  /** Round trip for the request, measured in this browser. */
   roundTripMs: number;
   at: Date;
 }
@@ -24,8 +25,14 @@ interface Telemetry {
  * configured for this account. The one measurement taken here is the
  * round trip of the request itself, which the browser can honestly observe.
  *
- * There is no server-side metrics backend — no request rates, no CPU, no
- * queue depth — so none is displayed. A dial reading a number nobody
+ * It also shows what the AI and ML actually is: which local models are
+ * installed and selected, whether the active embedder is a pretrained model
+ * or the deterministic fallback, the algorithms behind retrieval, and the
+ * last operations that ran with their durations and token counts as the
+ * daemon reported them.
+ *
+ * There is still no server-side resource metrics backend — no CPU, no memory,
+ * no queue depth — so none is displayed. A dial reading a number nobody
  * measured would be worse than an absent dial.
  */
 export function GodModePanel() {
@@ -38,11 +45,16 @@ export function GodModePanel() {
     async function load() {
       const started = performance.now();
       try {
-        const [dashboard, preferences] = await Promise.all([api.dashboard(), api.preferences()]);
+        const [dashboard, preferences, ml] = await Promise.all([
+          api.dashboard(),
+          api.preferences(),
+          api.mlStatus(),
+        ]);
         if (!live) return;
         setTelemetry({
           dashboard,
           preferences,
+          ml,
           roundTripMs: Math.round(performance.now() - started),
           at: new Date(),
         });
@@ -70,7 +82,7 @@ export function GodModePanel() {
     return <p className="p-4 text-sm text-ink-muted">Reading your library...</p>;
   }
 
-  const { dashboard, preferences, roundTripMs, at } = telemetry;
+  const { dashboard, preferences, ml, roundTripMs, at } = telemetry;
   const week = dashboard.activity.slice(-7);
   const weekTotal = week.reduce((sum, day) => sum + day.count, 0);
   const recent = dashboard.recent[0];
@@ -103,25 +115,99 @@ export function GodModePanel() {
         </Row>
       )}
 
-      <Row label="Local engine">
-        {preferences.local_provider ?? "not configured"}
-        {preferences.local_model && (
-          <span className="text-ink-subtle"> · {preferences.local_model}</span>
+      <section className="flex flex-col gap-1.5 border-t border-line pt-2">
+        <h3 className="text-[11px] font-semibold uppercase tracking-wide text-ink-subtle">
+          Models
+        </h3>
+
+        <Row label="Ollama">
+          {ml.ollama.reachable ? (
+            <>
+              {ml.ollama.base_url}
+              <span className="text-ink-subtle"> · {ml.ollama.models.length} installed</span>
+            </>
+          ) : (
+            // Named plainly, with the remedy, rather than shown as a blank.
+            <span className="text-danger">not running</span>
+          )}
+        </Row>
+
+        <Row label="Answering">
+          {ml.ollama.answering_model ?? (
+            <span className="text-ink-muted">none — passages only</span>
+          )}
+        </Row>
+
+        <Row label="Embedding">
+          {ml.embeddings.model}
+          <span className="text-ink-subtle"> · {ml.embeddings.dimensions}d</span>
+          {/* The distinction that matters: a hashing projection is not a
+              learned model, and the panel must not let it pass for one. */}
+          {!ml.embeddings.pretrained && (
+            <span className="text-ink-muted"> · deterministic, not pretrained</span>
+          )}
+        </Row>
+
+        <Row label="Embedded">
+          {ml.embeddings.embedded}/{ml.embeddings.fragments} fragments
+          {ml.embeddings.missing > 0 && (
+            <span className="text-danger"> · {ml.embeddings.missing} missing</span>
+          )}
+        </Row>
+
+        {ml.embeddings.missing > 0 && (
+          <button
+            type="button"
+            data-testid="backfill-embeddings"
+            onClick={() => void api.backfillEmbeddings().then(() => setTelemetry(null))}
+            className="self-start rounded-md border border-line px-2 py-1 text-[11px] font-medium text-accent transition-colors hover:bg-surface-subtle"
+          >
+            Backfill {ml.embeddings.missing} embeddings
+          </button>
         )}
-      </Row>
 
-      {/* Stated plainly: there is no cloud engine in CEREBRO, and this row
-          exists so GOD MODE cannot be read as hiding one. */}
-      <Row label="Cloud engine">
-        {preferences.cloud_provider ?? "none — processing stays in the CEREBRO environment"}
-      </Row>
+        <Row label="Retrieval">{ml.retrieval.vector_index}</Row>
+        <Row label="Keyword">{ml.retrieval.keyword_index}</Row>
+        <Row label="Fusion">{ml.retrieval.fusion}</Row>
 
-      <Row label="API round trip">{roundTripMs} ms</Row>
+        {/* Cloud engine stays listed so the panel cannot be read as hiding
+            one. There is none. */}
+        <Row label="Cloud engine">
+          {preferences.cloud_provider ?? "none — processing stays in the CEREBRO environment"}
+        </Row>
+      </section>
+
+      <section className="flex flex-col gap-1 border-t border-line pt-2">
+        <h3 className="text-[11px] font-semibold uppercase tracking-wide text-ink-subtle">
+          Last operations
+        </h3>
+        {ml.operations.length === 0 ? (
+          <p className="text-xs text-ink-subtle">Nothing has run yet this session.</p>
+        ) : (
+          <ul data-testid="ml-operations" className="flex flex-col gap-1 text-xs">
+            {ml.operations.slice(0, 8).map((op, i) => (
+              <li key={`${op.operation}-${op.at}-${i}`} className="flex flex-col">
+                <span className="text-ink">
+                  {op.operation}
+                  <span className="text-ink-subtle"> · {op.duration_ms} ms</span>
+                </span>
+                <span className="truncate text-ink-subtle">
+                  {op.model ?? op.algorithm ?? "—"}
+                  {op.algorithm && op.model ? ` · ${op.algorithm}` : ""}
+                  {op.completion_tokens !== null && ` · ${op.completion_tokens} tokens out`}
+                  {op.prompt_tokens !== null && ` · ${op.prompt_tokens} in`}
+                  {op.detail ? ` · ${op.detail}` : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <p className="border-t border-line pt-2 text-xs text-ink-subtle">
-        Counts read from your library at {at.toLocaleTimeString()}, refreshed every{" "}
-        {REFRESH_MS / 1000}s. Round trip measured in this browser; CEREBRO keeps no
-        server-side metrics.
+        Read at {at.toLocaleTimeString()}, refreshed every {REFRESH_MS / 1000}s. Durations
+        and token counts come from the local daemon; the {roundTripMs} ms round trip is
+        measured in this browser. CEREBRO keeps no server-side resource metrics.
       </p>
     </div>
   );

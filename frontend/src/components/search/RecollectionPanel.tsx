@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 
-import { api, ApiError } from "@/lib/api";
-import type { CerebroRecallAnswer } from "@/lib/api";
+import { api } from "@/lib/api";
+import type { CerebroRecallSource, CerebroRecallTelemetry } from "@/lib/api";
+import { streamRecall } from "@/lib/recallStream";
 
 /**
  * Assisted Recollection beside the results.
@@ -12,6 +13,11 @@ import type { CerebroRecallAnswer } from "@/lib/api";
  * registered documents and a local model only ever sees those passages. When
  * retrieval finds nothing, no model is called and the panel says so instead
  * of producing prose.
+ *
+ * The answer streams. Sources appear before the first word, so the evidence
+ * can be read while the answer is still being written, and what the run cost
+ * is shown when it finishes — model, duration and the daemon's own token
+ * counts, not an estimate.
  *
  * Nothing is sent on typing, on a search, or on selecting a result. Only the
  * ask button sends.
@@ -26,20 +32,40 @@ export function RecollectionPanel({
   topic: string | null;
 }) {
   const [busy, setBusy] = useState(false);
-  const [reply, setReply] = useState<CerebroRecallAnswer | null>(null);
+  const [sources, setSources] = useState<CerebroRecallSource[]>([]);
+  const [answer, setAnswer] = useState("");
+  const [note, setNote] = useState<string | null>(null);
+  const [telemetry, setTelemetry] = useState<CerebroRecallTelemetry | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [asked, setAsked] = useState(false);
 
   async function ask(event: React.FormEvent) {
     event.preventDefault();
-    const asked = question.trim();
-    if (!asked || busy) return;
+    const text = question.trim();
+    if (!text || busy) return;
     setBusy(true);
     setError(null);
-    setReply(null);
+    setAnswer("");
+    setNote(null);
+    setTelemetry(null);
+    setSources([]);
+    setAsked(true);
     try {
-      setReply(await api.recall({ question: asked, topic }));
+      await streamRecall({ question: text, topic }, (event_) => {
+        if (event_.type === "sources") setSources(event_.sources);
+        else if (event_.type === "delta") setAnswer((a) => a + event_.text);
+        else if (event_.type === "error") setError(event_.message);
+        else {
+          // The final event carries the whole answer, with citations to
+          // passages that do not exist already removed. It replaces the
+          // streamed text rather than appending to it.
+          if (event_.answer !== null) setAnswer(event_.answer);
+          setNote(event_.note);
+          setTelemetry(event_.telemetry);
+        }
+      });
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Could not reach CEREBRO.");
+      setError(e instanceof Error ? e.message : "Could not reach CEREBRO.");
     } finally {
       setBusy(false);
     }
@@ -79,20 +105,21 @@ export function RecollectionPanel({
 
       {error && <p className="text-xs text-danger">{error}</p>}
 
-      {reply && (
+      {asked && !error && (
         <div data-testid="recollection-answer" className="flex flex-col gap-2">
-          {reply.answer ? (
-            <p className="whitespace-pre-wrap text-ink">{reply.answer}</p>
+          {answer ? (
+            <p className="whitespace-pre-wrap text-ink">{answer}</p>
           ) : (
-            <p className="text-ink-muted">
-              {reply.note ?? "No passage in your library answers this."}
-            </p>
+            busy && <p className="text-ink-muted">Reading your library...</p>
           )}
-          {reply.sources.length > 0 && (
+          {note && <p className="text-xs text-ink-muted">{note}</p>}
+
+          {sources.length > 0 && (
             <ol className="flex flex-col gap-1.5 border-t border-line pt-2 text-xs">
-              {reply.sources.map((source) => (
+              {sources.map((source) => (
                 <li key={source.fragment_id} className="text-ink-muted">
                   <span className="font-medium text-ink">[{source.index}]</span>{" "}
+                  {/* Clickable: every citation resolves to the stored original. */}
                   <a
                     href={api.artifactContentUrl(source.artifact_id)}
                     target="_blank"
@@ -101,16 +128,34 @@ export function RecollectionPanel({
                   >
                     {source.title || source.filename}
                   </a>
+                  {describeLocation(source.source_location)}
                   <span className="block text-ink-subtle">{source.excerpt}</span>
                 </li>
               ))}
             </ol>
           )}
-          {reply.answer && reply.model && (
-            <p className="text-xs text-ink-subtle">Phrased locally by {reply.model}.</p>
+
+          {/* What actually ran. Measured by the daemon, not asserted here. */}
+          {telemetry && (
+            <p data-testid="recollection-telemetry" className="text-xs text-ink-subtle">
+              {telemetry.model}
+              {telemetry.duration_ms !== null && ` · ${telemetry.duration_ms} ms`}
+              {telemetry.completion_tokens !== null &&
+                ` · ${telemetry.completion_tokens} tokens out`}
+              {telemetry.prompt_tokens !== null && ` · ${telemetry.prompt_tokens} in`}
+              {` · ${telemetry.passages} passages, top score ${telemetry.top_score.toFixed(3)}`}
+            </p>
           )}
         </div>
       )}
     </aside>
   );
+}
+
+function describeLocation(location: Record<string, number | string>): string {
+  const parts = Object.entries(location)
+    .filter(([, value]) => value !== null && value !== "")
+    .map(([key, value]) => `${key.replace(/_/g, " ")} ${value}`);
+  // Only what extraction established; a modality without pages has none.
+  return parts.length > 0 ? ` · ${parts.join(", ")}` : "";
 }

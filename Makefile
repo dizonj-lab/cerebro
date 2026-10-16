@@ -20,7 +20,8 @@ WEB_PORT ?= 3000
 
 .DEFAULT_GOAL := help
 .PHONY: help build load deploy up down status logs wait urls port-forward validate diagrams \
-        backend-venv frontend-deps test-unit test-backend test-e2e compose-up compose-down compose-logs
+        backend-venv frontend-deps test-unit test-backend test-e2e compose-up compose-down \
+        compose-logs models models-pull
 
 help: ## Show available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -138,3 +139,15 @@ frontend-deps: ## Install frontend dependencies and the test browser (first run 
 
 test-e2e: frontend-deps ## Run end-to-end tests against an already-running stack (WEB_PORT=3000)
 	cd frontend && E2E_BASE_URL=http://localhost:$(WEB_PORT) npm run test:e2e
+
+## --- Local models ----------------------------------------------------------
+
+models: ## Show which local models CEREBRO can see, and what it would use
+	@curl -s http://localhost:11434/api/tags \
+		| python3 -c 'import json,sys; d=json.load(sys.stdin); print("\n".join(m["name"] for m in d.get("models", []))) or None' \
+		2>/dev/null || echo "No Ollama daemon on localhost:11434. Start it with: ollama serve"
+
+models-pull: ## Pull the models CEREBRO prefers (answering + embeddings)
+	ollama pull llama3.2
+	ollama pull nomic-embed-text
+	@echo "Pulled. CEREBRO discovers them on its next request; no restart needed."

@@ -10,13 +10,15 @@ already there alone.
 """
 from __future__ import annotations
 
+import time
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.artifact import Artifact
 from app.models.fragment import FragmentEmbedding, KnowledgeFragment
+from app.services import telemetry
 from app.services.artifacts.chunking import chunk_blocks
 from app.services.embeddings import EmbeddingFailed, get_embedding_provider
 
@@ -116,3 +118,87 @@ def count_for_artifact(db: Session, artifact_id: uuid.UUID) -> int:
             select(KnowledgeFragment.id).where(KnowledgeFragment.artifact_id == artifact_id)
         ).all()
     )
+
+
+def backfill_embeddings(db: Session, owner_id: uuid.UUID, *, limit: int = 500) -> dict:
+    """Embed this owner's fragments that have no vector for the active model.
+
+    Retrieval filters on provider, model and width together, so a fragment
+    embedded under a different model is not retrievable now — however many
+    vectors it has. That happens for two ordinary reasons: the daemon was not
+    running when the document was registered, or the user moved to a better
+    embedder. Either way the fix is the same, and it is not a migration: the
+    old vectors are left in place, so switching back needs no re-embedding.
+
+    Fragments are only ever created for registered artifacts, so nothing here
+    can pull unapproved content into retrieval.
+    """
+    provider = get_embedding_provider()
+
+    has_vector = (
+        select(FragmentEmbedding.fragment_id)
+        .where(
+            FragmentEmbedding.fragment_id == KnowledgeFragment.id,
+            FragmentEmbedding.provider == provider.name,
+            FragmentEmbedding.model == provider.model,
+            FragmentEmbedding.dimensions == provider.dimensions,
+        )
+        .exists()
+    )
+    missing = db.execute(
+        select(KnowledgeFragment.id, KnowledgeFragment.content)
+        .where(KnowledgeFragment.owner_id == owner_id, ~has_vector)
+        .order_by(KnowledgeFragment.ordinal)
+        .limit(limit)
+    ).all()
+
+    if not missing:
+        return {
+            "provider": provider.name,
+            "model": provider.model,
+            "dimensions": provider.dimensions,
+            "embedded": 0,
+            "remaining": 0,
+        }
+
+    started = time.perf_counter()
+    try:
+        vectors = provider.embed([content for _, content in missing])
+    except EmbeddingFailed as exc:
+        # No fallback provider, for the same reason as registration: a
+        # different provider writes a different space.
+        raise FragmentsUnavailable(str(exc)) from None
+
+    for (fragment_id, _), vector in zip(missing, vectors, strict=True):
+        db.add(
+            FragmentEmbedding(
+                fragment_id=fragment_id,
+                owner_id=owner_id,
+                provider=provider.name,
+                model=provider.model,
+                dimensions=provider.dimensions,
+                vector=list(vector),
+            )
+        )
+    db.flush()
+
+    telemetry.record(
+        "embeddings.backfill",
+        model=f"{provider.name}/{provider.model}",
+        duration_ms=int((time.perf_counter() - started) * 1000),
+        algorithm=f"{provider.dimensions}-dimensional embedding",
+        detail=f"{len(missing)} fragments",
+    )
+
+    remaining = db.scalar(
+        select(func.count())
+        .select_from(KnowledgeFragment)
+        .where(KnowledgeFragment.owner_id == owner_id, ~has_vector)
+    )
+    return {
+        "provider": provider.name,
+        "model": provider.model,
+        "dimensions": provider.dimensions,
+        "embedded": len(missing),
+        "remaining": remaining or 0,
+    }

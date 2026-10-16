@@ -215,3 +215,44 @@ test("GOD MODE opens from the sidebar as well as the header", async ({ page }) =
   await expect(page.getByTestId("god-mode")).toHaveCount(0);
   await expect(item).toHaveAttribute("aria-pressed", "false");
 });
+
+test("GOD MODE names the models and algorithms actually in use", async ({ page }) => {
+  await open(page, "god-models");
+
+  const window_ = page.getByTestId("god-mode");
+  // The deterministic embedder is labelled as such rather than passed off as
+  // a pretrained model. This environment has no Ollama daemon, which is
+  // itself reported rather than left blank.
+  await expect(window_).toContainText("Embedding");
+  await expect(window_).toContainText(/deterministic, not pretrained|nomic|mxbai/);
+  await expect(window_).toContainText("exact cosine scan");
+  await expect(window_).toContainText("reciprocal rank fusion");
+  await expect(window_).toContainText(/Ollama/);
+});
+
+test("GOD MODE shows the operations that ran, with their durations", async ({ page }) => {
+  await signUp(page, makeAccount("god-ops"));
+  await page.waitForURL(/\/construct$/);
+
+  const created = await page.request.post("/api/artifacts", {
+    multipart: {
+      file: {
+        name: "ledger.pdf",
+        mimeType: "application/pdf",
+        buffer: makePdf(["Quarterly reconciliation notes for the ledger."]),
+      },
+    },
+  });
+  const artifact = await created.json();
+  await page.request.patch(`/api/artifacts/${artifact.id}`, {
+    data: { metadata: { ...artifact.metadata, title: "Ledger" }, approve: true },
+  });
+  // A retrieval, so there is an operation to report.
+  await page.request.post("/api/recall", { data: { question: "reconciliation" } });
+
+  await page.getByTestId("god-mode-launcher").click();
+  const operations = page.getByTestId("ml-operations");
+  await expect(operations).toContainText("recall.retrieve");
+  await expect(operations).toContainText("cosine similarity");
+  await expect(operations).toContainText("ms");
+});

@@ -73,8 +73,16 @@ test("the keyboard shortcut focuses the search box", async ({ page }) => {
   await signUp(page, makeAccount("search-shortcut"));
   await page.waitForURL(/\/construct$/);
 
-  await page.keyboard.press("ControlOrMeta+k");
-  await expect(page.getByRole("combobox", { name: "Search your knowledge" })).toBeFocused();
+  // Pressed until it takes: the shortcut is a React handler, so a press
+  // that lands before hydration does nothing. Polling tests the shortcut
+  // rather than the timing of the first paint.
+  const box = page.getByRole("combobox", { name: "Search your knowledge" });
+  await expect
+    .poll(async () => {
+      await page.keyboard.press("ControlOrMeta+k");
+      return box.evaluate((el) => el === document.activeElement);
+    })
+    .toBe(true);
 
   // Escape gives the page back rather than leaving an open panel.
   await page.keyboard.press("Escape");
@@ -140,7 +148,7 @@ test("scope limits which groups are searched", async ({ page }) => {
 
 test("Assisted Recollection is present and sends nothing until asked", async ({ page }) => {
   let calls = 0;
-  await page.route("**/api/recall", async (route) => {
+  await page.route("**/api/recall/**", async (route) => {
     calls += 1;
     await route.continue();
   });

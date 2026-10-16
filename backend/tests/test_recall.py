@@ -42,7 +42,8 @@ def test_a_question_with_no_matching_knowledge_is_answered_honestly(client, sign
 
     assert body["sources"] == []
     assert body["grounded"] is False
-    assert "Nothing in your registered documents" in body["answer"]
+    # The product's exact words for abstaining, which must not drift.
+    assert body["answer"].startswith("Insufficient evidence")
 
 
 def test_unapproved_documents_are_never_searched(client, signed_in):
@@ -70,14 +71,39 @@ def test_an_answer_is_grounded_in_registered_passages(client, signed_in):
 
 
 def test_without_a_local_model_the_passages_are_the_answer(client, signed_in):
-    """No model configured: return evidence rather than nothing, and say so."""
+    """Answering switched off: return evidence rather than nothing, and say so.
+
+    The suite pins CEREBRO_RECALL_LLM=off so it never depends on whether a
+    daemon happens to be running on the machine running it.
+    """
     register(client, upload(client))
 
     body = ask(client, "Atlas migration database clusters").json()
     assert body["answer"] is None
     assert body["model"] is None
     assert body["sources"]
-    assert "CEREBRO_RECALL_LLM=ollama" in body["note"]
+    assert "switched off for this deployment" in body["note"]
+
+
+def test_with_no_daemon_running_the_note_says_how_to_start_one(client, signed_in):
+    """A missing daemon is a degraded feature with an instruction, not a dead one."""
+    from app.core.config import get_settings
+    from app.services import ollama
+
+    register(client, upload(client))
+    settings = get_settings()
+    settings.recall_llm = "auto"
+    ollama.reset_discovery()
+    try:
+        body = ask(client, "Atlas migration database clusters").json()
+    finally:
+        settings.recall_llm = "off"
+        ollama.reset_discovery()
+
+    assert body["answer"] is None
+    assert body["sources"]
+    assert body["grounded"] is True
+    assert "ollama serve" in body["note"]
 
 
 def test_an_unreachable_model_falls_back_to_the_passages(client, signed_in):
@@ -86,34 +112,44 @@ def test_an_unreachable_model_falls_back_to_the_passages(client, signed_in):
 
     register(client, upload(client))
     settings = get_settings()
-    settings.recall_llm = "ollama"
+    from app.services import ollama
+
+    settings.recall_llm = "auto"
+    # Every candidate URL points at a port with nothing on it, so discovery
+    # fails the way it does on a machine without Ollama.
     settings.ollama_base_url = "http://127.0.0.1:1"
+    ollama.reset_discovery()
     try:
         body = ask(client, "Atlas migration database clusters").json()
     finally:
-        settings.recall_llm = "none"
+        settings.recall_llm = "off"
         settings.ollama_base_url = "http://localhost:11434"
+        ollama.reset_discovery()
 
     assert body["answer"] is None
     assert body["sources"]
-    assert "could not be reached" in body["note"]
+    # Degraded to the passages, with an instruction. Never a cloud call.
+    assert "ollama" in body["note"].lower()
 
 
 def test_the_model_is_only_asked_after_retrieval_finds_something(client, signed_in):
     """No passages, no model call — and no answer invented from thin air."""
     from app.core.config import get_settings
+    from app.services import ollama
 
     settings = get_settings()
-    settings.recall_llm = "ollama"
+    settings.recall_llm = "auto"
     # A port with nothing on it: if this were reached the test would hang or
     # the note would say unreachable. It stays untouched because retrieval
     # returned nothing first.
     settings.ollama_base_url = "http://127.0.0.1:1"
+    ollama.reset_discovery()
     try:
         body = ask(client, "Nothing in this library mentions this at all").json()
     finally:
-        settings.recall_llm = "none"
+        settings.recall_llm = "off"
         settings.ollama_base_url = "http://localhost:11434"
+        ollama.reset_discovery()
 
     assert body["grounded"] is False
     assert body["sources"] == []

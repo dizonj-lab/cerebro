@@ -2,8 +2,9 @@
 
 import { useRef, useState } from "react";
 
-import { api, ApiError } from "@/lib/api";
+import { api } from "@/lib/api";
 import type { CerebroRecallAnswer } from "@/lib/api";
+import { streamRecall } from "@/lib/recallStream";
 import { cn } from "@/lib/cn";
 
 interface Turn {
@@ -38,11 +39,57 @@ export function RecallChat({ topic }: { topic: string | null }) {
     setQuestion("");
     setTurns((t) => [...t, { question: asked, reply: null }]);
     setBusy(true);
+
+    const update = (patch: (reply: CerebroRecallAnswer) => CerebroRecallAnswer) =>
+      setTurns((t) =>
+        t.map((turn, i) =>
+          i === t.length - 1
+            ? {
+                ...turn,
+                reply: patch(
+                  turn.reply ?? {
+                    answer: null,
+                    sources: [],
+                    grounded: false,
+                    model: null,
+                    note: null,
+                  },
+                ),
+              }
+            : turn,
+        ),
+      );
+
     try {
-      const reply = await api.recall({ question: asked, topic });
-      setTurns((t) => t.map((turn, i) => (i === t.length - 1 ? { ...turn, reply } : turn)));
+      await streamRecall({ question: asked, topic }, (e) => {
+        if (e.type === "sources") {
+          // Evidence first: the citations are readable while the answer is
+          // still being written.
+          update((reply) => ({ ...reply, sources: e.sources, grounded: e.sources.length > 0 }));
+        } else if (e.type === "delta") {
+          update((reply) => ({ ...reply, answer: (reply.answer ?? "") + e.text }));
+        } else if (e.type === "error") {
+          setTurns((t) =>
+            t.map((turn, i) => (i === t.length - 1 ? { ...turn, error: e.message } : turn)),
+          );
+        } else {
+          update((reply) => ({
+            ...reply,
+            // The final answer has citations to absent passages removed, so
+            // it replaces what was streamed rather than extending it.
+            answer: e.answer ?? reply.answer,
+            grounded: e.grounded,
+            model: e.model,
+            note: e.note,
+            cited: e.cited,
+            abstained: e.abstained,
+            telemetry: e.telemetry,
+          }));
+        }
+        requestAnimationFrame(() => log.current?.scrollTo({ top: log.current.scrollHeight }));
+      });
     } catch (e) {
-      const message = e instanceof ApiError ? e.message : "Could not reach CEREBRO.";
+      const message = e instanceof Error ? e.message : "Could not reach CEREBRO.";
       setTurns((t) => t.map((turn, i) => (i === t.length - 1 ? { ...turn, error: message } : turn)));
     } finally {
       setBusy(false);
@@ -141,6 +188,18 @@ function Reply({ reply }: { reply: CerebroRecallAnswer }) {
           library:
         </p>
       ) : null}
+
+      {/* What ran, from the daemon's own accounting. */}
+      {reply.telemetry && (
+        <p data-testid="chat-telemetry" className="text-[0.625rem] text-white/45">
+          {reply.telemetry.model}
+          {reply.telemetry.duration_ms !== null && ` · ${reply.telemetry.duration_ms} ms`}
+          {reply.telemetry.completion_tokens !== null &&
+            ` · ${reply.telemetry.completion_tokens} tokens`}
+        </p>
+      )}
+
+      {reply.note && <p className="text-[0.625rem] text-white/50">{reply.note}</p>}
 
       {reply.sources.map((source) => (
         <a

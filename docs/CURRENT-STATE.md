@@ -117,6 +117,38 @@ filters on all three, so vectors from two spaces are never compared.
 A fragment scoring zero or below is not returned. An unrelated passage
 offered as a weak match is an unrelated passage offered as evidence.
 
+### Local models
+
+CEREBRO discovers what the local Ollama daemon has rather than requiring it to
+be named in configuration. One client (`app/services/ollama.py`) asks the
+daemon for its models and picks from what is installed: a small
+instruction-following model to answer with, a purpose-built embedder to embed
+with. It tries the configured URL, then `host.docker.internal`, then
+localhost, because inside a container `localhost:11434` is the container.
+
+Embeddings, enrichment and answering all default to `auto`. `off` pins the
+deterministic path, which is what the test suite uses so that no test depends
+on whether a daemon is running on the machine running it. There is still no
+cloud path, and a failing local model never becomes one.
+
+Ask CEREBRO answers by streaming: the sources arrive first, then the words as
+the model produces them, then a summary with the daemon's own token counts. A
+citation to a passage that was not retrieved is removed from the answer — a
+model citing `[7]` of six passages has cited nothing — and the citations that
+survive are what the response reports. With nothing retrieved, no model is
+called at all and the answer is "Insufficient evidence...".
+
+`/api/ml/status` reports what is installed, what is selected, whether the
+active embedder is pretrained or the deterministic fallback, the retrieval
+algorithms, and the last operations with their durations and token counts.
+`/api/ml/embeddings/backfill` embeds fragments that have no vector for the
+active model, which is what makes `auto` safe: a change of embedder orphans
+vectors rather than deleting them, and the gap is visible and fixable instead
+of showing up as search quietly returning nothing.
+
+`make models` lists what the daemon has; `make models-pull` pulls the
+preferred pair.
+
 ### GOD MODE
 
 A floating window, opened from the sidebar or from the header beside

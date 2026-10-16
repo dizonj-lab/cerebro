@@ -19,6 +19,18 @@ class RecallSource(BaseModel):
     score: float
 
 
+class RecallTelemetry(BaseModel):
+    """What actually ran, so an answer can be audited rather than trusted."""
+
+    model: str
+    duration_ms: int | None = None
+    # Counted by the daemon itself, not estimated here.
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    passages: int
+    top_score: float
+
+
 class RecallResponse(BaseModel):
     # Null when no model phrased an answer; the sources still stand on their own.
     answer: str | None = None
@@ -27,3 +39,9 @@ class RecallResponse(BaseModel):
     grounded: bool = False
     model: str | None = None
     note: str | None = None
+    # Which passages the answer actually cited, after invalid citations were
+    # removed. A model citing [7] of six passages cites nothing.
+    cited: list[int] = Field(default_factory=list)
+    # True when the model said the passages do not answer the question.
+    abstained: bool = False
+    telemetry: RecallTelemetry | None = None

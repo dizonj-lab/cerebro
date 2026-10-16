@@ -12,6 +12,13 @@ os.environ.setdefault(
 _TEST_STORAGE = tempfile.mkdtemp(prefix="cerebro-test-artifacts-")
 os.environ["CEREBRO_STORAGE_BACKEND"] = "filesystem"
 os.environ["CEREBRO_STORAGE_PATH"] = _TEST_STORAGE
+# The suite pins the deterministic embedder and switches local answering off,
+# so no test depends on whether an Ollama daemon happens to be running on the
+# machine running it. Tests that exercise the Ollama path start a fake daemon
+# and point the settings at it explicitly.
+os.environ["CEREBRO_EMBEDDING_PROVIDER"] = "hashing"
+os.environ["CEREBRO_RECALL_LLM"] = "off"
+os.environ["CEREBRO_ENRICHMENT_LLM"] = "off"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

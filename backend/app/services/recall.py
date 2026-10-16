@@ -19,16 +19,17 @@ Three rules hold:
 """
 from __future__ import annotations
 
-import json
-import urllib.error
-import urllib.request
+import re
+import time
 import uuid
+from collections.abc import Iterator
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.models.artifact import Artifact
+from app.services import ollama, telemetry
 from app.services.embeddings import EmbeddingFailed, get_embedding_provider
 from app.services.retrieval import get_index
 
@@ -36,7 +37,10 @@ from app.services.retrieval import get_index
 # the local model fast.
 MAX_PASSAGES = 6
 MAX_PASSAGE_CHARS = 700
-_TIMEOUT_SECONDS = 120
+
+# The exact words the product uses when the library cannot answer. Abstaining
+# is a result, not a failure, and it must read the same every time.
+INSUFFICIENT = "Insufficient evidence in your registered documents to answer that."
 
 _INSTRUCTION = """You answer strictly from the passages provided. They come \
 from the user's own documents.
@@ -57,6 +61,7 @@ Answer:"""
 
 def _passages(db: Session, owner_id: uuid.UUID, query: str, *, topic: str | None) -> list[dict]:
     """The owner's registered fragments most like the question."""
+    started = time.perf_counter()
     provider = get_embedding_provider()
     # A selected cluster is extra context for the query, not a filter: the
     # user may be asking about something adjacent to what they clicked.
@@ -71,6 +76,15 @@ def _passages(db: Session, owner_id: uuid.UUID, query: str, *, topic: str | None
         model=provider.model,
         dimensions=provider.dimensions,
         limit=MAX_PASSAGES,
+    )
+
+    telemetry.record(
+        "recall.retrieve",
+        model=f"{provider.name}/{provider.model}",
+        duration_ms=int((time.perf_counter() - started) * 1000),
+        algorithm="cosine similarity (exact scan)",
+        detail=f"{len(matches)} passages, top score "
+        + (f"{matches[0].score:.4f}" if matches else "n/a"),
     )
 
     if not matches:
@@ -100,6 +114,93 @@ def _passages(db: Session, owner_id: uuid.UUID, query: str, *, topic: str | None
     ]
 
 
+def _cite_guard(answer: str, count: int) -> tuple[str, list[int]]:
+    """Remove citations to passages that were never retrieved.
+
+    A model asked to cite [1] and [2] will sometimes cite [7] when six
+    passages were given. The number is not a mistake to be corrected — there
+    is no seventh passage to point at — so the marker is removed rather than
+    renumbered, and only the citations that resolve are reported.
+    """
+    kept: list[int] = []
+
+    def replace(match: re.Match[str]) -> str:
+        index = int(match.group(1))
+        if 1 <= index <= count:
+            if index not in kept:
+                kept.append(index)
+            return match.group(0)
+        return ""
+
+    cleaned = re.sub(r"\[(\d{1,2})\]", replace, answer)
+    # Collapse the space left where a marker was dropped.
+    return re.sub(r"\s{2,}", " ", cleaned).strip(), sorted(kept)
+
+
+def _engine(ai_suggestions: bool) -> tuple[str | None, str | None, str | None]:
+    """The local model to answer with, or why there is not one.
+
+    Discovery decides, not configuration: CEREBRO used to need
+    CEREBRO_RECALL_LLM=ollama before it would ask a model anything, so an
+    unset variable looked exactly like a broken feature. If the daemon is
+    running and has a usable model, it is used.
+    """
+    if not ai_suggestions:
+        return None, None, (
+            "AI suggestions are switched off in your preferences, so only the "
+            "matching passages are shown."
+        )
+
+    settings = get_settings()
+    if settings.recall_llm == "off":
+        return None, None, "Local answering is switched off for this deployment."
+
+    found = ollama.discover()
+    if not found.reachable:
+        return None, None, (
+            "No local model is running, so the matching passages are shown instead. "
+            "Start Ollama with `ollama serve` to have them summarised."
+        )
+
+    # An explicitly configured model wins, provided it is installed.
+    configured = settings.ollama_recall_model
+    chosen = next(
+        (m for m in found.models if m == configured or m.split(":", 1)[0] == configured),
+        None,
+    ) or found.chat_model()
+
+    if chosen is None:
+        return None, None, (
+            "Ollama is running but has no model that can answer. Pull one with "
+            "`ollama pull llama3.2`."
+        )
+    return found.base_url, chosen, None
+
+
+def _prompt(question: str, passages: list[dict]) -> str:
+    rendered = "\n\n".join(
+        f"[{p['index']}] ({p['filename']}) {p['excerpt']}" for p in passages
+    )
+    return _INSTRUCTION.format(question=question, passages=rendered)
+
+
+def _abstained(answer: str) -> bool:
+    """Whether the model said the passages do not answer the question."""
+    lowered = answer.lower()
+    return any(
+        phrase in lowered
+        for phrase in (
+            "do not contain",
+            "does not contain",
+            "no information",
+            "not mentioned",
+            "cannot answer",
+            "can't answer",
+            "insufficient",
+        )
+    )
+
+
 def ask(
     db: Session,
     owner_id: uuid.UUID,
@@ -118,85 +219,159 @@ def ask(
             "grounded": False,
             "model": None,
             "note": "The question could not be matched against your library.",
+            "telemetry": None,
         }
 
     if not passages:
-        # No evidence, so no answer. Saying "I don't know" is the honest
-        # result; inventing one from the model's own knowledge is not.
+        # No evidence, so no answer. Abstaining is the honest result;
+        # answering from the model's own knowledge is not.
         return {
-            "answer": "Nothing in your registered documents matches that question.",
+            "answer": INSUFFICIENT,
             "sources": [],
             "grounded": False,
             "model": None,
             "note": "Only documents you have reviewed and registered are searched.",
+            "telemetry": None,
         }
 
-    settings = get_settings()
-    if settings.recall_llm != "ollama" or not ai_suggestions:
+    base_url, model, note = _engine(ai_suggestions)
+    if base_url is None or model is None:
         return {
             "answer": None,
             "sources": passages,
             "grounded": True,
             "model": None,
-            "note": (
-                "These are the passages from your library that match. Set "
-                "CEREBRO_RECALL_LLM=ollama to have a local model summarise them."
-                if settings.recall_llm != "ollama"
-                else "AI suggestions are switched off in your preferences, so only "
-                "the matching passages are shown."
-            ),
+            "note": note,
+            "telemetry": None,
         }
 
-    answer = _ask_model(
-        settings.ollama_base_url, settings.ollama_recall_model, question, passages
-    )
-    if answer is None:
+    try:
+        generated = ollama.generate(
+            base_url, model, _prompt(question, passages), operation="recall.answer"
+        )
+    except ollama.OllamaUnavailable as exc:
+        # The passages still stand on their own. There is no cloud fallback.
         return {
             "answer": None,
             "sources": passages,
             "grounded": True,
             "model": None,
-            "note": (
-                f"The local model '{settings.ollama_recall_model}' could not be "
-                "reached, so the matching passages are shown instead."
-            ),
+            "note": f"{exc} The matching passages are shown instead.",
+            "telemetry": None,
         }
 
+    answer, cited = _cite_guard(generated.text, len(passages))
     return {
         "answer": answer,
         "sources": passages,
         "grounded": True,
-        "model": settings.ollama_recall_model,
+        "model": generated.model,
         "note": None,
+        "cited": cited,
+        "abstained": _abstained(answer),
+        "telemetry": {
+            "model": generated.model,
+            "duration_ms": generated.duration_ms,
+            "prompt_tokens": generated.prompt_tokens,
+            "completion_tokens": generated.completion_tokens,
+            "passages": len(passages),
+            "top_score": passages[0]["score"],
+        },
     }
 
 
-def _ask_model(base_url: str, model: str, question: str, passages: list[dict]) -> str | None:
-    rendered = "\n\n".join(
-        f"[{p['index']}] ({p['filename']}) {p['excerpt']}" for p in passages
-    )
-    payload = json.dumps(
-        {
-            "model": model,
-            "prompt": _INSTRUCTION.format(question=question, passages=rendered),
-            "stream": False,
-            # Deterministic, so the same question over the same library
-            # answers the same way.
-            "options": {"temperature": 0},
-        }
-    ).encode("utf-8")
-    request = urllib.request.Request(  # noqa: S310 - fixed http scheme, local daemon
-        f"{base_url.rstrip('/')}/api/generate",
-        data=payload,
-        headers={"Content-Type": "application/json"},
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=_TIMEOUT_SECONDS) as response:
-            body = json.loads(response.read().decode("utf-8"))
-    except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError):
-        return None
+def ask_stream(
+    db: Session,
+    owner_id: uuid.UUID,
+    *,
+    question: str,
+    topic: str | None = None,
+    ai_suggestions: bool = True,
+) -> Iterator[dict]:
+    """The same answer, as events: sources first, then words, then a summary.
 
-    text = body.get("response")
-    if not isinstance(text, str) or not text.strip():
-        return None
-    return " ".join(text.split())[:2000]
+    Sources are sent before the first word on purpose. The citations are the
+    evidence, and they are known as soon as retrieval finishes; showing them
+    first means the user can check what the answer is built on while it is
+    still being written.
+    """
+    try:
+        passages = _passages(db, owner_id, question, topic=topic)
+    except EmbeddingFailed as exc:
+        yield {"type": "error", "message": str(exc)}
+        return
+
+    yield {"type": "sources", "sources": passages}
+
+    if not passages:
+        yield {
+            "type": "done",
+            "answer": INSUFFICIENT,
+            "grounded": False,
+            "model": None,
+            "note": "Only documents you have reviewed and registered are searched.",
+            "abstained": True,
+            "cited": [],
+            "telemetry": None,
+        }
+        return
+
+    base_url, model, note = _engine(ai_suggestions)
+    if base_url is None or model is None:
+        yield {
+            "type": "done",
+            "answer": None,
+            "grounded": True,
+            "model": None,
+            "note": note,
+            "abstained": False,
+            "cited": [],
+            "telemetry": None,
+        }
+        return
+
+    collected: list[str] = []
+    generation = None
+    try:
+        for item in ollama.generate_stream(
+            base_url, model, _prompt(question, passages), operation="recall.answer"
+        ):
+            if isinstance(item, str):
+                collected.append(item)
+                yield {"type": "delta", "text": item}
+            else:
+                generation = item
+    except ollama.OllamaUnavailable as exc:
+        yield {
+            "type": "done",
+            "answer": None,
+            "grounded": True,
+            "model": None,
+            "note": f"{exc} The matching passages are shown instead.",
+            "abstained": False,
+            "cited": [],
+            "telemetry": None,
+        }
+        return
+
+    # The guard runs on the whole answer, so a citation split across two
+    # stream chunks is still checked. The client replaces the streamed text
+    # with this one, which is why the final event carries it in full.
+    answer, cited = _cite_guard("".join(collected), len(passages))
+    yield {
+        "type": "done",
+        "answer": answer,
+        "grounded": True,
+        "model": generation.model if generation else model,
+        "note": None,
+        "abstained": _abstained(answer),
+        "cited": cited,
+        "telemetry": {
+            "model": generation.model if generation else model,
+            "duration_ms": generation.duration_ms if generation else None,
+            "prompt_tokens": generation.prompt_tokens if generation else None,
+            "completion_tokens": generation.completion_tokens if generation else None,
+            "passages": len(passages),
+            "top_score": passages[0]["score"],
+        },
+    }

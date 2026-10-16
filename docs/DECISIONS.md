@@ -132,3 +132,62 @@ Two supporting fixes came out of the same bug:
 - `Set-Cookie` is copied entry by entry via `getSetCookie()`, because iterating a
   `Headers` object folds multiple cookies into one comma-joined value that
   browsers reject.
+
+## D13 — Local models are discovered, not configured
+
+Ask CEREBRO, enrichment and embeddings all had working Ollama paths that were
+off unless an environment variable was set: `CEREBRO_RECALL_LLM=ollama`,
+`CEREBRO_ENRICHMENT_LLM=ollama`, `CEREBRO_EMBEDDING_PROVIDER=ollama`. Nothing
+told the user that, so a running daemon with the right models pulled still
+produced passages instead of answers, and a deterministic hash projection
+instead of learned vectors. A feature that depends on configuration nobody
+set is a feature that is off, and from the outside it is indistinguishable
+from one that is broken.
+
+All three now default to `auto`: one client asks the daemon what is installed
+(`GET /api/tags`) and picks from what is actually there, preferring small
+instruction-following models for answering and purpose-built embedders for
+embedding. `off` pins the deterministic path, which is what the test suite
+uses so no test depends on whether a daemon happens to be running.
+
+Two details that cost time elsewhere and are handled here:
+
+- Inside a container `localhost:11434` is the container. Discovery tries the
+  configured URL, then `host.docker.internal`, then localhost, so compose
+  works without the user knowing this.
+- An embedding model's width comes from the model. Known models use their
+  published width; anything else is measured once by embedding a single word.
+  A wrong width is not a smaller vector — it is a provider that refuses every
+  embedding.
+
+The risk `auto` introduces is honest and visible: provider, model and width
+travel with every vector and retrieval filters on all three, so if the daemon
+is down when a document is registered, those fragments are embedded by the
+fallback and are not retrievable once the daemon returns. `/api/ml/status`
+therefore reports the active provider and how many fragments lack a vector
+for it, and `/api/ml/embeddings/backfill` fixes it without deleting the old
+vectors — switching back needs no re-embedding.
+
+## D14 — No Qdrant and no Neo4j yet
+
+The Ask CEREBRO work package authorised both. Neither was added, because
+neither is what makes the feature work.
+
+Qdrant would replace an exact cosine scan over the owner's `float4[]` vectors.
+That scan is behind the `VectorIndex` interface, is exact rather than
+approximate, and at a personal library's scale is not the bottleneck — the
+local model's generation time is, by two orders of magnitude. Adding a second
+datastore buys approximate search CEREBRO does not need, and costs a service
+to deploy, secure, back up and keep consistent with the artifacts table.
+The honest trigger for revisiting this is measured latency, which
+`/api/ml/status` now records.
+
+Neo4j would replace topic co-occurrence edges computed in SQL. The graph is
+co-occurrence and nothing more — CEREBRO never claims an inferred semantic
+relationship — so there are no traversals a graph database would answer that
+SQL cannot. Graph expansion of retrieval is a real idea, but it needs verified
+relationships to expand along, and inventing those is exactly what the
+provenance rules forbid.
+
+Both decisions are reversible and neither blocks the RAG flow. They are
+recorded here so the next person does not read their absence as an oversight.

@@ -43,7 +43,11 @@ class OllamaEmbedder:
     def embed(self, texts: list[str]) -> list[list[float]]:
         return [self._one(text) for text in texts]
 
-    def _one(self, text: str) -> list[float]:
+    def measure(self, text: str) -> list[float]:
+        """Embed without the width check, to learn an unknown model's width."""
+        return self._one(text, check_width=False)
+
+    def _one(self, text: str, *, check_width: bool = True) -> list[float]:
         payload = json.dumps({"model": self.model, "prompt": text}).encode("utf-8")
         request = urllib.request.Request(  # noqa: S310 - fixed http scheme, local daemon
             f"{self.base_url}/api/embeddings",
@@ -64,7 +68,7 @@ class OllamaEmbedder:
         vector = body.get("embedding")
         if not isinstance(vector, list) or not vector:
             raise EmbeddingFailed(f"Ollama returned no embedding for model '{self.model}'.")
-        if len(vector) != self.dimensions:
+        if check_width and len(vector) != self.dimensions:
             # Configured width and actual width must agree, or this provider
             # would write two incompatible spaces under one model name.
             raise EmbeddingFailed(
