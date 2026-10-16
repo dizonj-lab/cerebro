@@ -92,7 +92,7 @@ const PRIMARY = [
   { label: "Dashboard", icon: <IconDashboard />, href: "/construct" },
   { label: "Ingest", icon: <IconIngest />, href: "/construct/ingest" },
   { label: "Library", icon: <IconLibrary />, href: "/construct/library" },
-  { label: "Search", icon: <IconSearch /> },
+  { label: "Search", icon: <IconSearch />, href: "/construct/search" },
   { label: "Galaxy", icon: <IconGalaxy />, href: "/construct/galaxy" },
   { label: "Timeline", icon: <IconTimeline /> },
   { label: "Assisted Recollection", icon: <IconRecall /> },

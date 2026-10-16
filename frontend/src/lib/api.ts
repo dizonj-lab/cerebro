@@ -327,6 +327,66 @@ export interface CerebroRecallAnswer {
   note: string | null;
 }
 
+export type SearchMode = "keyword" | "semantic" | "hybrid";
+export type SearchScope = "all" | "library" | "knowledge";
+
+export interface CerebroSearchFilters {
+  modalities?: string[];
+  statuses?: string[];
+  topics?: string[];
+  tags?: string[];
+  people?: string[];
+  organizations?: string[];
+  projects?: string[];
+  uploaded_from?: string | null;
+  uploaded_to?: string | null;
+}
+
+export interface CerebroKnowledgeHit {
+  fragment_id: string;
+  artifact_id: string;
+  filename: string;
+  title: string | null;
+  content: string;
+  /** The matched passage, with terms marked by the keyword retrieval. */
+  excerpt: string;
+  source_location: Record<string, number | string>;
+  topics: string[];
+  score: number;
+  /** Which retrievals found it: keyword, semantic, or both. */
+  matched_by: string[];
+  /** Words, never a percentage — a fused rank is not a confidence. */
+  relevance: string;
+}
+
+export interface CerebroDocumentHit {
+  artifact_id: string;
+  filename: string;
+  modality: string;
+  /** Carried so a draft is never read as established knowledge. */
+  status: string;
+  created_at: string;
+  title: string | null;
+  topics: string[];
+  tags: string[];
+  score: number;
+  relevance: string;
+}
+
+export interface CerebroSearchResults {
+  query: string;
+  mode: SearchMode;
+  scope: SearchScope;
+  documents: CerebroDocumentHit[];
+  knowledge: CerebroKnowledgeHit[];
+  concepts: { label: string; count: number }[];
+  total_documents: number;
+  total_knowledge: number;
+  took_ms: number;
+  /** Set when half a hybrid search was unavailable. */
+  note: string | null;
+}
+
 export interface CerebroBulkUpload {
   items: { filename: string; accepted: boolean; artifact: CerebroArtifact | null; error: string | null }[];
   accepted: number;
@@ -380,6 +440,25 @@ export const api = {
   dashboard: () => request<CerebroDashboard>("/api/dashboard"),
 
   galaxy: () => request<CerebroGalaxy>("/api/graph"),
+
+  /** Unified search. Hybrid by default: neither retrieval alone is reliable. */
+  search: (input: {
+    query: string;
+    mode?: SearchMode;
+    scope?: SearchScope;
+    limit?: number;
+    filters?: CerebroSearchFilters;
+  }) =>
+    request<CerebroSearchResults>("/api/search", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  /** Completions drawn from the user's own confirmed metadata. */
+  searchSuggestions: (prefix: string) =>
+    request<{ prefix: string; suggestions: string[] }>(
+      `/api/search/suggestions?q=${encodeURIComponent(prefix)}`,
+    ),
 
   /** Retrieval-first. The model, if any, only sees retrieved passages. */
   recall: (input: { question: string; topic?: string | null }) =>

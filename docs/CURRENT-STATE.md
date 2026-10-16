@@ -117,8 +117,18 @@ filters on all three, so vectors from two spaces are never compared.
 A fragment scoring zero or below is not returned. An unrelated passage
 offered as a weak match is an unrelated passage offered as evidence.
 
-The search API is done; there is no search UI yet. The sidebar Search entry
-stays inert until a work package covers it.
+### Search
+
+`/construct/search` searches the library and the registered knowledge in one
+request, in three modes: keyword (PostgreSQL full-text, no model), semantic
+(local embeddings) and hybrid, which fuses the two rankings with Reciprocal
+Rank Fusion and is the default. Results come back as documents, knowledge and
+the confirmed topics those carry. The header box submits to it and suggests
+completions of the user's own metadata as they type; ⌘K focuses it.
+
+Relevance is stated in words, excerpts are the document's own text with the
+matched terms marked by PostgreSQL, and a document awaiting review is findable
+but labelled as not yet part of the user's knowledge. See `docs/SEARCH.md`.
 
 ### Bulk ingestion
 
