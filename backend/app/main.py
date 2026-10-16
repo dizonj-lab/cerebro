@@ -1,8 +1,10 @@
 """CEREBRO API — application entry point."""
 import logging
+import uuid
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from app.api.artifacts import router as artifacts_router
@@ -34,6 +36,36 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
 )
+
+@app.exception_handler(Exception)
+async def unhandled(request: Request, exc: Exception) -> JSONResponse:
+    """Answer an unhandled failure in the shape the client can read.
+
+    FastAPI's default is a plain-text "Internal Server Error", which the
+    browser client cannot parse — so every bug of this class reached the user
+    as a bare "Something went wrong." with nothing to go on and nothing to
+    correlate against the log. This returns JSON with a reference the same
+    log line carries, so the next one names itself.
+
+    The message deliberately says nothing about the failure: the detail is
+    in the log, not in the browser, because it can name server paths and
+    query values.
+    """
+    reference = uuid.uuid4().hex[:8]
+    logger.exception(
+        "Unhandled error %s on %s %s", reference, request.method, request.url.path
+    )
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": (
+                "CEREBRO hit an unexpected error. The API log has the details, "
+                f"under reference {reference}."
+            ),
+            "reference": reference,
+        },
+    )
+
 
 app.include_router(auth_router)
 app.include_router(profile_router)

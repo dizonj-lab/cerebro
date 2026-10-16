@@ -37,6 +37,12 @@ const HOP_BY_HOP = new Set([
   "content-encoding",
   "content-length",
   "host",
+  // Expect: 100-continue is a hop's own negotiation with its immediate peer,
+  // and undici refuses outright to send a request carrying one — the whole
+  // upload fails with "fetch failed" before it leaves this process. curl adds
+  // it to any body over 1KB, so forwarding it broke every large upload from a
+  // command line or script while browsers, which never send it, were fine.
+  "expect",
 ]);
 
 async function proxy(request: NextRequest, path: string[]): Promise<Response> {
@@ -60,10 +66,11 @@ async function proxy(request: NextRequest, path: string[]): Promise<Response> {
       redirect: "manual",
       cache: "no-store",
     });
-  } catch {
-    // The API is unreachable. Answer in the same JSON shape the API uses for
-    // errors, so the client renders a real message instead of choking on an
-    // HTML or plain-text error page.
+  } catch (cause) {
+    // Logged with its cause: this message is the last word the user gets, and
+    // without the underlying error a proxy fault is indistinguishable from a
+    // stopped API. One of these cost a debugging session already.
+    console.error(`Proxy ${method} ${target} failed:`, cause);
     return NextResponse.json(
       { detail: "The CEREBRO API is unreachable. Please try again." },
       { status: 502 },

@@ -189,3 +189,34 @@ def test_the_inline_limit_is_what_decides(client, signed_in):
 
     just_over = b"y" * (service.INLINE_BYTES + 1024)
     assert upload(client, "over.txt", just_over).json()["status"] == "processing"
+
+
+# --- failures that reach the user -------------------------------------------
+
+def test_an_unhandled_error_is_readable_json_with_a_reference(client, signed_in, monkeypatch):
+    """FastAPI's plain-text 500 is what "Something went wrong." was made of."""
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+    from app.services.artifacts import service as artifact_service
+
+    def explode(*args, **kwargs):  # noqa: ANN002, ANN003, ARG001
+        raise RuntimeError("a bug nobody anticipated")
+
+    monkeypatch.setattr(artifact_service, "list_for_owner", explode)
+
+    # A client that answers like the server does rather than re-raising, which
+    # is the only way to see what the browser would have received.
+    with TestClient(app, raise_server_exceptions=False) as raw:
+        raw.cookies.update(client.cookies)
+        response = raw.get("/api/artifacts")
+
+    assert response.status_code == 500
+    body = response.json()
+    # Parseable, so the client shows a real message, and carries a reference
+    # that the API log line repeats.
+    assert "reference" in body
+    assert body["reference"] in body["detail"]
+    # And it says nothing about the failure itself: server paths and values
+    # belong in the log, not the browser.
+    assert "a bug nobody anticipated" not in body["detail"]
