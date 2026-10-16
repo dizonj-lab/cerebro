@@ -58,3 +58,62 @@ export function storedTheme(): Theme | null {
 export const THEME_BOOTSTRAP_SCRIPT = `(function(){try{var t=localStorage.getItem(${JSON.stringify(
   THEME_STORAGE_KEY,
 )});if(t==="light"||t==="dark"){document.documentElement.setAttribute("data-theme",t)}}catch(e){}})();`;
+
+
+/* --- the resolved appearance, as an external store ------------------------
+ *
+ * The toggle in the header has to show which way it will go, which means
+ * knowing whether the page is currently light or dark. That is not React
+ * state: it is an attribute on <html> and an operating-system media query.
+ * So it is read through `useSyncExternalStore`, which also keeps the server
+ * render ("light", since the server has no storage) from clashing with a
+ * stored dark choice — React re-reads after hydration rather than warning.
+ */
+
+type Resolved = "light" | "dark";
+
+const listeners = new Set<() => void>();
+let resolved: Resolved | undefined;
+let media: MediaQueryList | null = null;
+
+function readResolved(): Resolved {
+  const explicit = document.documentElement.getAttribute("data-theme");
+  if (explicit === "light" || explicit === "dark") return explicit;
+  // No explicit choice: the system decides, exactly as the CSS does.
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function announce(): void {
+  resolved = readResolved();
+  for (const listener of listeners) listener();
+}
+
+export function subscribeAppearance(listener: () => void): () => void {
+  listeners.add(listener);
+  if (!media) {
+    media = window.matchMedia("(prefers-color-scheme: dark)");
+    // The system theme can change while the page is open, and "system" means
+    // following it rather than sampling it once.
+    media.addEventListener("change", announce);
+  }
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+export function appearanceSnapshot(): Resolved {
+  if (resolved === undefined) resolved = readResolved();
+  return resolved;
+}
+
+/** The server has no storage and no media query; it renders the light theme. */
+export function appearanceServerSnapshot(): Resolved {
+  return "light";
+}
+
+/** Apply and remember a choice, then tell anything showing it. */
+export function chooseTheme(theme: Theme): void {
+  applyTheme(theme);
+  rememberTheme(theme);
+  announce();
+}

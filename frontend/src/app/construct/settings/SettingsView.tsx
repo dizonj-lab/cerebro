@@ -15,7 +15,7 @@ import { Toggle } from "@/components/ui/Toggle";
 import { ApiError, api } from "@/lib/api";
 import type { CerebroAccount, CerebroPreferences } from "@/lib/api";
 import { cn } from "@/lib/cn";
-import { applyTheme, isTheme, rememberTheme, storedTheme } from "@/lib/theme";
+import { chooseTheme, isTheme, storedTheme } from "@/lib/theme";
 import type { Theme } from "@/lib/theme";
 
 const TABS = ["Preferences", "AI & Privacy", "Account"] as const;
@@ -37,8 +37,7 @@ export function SettingsView() {
         // else — a different machine, or a choice made elsewhere — is
         // corrected here rather than left to disagree.
         if (isTheme(p.theme) && p.theme !== storedTheme()) {
-          applyTheme(p.theme);
-          rememberTheme(p.theme);
+          chooseTheme(p.theme);
         }
       })
       .catch((e) =>
@@ -60,8 +59,7 @@ export function SettingsView() {
     // Applied immediately, because a theme control that waits for a round
     // trip feels broken. The account is still the authority: if the save
     // fails the error is shown and the next load corrects the browser.
-    applyTheme(theme);
-    rememberTheme(theme);
+    chooseTheme(theme);
     await patch({ theme });
   }
 

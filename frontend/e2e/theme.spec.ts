@@ -7,7 +7,7 @@ const WCAG = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"];
 
 async function chooseTheme(page: import("@playwright/test").Page, label: string) {
   await page.goto("/construct/settings");
-  await page.getByLabel("Appearance").selectOption({ label });
+  await page.getByLabel("Appearance", { exact: true }).selectOption({ label });
 }
 
 test("appearance can be set to dark, and survives a reload", async ({ page }) => {
@@ -86,4 +86,49 @@ test("matching the system follows the operating system", async ({ browser }) => 
   const [r, g, b] = background.match(/\d+/g)!.map(Number);
   expect(r + g + b).toBeLessThan(150);
   await context.close();
+});
+
+test("appearance toggles in the header without leaving the page", async ({ page }) => {
+  await signUp(page, makeAccount("theme-header"));
+  await page.waitForURL(/\/construct$/);
+
+  // Somewhere the old control would have been especially costly to reach:
+  // the Galaxy, whose view the user has arranged.
+  await page.goto("/construct/galaxy");
+  const toggle = page.getByTestId("theme-toggle");
+  await expect(toggle).toHaveAccessibleName("Switch to dark appearance");
+
+  // A marker that only survives if the document is never replaced.
+  await page.evaluate(() => {
+    (window as unknown as { __kept?: boolean }).__kept = true;
+  });
+
+  await toggle.click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  // Still on the Galaxy: no navigation, nothing reloaded.
+  expect(new URL(page.url()).pathname).toBe("/construct/galaxy");
+  expect(
+    await page.evaluate(() => (window as unknown as { __kept?: boolean }).__kept),
+  ).toBe(true);
+
+  // The button now offers the way back, and takes it.
+  await expect(toggle).toHaveAccessibleName("Switch to light appearance");
+  await toggle.click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+});
+
+test("a toggled appearance reaches the account and the Settings control", async ({ page }) => {
+  await signUp(page, makeAccount("theme-sync"));
+  await page.waitForURL(/\/construct$/);
+
+  await page.getByTestId("theme-toggle").click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+
+  await expect
+    .poll(async () => (await (await page.request.get("/api/preferences")).json()).theme)
+    .toBe("dark");
+
+  // Settings agrees, rather than showing a stale "Match my system".
+  await page.goto("/construct/settings");
+  await expect(page.getByLabel("Appearance", { exact: true })).toHaveValue("dark");
 });

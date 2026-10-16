@@ -117,6 +117,15 @@ filters on all three, so vectors from two spaces are never compared.
 A fragment scoring zero or below is not returned. An unrelated passage
 offered as a weak match is an unrelated passage offered as evidence.
 
+### Appearance
+
+Light and dark switch from the header, in place: the control used to live only
+in Settings, so changing it meant leaving the page — on the Galaxy, losing the
+view the user had arranged. The button writes an explicit choice, applies it
+immediately and saves it to the account in the background. "Match my system"
+stays in Settings, because a two-state button cannot express three states
+honestly.
+
 ### Navigation
 
 The sidebar has two widths: 240px with labels, and a 64px rail of icons that

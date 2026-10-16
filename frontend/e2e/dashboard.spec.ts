@@ -130,7 +130,7 @@ test("the dashboard has no WCAG A/AA violations in either theme", async ({ page 
 
   for (const theme of ["Light", "Dark"]) {
     await page.goto("/construct/settings");
-    await page.getByLabel("Appearance").selectOption({ label: theme });
+    await page.getByLabel("Appearance", { exact: true }).selectOption({ label: theme });
     await page.goto("/construct");
     await page.waitForTimeout(500);
     const results = await new AxeBuilder({ page })
