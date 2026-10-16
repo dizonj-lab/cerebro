@@ -1,0 +1,200 @@
+/**
+ * The application layer: the containers and components that exist today.
+ *
+ * Component names match the modules they describe — `app/services/search.py`
+ * is `api.search` here — so a diagram can be checked against the source
+ * rather than believed.
+ */
+model {
+
+  cerebro = system 'CEREBRO' {
+    description 'A private knowledge twin: Learn, Connect, Reason, Recall.'
+
+    web = container 'cerebro-web' {
+      technology 'Next.js 16, React 19, Tailwind v4'
+      description '
+        The only origin the browser talks to. It renders the Construct and
+        proxies /api, so the session cookie is first-party and no CORS is
+        involved.
+      '
+
+      construct = component 'The Construct' {
+        technology 'App Router, server components'
+        description 'Dashboard, Library, Ingest, Search, Galaxy, Timeline, Settings.'
+      }
+      api_proxy = component 'API proxy route' {
+        technology 'Route handler, /api/[...path]'
+        description '
+          Reads INTERNAL_API_BASE_URL per request. Deliberately not a
+          rewrite: a rewrite destination is baked at build time and ignores
+          the runtime environment.
+        '
+      }
+      session_guard = component 'Session guard' {
+        #integrity
+        technology 'proxy.ts + layout check'
+        description '
+          Two gates. The proxy checks the cookie exists to avoid a flash of
+          protected UI; the layout validates it against the API and is the
+          authority.
+        '
+      }
+    }
+
+    api = container 'cerebro-api' {
+      technology 'FastAPI, SQLAlchemy 2, Python 3.11'
+      description 'Every read and write of knowledge. Owner-scoped in the query predicate.'
+
+      auth = component 'Authentication' {
+        technology 'Argon2id, JWT in an httpOnly cookie'
+        description 'Signup, login, session. One message for unknown email and wrong password.'
+      }
+
+      artifacts = component 'Artifact service' {
+        #integrity
+        technology 'app/services/artifacts'
+        description '
+          Upload, inspect, store, review, register, delete. Refuses bytes that
+          contradict the extension, and a document with no retrievable text.
+        '
+      }
+
+      extraction = component 'Extraction adapters' {
+        technology 'pypdf, python-docx, python-pptx'
+        description 'Deterministic text with page and slide preserved. No model reads the document.'
+      }
+
+      enrichment = component 'Enrichment' {
+        #local-only
+        technology 'Deterministic statistics + local SLM'
+        description '
+          Proposes title, topics, tags, people, organizations, projects,
+          technologies and concepts. Every suggestion must appear in the
+          document or it is dropped.
+        '
+      }
+
+      chunking = component 'Chunking' {
+        technology 'Structure-aware sentence packing, ~500 tokens'
+        description 'Chunks never cross a block, so every fragment keeps its page or slide.'
+      }
+
+      embeddings = component 'Embedding providers' {
+        #local-only
+        technology 'Ollama embedder (batched) or deterministic hashing'
+        description '
+          Provider, model and width travel with every vector, and retrieval
+          filters on all three — so two embedding spaces are never compared.
+        '
+      }
+
+      retrieval = component 'Vector index' {
+        technology 'Exact cosine over float4[]'
+        description 'Brute force behind an interface. No pgvector in the target database.'
+      }
+
+      search = component 'Unified search' {
+        technology 'PostgreSQL full-text + vectors, fused by RRF'
+        description 'Keyword, semantic and hybrid. Hybrid is the default.'
+      }
+
+      recall = component 'Assisted Recollection' {
+        #integrity
+        #local-only
+        technology 'Retrieval-first RAG, streamed'
+        description '
+          Retrieves first, then asks a local model to phrase an answer from
+          those passages only. Citations to passages that were not retrieved
+          are removed.
+        '
+      }
+
+      graph = component 'Knowledge graph' {
+        technology 'Topic co-occurrence in SQL'
+        description 'Clusters are confirmed topics; edges are co-occurrence, never inferred meaning.'
+      }
+
+      temporal = component 'Temporal extraction' {
+        technology 'Deterministic date parsing'
+        description '
+          Events are the dated statements in registered text, with the matched
+          expression and the sentence kept. An upload date is never an event
+          date.
+        '
+      }
+
+      ollama_client = component 'Ollama client' {
+        #local-only
+        technology 'Discovery, streaming, think-tag filtering'
+        description "
+          Asks the daemon what is installed and picks from it. Strips a
+          reasoning model's deliberation and records what every call cost.
+        "
+      }
+
+      telemetry = component 'Telemetry' {
+        technology 'In-memory ring buffer'
+        description "What ran, how long it took, and the daemon's own token counts."
+      }
+    }
+
+    postgres = store 'PostgreSQL' {
+      technology 'PostgreSQL 16'
+      description '
+        Users, artifacts, knowledge fragments, embeddings as float4[], and a
+        GIN index for full-text search.
+      '
+    }
+
+    objects = store 'Object store' {
+      technology 'Filesystem volume or S3/MinIO'
+      description '
+        The original bytes, verbatim, plus the derived extraction object. The
+        row holds only a summary — document text on a row would make a library
+        query carry megabytes.
+      '
+    }
+  }
+
+  ollama = external 'Ollama' {
+    #local-only
+    technology 'Local daemon, :11434'
+    description "
+      The user's own models: a small generative model for answering and
+      enrichment, a purpose-built embedder for vectors. Reached over the
+      loopback or host gateway; nothing leaves the machine.
+    "
+  }
+
+  browser = external 'Web browser' {
+    #browser
+    description 'The only client. Talks to one origin and holds no token.'
+  }
+
+  // --- how they fit together ----------------------------------------------
+  browser -> cerebro.web 'HTTPS, same origin, session cookie'
+  cerebro.web.construct -> cerebro.web.api_proxy 'calls /api'
+  cerebro.web.api_proxy -> cerebro.api 'proxies, server to server'
+  cerebro.web.session_guard -> cerebro.api 'validates the session'
+
+  cerebro.api.auth -> cerebro.postgres 'reads and writes users'
+  cerebro.api.artifacts -> cerebro.postgres 'artifact rows'
+  cerebro.api.artifacts -> cerebro.objects 'original bytes and extraction'
+  cerebro.api.artifacts -> cerebro.api.extraction 'reads the document'
+  cerebro.api.artifacts -> cerebro.api.enrichment 'asks for suggestions'
+  cerebro.api.artifacts -> cerebro.api.chunking 'on registration'
+  cerebro.api.chunking -> cerebro.api.embeddings 'embeds each chunk'
+  cerebro.api.embeddings -> cerebro.postgres 'stores vectors with their model'
+  cerebro.api.search -> cerebro.api.retrieval 'semantic half'
+  cerebro.api.search -> cerebro.postgres 'keyword half'
+  cerebro.api.retrieval -> cerebro.postgres "scans the owner's vectors"
+  cerebro.api.recall -> cerebro.api.retrieval 'retrieves passages first'
+  cerebro.api.recall -> cerebro.api.ollama_client 'asks for an answer'
+  cerebro.api.enrichment -> cerebro.api.ollama_client 'asks for metadata'
+  cerebro.api.embeddings -> cerebro.api.ollama_client 'asks for vectors'
+  cerebro.api.graph -> cerebro.postgres 'topics and fragments'
+  cerebro.api.temporal -> cerebro.postgres 'registered fragments'
+  cerebro.api.ollama_client -> ollama 'HTTP, local daemon'
+  cerebro.api.ollama_client -> cerebro.api.telemetry 'records model, duration, tokens'
+  cerebro.api.retrieval -> cerebro.api.telemetry 'records algorithm and scores'
+}

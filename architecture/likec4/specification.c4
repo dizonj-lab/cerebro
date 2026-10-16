@@ -1,0 +1,115 @@
+/**
+ * Element kinds, tags and styling for the CEREBRO architecture model.
+ *
+ * Three layers live in this model and each has its own kinds, so a view can
+ * ask for 'the application layer' without naming every element:
+ *
+ *   business    — who CEREBRO serves, what it promises, how work flows
+ *   application — the systems, containers and components that do it
+ *   technology  — what those run on
+ *
+ * The model describes what exists today. Anything not yet built carries the
+ * `planned` tag and is drawn pale, so a diagram can never quietly present an
+ * intention as a fact.
+ */
+specification {
+
+  // --- business layer ------------------------------------------------------
+  element actor {
+    style {
+      shape person
+      color secondary
+    }
+  }
+
+  element capability {
+    style {
+      shape rectangle
+      color muted
+    }
+  }
+
+  element process {
+    style {
+      shape rectangle
+      color muted
+    }
+  }
+
+  element policy {
+    technology 'Architecture control'
+    style {
+      shape rectangle
+      color amber
+    }
+  }
+
+  // --- application layer ---------------------------------------------------
+  element system {
+    style {
+      shape rectangle
+      color primary
+    }
+  }
+
+  element container {
+    style {
+      shape rectangle
+      color primary
+    }
+  }
+
+  element component {
+    style {
+      shape rectangle
+      color secondary
+    }
+  }
+
+  element store {
+    style {
+      shape storage
+      color secondary
+    }
+  }
+
+  element external {
+    style {
+      shape rectangle
+      color gray
+    }
+  }
+
+  // --- technology layer ----------------------------------------------------
+  element platform {
+    style {
+      shape rectangle
+      color muted
+    }
+  }
+
+  element node {
+    style {
+      shape rectangle
+      color gray
+    }
+  }
+
+  // --- tags ----------------------------------------------------------------
+  // Not built. Pale, so the drawing cannot pass an intention off as a fact.
+  tag planned {
+    color gray
+  }
+  // Runs on the user's own machine. Nothing it touches leaves the CEREBRO
+  // environment — the property the whole AI design rests on.
+  tag local-only {
+    color green
+  }
+  // Enforces a knowledge-integrity rule: approval, provenance or grounding.
+  tag integrity {
+    color amber
+  }
+  tag browser
+  tag optional
+}
+

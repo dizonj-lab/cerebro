@@ -1,0 +1,125 @@
+/**
+ * The business layer: who CEREBRO is for, what it promises, and the rules
+ * that govern how knowledge becomes trusted.
+ *
+ * The four capabilities are the product's own words — Learn, Connect, Reason,
+ * Recall — taken from the BRAND constant rather than invented here.
+ */
+model {
+
+  owner = actor 'Knowledge Owner' {
+    description "
+      One person's library. Every artifact, fragment and vector belongs to
+      exactly one owner, and every query is scoped to the authenticated
+      identity rather than to anything the client sends.
+    "
+  }
+
+  reviewer = actor 'Reviewer' {
+    description '
+      The same person wearing the approval hat. Nothing becomes trusted
+      knowledge without a human confirming the metadata first.
+    '
+  }
+
+  cerebro_business = capability 'CEREBRO Capabilities' {
+    description 'An Adaptive Knowledge and Reasoning Digital Twin.'
+
+    learn = capability 'Learn' {
+      description 'Take in documents, read them deterministically, propose what they contain.'
+    }
+    connect = capability 'Connect' {
+      description 'Relate knowledge by confirmed topics and co-occurrence. Never by inference.'
+    }
+    reason = capability 'Reason' {
+      description 'Answer questions from retrieved evidence, with citations, or abstain.'
+    }
+    recall = capability 'Recall' {
+      description 'Find knowledge by keyword, meaning, time or relationship.'
+    }
+  }
+
+  value_chain = process 'Knowledge Lifecycle' {
+    description 'How a document becomes knowledge that may be trusted.'
+
+    capture = process 'Capture' {
+      description 'Upload. Bytes verified against the claimed type; checksum recorded.'
+    }
+    extract = process 'Extract' {
+      description 'Deterministic text extraction, preserving page and slide.'
+    }
+    enrich = process 'Enrich' {
+      description "Propose metadata from the document's own words. Proposals only."
+    }
+    review = process 'Review' {
+      description 'A human reads the proposals, edits them, and decides.'
+    }
+    register = process 'Register' {
+      description 'Approval. Checksum re-verified, then chunked and embedded.'
+    }
+    retrieve = process 'Retrieve' {
+      description 'Keyword, semantic and hybrid search over registered knowledge.'
+    }
+    answer = process 'Answer' {
+      description 'Grounded answers with citations, or an explicit abstention.'
+    }
+
+    capture -> extract 'accepted bytes'
+    extract -> enrich 'text and structure'
+    enrich -> review 'suggestions with evidence'
+    review -> register 'approval'
+    register -> retrieve 'trusted fragments'
+    retrieve -> answer 'passages'
+  }
+
+  // --- the rules the architecture exists to keep ---------------------------
+  approval_gate = policy 'Approval gate' {
+    #integrity
+    description '
+      Only registered artifacts have fragments, and only fragments are
+      retrievable. Nothing awaiting review can be searched, quoted, cited or
+      placed on the timeline.
+    '
+  }
+
+  provenance_rule = policy 'Provenance first' {
+    #integrity
+    description "
+      Every value carries how it was arrived at. Author and creation date may
+      come only from the document's own metadata; a model may not propose
+      them. A suggestion absent from the document is dropped.
+    "
+  }
+
+  local_only_rule = policy 'Local-only processing' {
+    #local-only
+    #integrity
+    description '
+      There is no cloud AI engine. A failing local model falls back to
+      deterministic behaviour, never to a remote service.
+    '
+  }
+
+  grounding_rule = policy 'Grounded or silent' {
+    #integrity
+    description '
+      An answer cites the passages it used. With no retrieved evidence, no
+      model is called and CEREBRO says the evidence is insufficient.
+    '
+  }
+
+  owner -> value_chain.capture 'uploads documents'
+  reviewer -> value_chain.review 'approves or rejects'
+  owner -> value_chain.retrieve 'searches'
+  owner -> value_chain.answer 'asks questions'
+
+  value_chain.capture -> cerebro_business.learn
+  value_chain.register -> cerebro_business.connect
+  value_chain.answer -> cerebro_business.reason
+  value_chain.retrieve -> cerebro_business.recall
+
+  approval_gate -> value_chain.register 'guards'
+  provenance_rule -> value_chain.enrich 'constrains'
+  local_only_rule -> value_chain.enrich 'constrains'
+  grounding_rule -> value_chain.answer 'constrains'
+}

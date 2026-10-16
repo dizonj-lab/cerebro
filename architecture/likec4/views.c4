@@ -1,0 +1,169 @@
+/**
+ * Views: one question each.
+ *
+ * A view that tries to show everything answers nothing, so each of these is
+ * scoped to a layer or a flow. The dynamic views walk a real request path —
+ * they can be checked against the code, and they are the ones worth reading
+ * first.
+ */
+views {
+
+  view index {
+    title 'CEREBRO — System landscape'
+    description 'Who uses CEREBRO, what it runs on, and the one external dependency.'
+
+    include
+      browser,
+      owner,
+      reviewer,
+      cerebro,
+      ollama
+
+    style ollama {
+      color green
+    }
+  }
+
+  // --- business ------------------------------------------------------------
+  view business_capabilities of cerebro_business {
+    title 'Business — capabilities'
+    description "Learn, Connect, Reason, Recall: the product's own four words."
+    include *
+  }
+
+  view business_lifecycle of value_chain {
+    title 'Business — knowledge lifecycle'
+    description '
+      How a document becomes knowledge that may be trusted, and the rules
+      that govern each step.
+    '
+    include
+      *,
+      owner,
+      reviewer,
+      approval_gate,
+      provenance_rule,
+      local_only_rule,
+      grounding_rule
+  }
+
+  // --- application ---------------------------------------------------------
+  view application_containers of cerebro {
+    title 'Application — containers'
+    description '
+      The browser talks to one origin. cerebro-web proxies /api so the session
+      cookie stays first-party.
+    '
+    include
+      *,
+      browser,
+      ollama
+  }
+
+  view application_api of cerebro.api {
+    title 'Application — inside cerebro-api'
+    description 'Components named after the modules they describe.'
+    include
+      *,
+      cerebro.postgres,
+      cerebro.objects,
+      ollama
+  }
+
+  view application_web of cerebro.web {
+    title 'Application — inside cerebro-web'
+    include
+      *,
+      browser,
+      cerebro.api
+  }
+
+  // --- technology ----------------------------------------------------------
+  view technology_compose of compose {
+    title 'Technology — Docker Compose'
+    description 'Images, ports and the one networking trap: localhost is the container.'
+    include
+      *,
+      ollama,
+      developer_machine
+  }
+
+  view technology_kubernetes of kubernetes {
+    title 'Technology — Kubernetes'
+    description 'Namespace cerebro. The ingress reaches the web container only.'
+    include *
+  }
+
+  // --- flows ---------------------------------------------------------------
+  dynamic view ingestion {
+    title 'Flow — upload to trusted knowledge'
+    description '
+      The approval gate is the step that matters: fragments and vectors exist
+      only after a human has approved the metadata.
+    '
+
+    owner -> cerebro.web.construct 'uploads a document'
+    cerebro.web.construct -> cerebro.web.api_proxy 'POST /api/artifacts'
+    cerebro.web.api_proxy -> cerebro.api.artifacts 'multipart'
+    cerebro.api.artifacts -> cerebro.api.extraction 'extract text, keep page and slide'
+    cerebro.api.artifacts -> cerebro.objects 'store bytes and extraction'
+    cerebro.api.artifacts -> cerebro.api.enrichment 'propose metadata'
+    cerebro.api.enrichment -> cerebro.api.ollama_client 'local model, grounded in the text'
+    cerebro.api.ollama_client -> ollama 'generate'
+    cerebro.api.artifacts -> cerebro.postgres 'row, status inspected'
+
+    reviewer -> cerebro.web.construct 'reviews and approves'
+    cerebro.web.construct -> cerebro.api.artifacts 'PATCH, approve: true'
+    cerebro.api.artifacts -> cerebro.api.chunking 'chunk the registered document'
+    cerebro.api.chunking -> cerebro.api.embeddings 'embed, in one batch'
+    cerebro.api.embeddings -> ollama 'embed'
+    cerebro.api.embeddings -> cerebro.postgres 'vectors, with provider and width'
+  }
+
+  dynamic view ask {
+    title 'Flow — Ask CEREBRO'
+    description '
+      Retrieval first, always. With nothing retrieved the model is not called
+      at all and CEREBRO says the evidence is insufficient.
+    '
+
+    owner -> cerebro.web.construct 'asks a question'
+    cerebro.web.construct -> cerebro.api.recall 'POST /api/recall/stream'
+    cerebro.api.recall -> cerebro.api.retrieval 'embed the question, search'
+    cerebro.api.retrieval -> cerebro.postgres "owner's registered vectors only"
+    cerebro.api.retrieval -> cerebro.api.recall 'top passages'
+    cerebro.api.recall -> cerebro.web.construct 'sources first, before any text'
+    cerebro.api.recall -> cerebro.api.ollama_client 'phrase an answer from these passages'
+    cerebro.api.ollama_client -> ollama 'generate, streamed'
+    cerebro.api.ollama_client -> cerebro.api.telemetry 'model, duration, tokens'
+    cerebro.api.recall -> cerebro.web.construct 'words as they arrive, then citations'
+  }
+
+  dynamic view search_flow {
+    title 'Flow — hybrid search'
+    description 'Two retrievals, fused by rank rather than by score.'
+
+    owner -> cerebro.web.construct 'types a query'
+    cerebro.web.construct -> cerebro.api.search 'POST /api/search'
+    cerebro.api.search -> cerebro.postgres 'full-text, ts_rank, GIN'
+    cerebro.api.search -> cerebro.api.retrieval 'semantic, cosine'
+    cerebro.api.retrieval -> cerebro.postgres 'vectors for this provider and width'
+    cerebro.api.search -> cerebro.web.construct 'documents, knowledge, concepts'
+  }
+
+  // --- the controls, on one page ------------------------------------------
+  view integrity_controls {
+    title 'Architecture — integrity controls'
+    description 'Everything tagged as enforcing approval, provenance or grounding.'
+    include element.tag = #integrity
+  }
+
+  view local_processing {
+    title 'Architecture — what runs locally'
+    description '
+      There is no cloud AI path. A failing local model falls back to
+      deterministic behaviour, never to a remote service.
+    '
+    include element.tag = #local-only
+  }
+}

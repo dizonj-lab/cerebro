@@ -1,5 +1,10 @@
 # CEREBRO — C4 Diagrams
 
+> There is also a LikeC4 model at `architecture/likec4`, covering the
+> business, application and technology layers with three dynamic flow views.
+> Run `npx likec4 start architecture/likec4` to browse it. The two describe
+> one system: change both when a container appears or disappears.
+
 Generated from `architecture/structurizr/workspace.dsl`, the single source of
 truth. Do not hand-edit the diagrams; regenerate them:
 

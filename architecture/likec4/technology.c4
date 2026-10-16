@@ -1,0 +1,98 @@
+/**
+ * The technology layer: what the containers run on.
+ *
+ * Two shapes are supported and both are real — Docker Compose for a laptop,
+ * Kubernetes for a cluster. The images, ports and volumes here match
+ * docker-compose.yml and k8s/.
+ */
+model {
+
+  compose = platform 'Docker Compose' {
+    technology 'docker compose, one host'
+    description 'The development and single-machine deployment.'
+
+    compose_web = node 'cerebro-web' {
+      technology 'node:22-alpine, Next.js standalone, :3000'
+      description 'Built from frontend/Dockerfile. Runs as uid 10001.'
+    }
+    compose_api = node 'cerebro-api' {
+      technology 'python:3.11-slim, uvicorn, :8000'
+      description '
+        Built from backend/Dockerfile, which creates and chowns /data/artifacts
+        itself — a volume mounted over a path absent from the image is owned by
+        root, and uploads then fail.
+      '
+    }
+    compose_migrate = node 'cerebro-migrate' {
+      technology 'alembic upgrade head'
+      description 'Runs to completion before the API starts.'
+    }
+    compose_db = node 'postgres' {
+      technology 'postgres:16-alpine, :5432'
+      description 'Named volume postgres-data.'
+    }
+    compose_minio = node 'minio' {
+      #optional
+      technology 'MinIO, :9000'
+      description 'Optional S3 object store; the filesystem volume is the default.'
+    }
+    compose_ollama = node 'Ollama (host or container)' {
+      #local-only
+      technology ':11434, reached at host.docker.internal'
+      description '
+        Not started by this stack. Inside a container localhost is the
+        container, so the API tries the configured URL, then the host gateway.
+      '
+    }
+  }
+
+  kubernetes = platform 'Kubernetes' {
+    technology 'namespace cerebro'
+    description 'Manifests in k8s/, applied with kustomize.'
+
+    k8s_web = node 'web Deployment' {
+      technology '30-web.yaml, Service :3000'
+    }
+    k8s_api = node 'api Deployment' {
+      technology '20-api.yaml, Service :8000, readiness on /api/health'
+    }
+    k8s_db = node 'postgres StatefulSet' {
+      technology '10-postgres.yaml, PersistentVolumeClaim'
+    }
+    k8s_minio = node 'minio' {
+      #optional
+      technology '15-minio.yaml'
+    }
+    k8s_ingress = node 'Ingress' {
+      technology '40-ingress.yaml'
+      description 'One hostname. /api is proxied by the web container, not by the ingress.'
+    }
+  }
+
+  developer_machine = node "User's machine" {
+    #local-only
+    description 'Where the models run, and where the knowledge stays.'
+  }
+
+  compose.compose_web -> compose.compose_api 'INTERNAL_API_BASE_URL=http://api:8000'
+  compose.compose_api -> compose.compose_db 'psycopg'
+  compose.compose_api -> compose.compose_minio 'S3 API, when enabled'
+  compose.compose_api -> compose.compose_ollama 'HTTP /api/tags, /api/generate, /api/embed'
+  compose.compose_migrate -> compose.compose_db 'migrates before the API starts'
+
+  kubernetes.k8s_ingress -> kubernetes.k8s_web 'HTTP'
+  kubernetes.k8s_web -> kubernetes.k8s_api 'cluster DNS'
+  kubernetes.k8s_api -> kubernetes.k8s_db 'psycopg'
+  kubernetes.k8s_api -> kubernetes.k8s_minio 'S3 API, when enabled'
+
+  developer_machine -> compose 'runs'
+  developer_machine -> ollama 'runs the models'
+
+  // Which container each deployment node carries.
+  compose.compose_web -> cerebro.web 'runs'
+  compose.compose_api -> cerebro.api 'runs'
+  compose.compose_db -> cerebro.postgres 'runs'
+  kubernetes.k8s_web -> cerebro.web 'runs'
+  kubernetes.k8s_api -> cerebro.api 'runs'
+  kubernetes.k8s_db -> cerebro.postgres 'runs'
+}
