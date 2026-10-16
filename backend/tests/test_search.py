@@ -276,15 +276,206 @@ def test_vectors_from_another_space_are_never_compared(client, signed_in, db):
 
     artifact = upload(client)
     register(client, artifact["id"])
-    assert client.post("/api/search", json={"query": "provenance"}).json()["total"] >= 1
+    # Semantic mode on purpose: the keyword half of a hybrid search does not
+    # go near a vector, so it would match regardless and prove nothing here.
+    semantic = {"query": "provenance", "mode": "semantic"}
+    assert client.post("/api/search", json=semantic).json()["total"] >= 1
 
     # Same provider, different width — a different space, and the stored
     # vectors must drop out of the results rather than be compared.
     embeddings._provider = HashingEmbedder(dimensions=128)
     try:
-        body = client.post("/api/search", json={"query": "provenance"}).json()
+        body = client.post("/api/search", json=semantic).json()
     finally:
         reset_embedding_provider()
 
     assert body["dimensions"] == 128
     assert body["matches"] == []
+
+
+# --- unified search: modes, grouping, filters ------------------------------
+
+SPEC = (
+    "The retention schedule for ledger exports is seven years.\n\n"
+    "Quarterly reconciliation is signed off by the finance lead.\n"
+)
+
+
+def test_keyword_mode_finds_an_exact_term_and_marks_the_passage(client, signed_in):
+    artifact = upload(client, "retention.txt", SPEC)
+    register(client, artifact["id"], {"title": "Retention Policy", "topics": ["Records"]})
+
+    body = client.post(
+        "/api/search", json={"query": "reconciliation", "mode": "keyword"}
+    ).json()
+
+    assert body["mode"] == "keyword"
+    assert body["total_knowledge"] >= 1
+    hit = body["knowledge"][0]
+    # The excerpt is the passage around the match, with the term marked, not
+    # the opening of the document.
+    assert "<mark>" in hit["excerpt"].lower()
+    assert hit["matched_by"] == ["keyword"]
+    # Relevance is words, never a percentage.
+    assert hit["relevance"] in {"Highly Related", "Related", "Potential Connection"}
+    assert "%" not in hit["relevance"]
+
+
+def test_keyword_mode_needs_no_embedding_provider(client, signed_in):
+    """A keyword query must not touch a model, even a local one."""
+    import app.services.embeddings as embeddings
+
+    artifact = upload(client, "retention.txt", SPEC)
+    register(client, artifact["id"])
+
+    class Refuses:
+        name, model, dimensions = "refuses", "none", 1
+
+        def embed(self, texts):
+            raise AssertionError("keyword search embedded a query")
+
+    previous = embeddings._provider
+    embeddings._provider = Refuses()
+    try:
+        body = client.post(
+            "/api/search", json={"query": "reconciliation", "mode": "keyword"}
+        ).json()
+    finally:
+        embeddings._provider = previous
+
+    assert body["total_knowledge"] >= 1
+
+
+def test_hybrid_fuses_both_retrievals(client, signed_in):
+    artifact = upload(client, "retention.txt", SPEC)
+    register(client, artifact["id"])
+
+    body = client.post("/api/search", json={"query": "reconciliation"}).json()
+
+    assert body["mode"] == "hybrid"
+    # Something a keyword query matches literally should be found by both
+    # halves, and the fused result says so.
+    found_by = {m for hit in body["knowledge"] for m in hit["matched_by"]}
+    assert "keyword" in found_by
+    assert "semantic" in found_by
+
+
+def test_a_quoted_query_is_a_phrase(client, signed_in):
+    artifact = upload(client, "retention.txt", SPEC)
+    register(client, artifact["id"])
+
+    phrase = client.post(
+        "/api/search", json={"query": '"retention schedule"', "mode": "keyword"}
+    ).json()
+    assert phrase["total_knowledge"] >= 1
+
+    # The same words in the other order are not that phrase.
+    reversed_phrase = client.post(
+        "/api/search", json={"query": '"schedule retention"', "mode": "keyword"}
+    ).json()
+    assert reversed_phrase["total_knowledge"] == 0
+
+
+def test_documents_match_on_their_own_metadata(client, signed_in):
+    artifact = upload(client, "ledger-exports.txt", SPEC)
+    register(client, artifact["id"], {"title": "Retention Policy", "tags": ["audit"]})
+
+    body = client.post("/api/search", json={"query": "audit", "mode": "keyword"}).json()
+
+    assert [d["filename"] for d in body["documents"]] == ["ledger-exports.txt"]
+    assert body["documents"][0]["status"] == "registered"
+
+
+def test_an_unapproved_document_is_findable_but_never_knowledge(client, signed_in):
+    """A draft is still the user's document; it is just not established."""
+    upload(client, "ledger-exports.txt", SPEC)
+
+    body = client.post("/api/search", json={"query": "ledger exports"}).json()
+
+    assert body["total_knowledge"] == 0
+    # Extraction has run, so it is "inspected" — read, not established.
+    assert [d["status"] for d in body["documents"]] == ["inspected"]
+
+
+def test_scope_limits_which_groups_are_searched(client, signed_in):
+    artifact = upload(client, "retention.txt", SPEC)
+    register(client, artifact["id"], {"title": "Retention Policy", "tags": ["retention"]})
+
+    library = client.post(
+        "/api/search", json={"query": "retention", "scope": "library"}
+    ).json()
+    assert library["documents"] and library["knowledge"] == []
+
+    knowledge = client.post(
+        "/api/search", json={"query": "retention", "scope": "knowledge"}
+    ).json()
+    assert knowledge["knowledge"] and knowledge["documents"] == []
+
+
+def test_filters_narrow_results_without_inventing_values(client, signed_in):
+    artifact = upload(client, "retention.txt", SPEC)
+    register(client, artifact["id"], {"title": "Retention Policy", "topics": ["Records"]})
+
+    matching = client.post(
+        "/api/search",
+        json={"query": "reconciliation", "filters": {"topics": ["Records"]}},
+    ).json()
+    assert matching["total_knowledge"] >= 1
+
+    other = client.post(
+        "/api/search",
+        json={"query": "reconciliation", "filters": {"topics": ["Finance"]}},
+    ).json()
+    assert other["total_knowledge"] == 0
+    assert other["total_documents"] == 0
+
+
+def test_concepts_come_from_confirmed_topics_only(client, signed_in):
+    artifact = upload(client, "retention.txt", SPEC)
+    register(client, artifact["id"], {"title": "Retention Policy", "topics": ["Records"]})
+
+    body = client.post("/api/search", json={"query": "reconciliation"}).json()
+
+    assert [c["label"] for c in body["concepts"]] == ["Records"]
+
+
+def test_search_never_reaches_another_owner(client, signed_in, valid_signup):
+    artifact = upload(client, "retention.txt", SPEC)
+    register(client, artifact["id"])
+    client.post("/api/auth/logout")
+
+    other = dict(valid_signup, email="someone.else@example.com")
+    client.post("/api/auth/signup", json=other)
+    body = client.post("/api/search", json={"query": "reconciliation"}).json()
+
+    assert body["total_knowledge"] == 0
+    assert body["total_documents"] == 0
+
+
+def test_suggestions_come_from_the_owners_own_metadata(client, signed_in):
+    artifact = upload(client, "retention.txt", SPEC)
+    register(
+        client,
+        artifact["id"],
+        {"title": "Retention Policy", "topics": ["Records"], "tags": ["audit"]},
+    )
+
+    body = client.get("/api/search/suggestions", params={"q": "reten"}).json()
+    assert "Retention Policy" in body["suggestions"]
+
+    # An empty prefix suggests nothing rather than everything.
+    assert client.get("/api/search/suggestions", params={"q": ""}).json()["suggestions"] == []
+
+
+def test_suggestions_are_owner_scoped(client, signed_in, valid_signup):
+    artifact = upload(client, "retention.txt", SPEC)
+    register(client, artifact["id"], {"title": "Retention Policy"})
+    client.post("/api/auth/logout")
+
+    client.post("/api/auth/signup", json=dict(valid_signup, email="third@example.com"))
+    assert client.get("/api/search/suggestions", params={"q": "reten"}).json()["suggestions"] == []
+
+
+def test_search_requires_a_session(client):
+    assert client.post("/api/search", json={"query": "anything"}).status_code == 401
+    assert client.get("/api/search/suggestions", params={"q": "a"}).status_code == 401
