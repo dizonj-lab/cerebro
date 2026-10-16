@@ -11,6 +11,11 @@ interface TagInputProps {
   placeholder?: string;
   max?: number;
   disabled?: boolean;
+  /**
+   * For use outside a FormField, where no <label> points at the input —
+   * a table row, for instance, whose header is not a label.
+   */
+  "aria-label"?: string;
 }
 
 /** Chip editor for multi-value fields. Enter or comma commits; Backspace removes. */
@@ -21,6 +26,7 @@ export function TagInput({
   placeholder = "Add and press Enter",
   max = 20,
   disabled,
+  "aria-label": ariaLabel,
 }: TagInputProps) {
   const [draft, setDraft] = useState("");
 
@@ -66,6 +72,7 @@ export function TagInput({
 
       <input
         id={id}
+        aria-label={ariaLabel}
         value={draft}
         disabled={disabled || value.length >= max}
         placeholder={value.length >= max ? `Limit of ${max} reached` : placeholder}

@@ -13,11 +13,17 @@ from app.api.deps import CurrentUser, DbSession
 from app.core.config import get_settings
 from app.models.artifact import Artifact
 from app.schemas.artifact import (
+    MAX_BULK_FILES,
     ArtifactDetail,
     ArtifactListResponse,
     ArtifactMetadata,
     ArtifactReviewRequest,
     ArtifactSummary,
+    BulkReviewRequest,
+    BulkReviewResponse,
+    BulkReviewResultItem,
+    BulkUploadItem,
+    BulkUploadResponse,
     EnrichmentSuggestion,
 )
 from app.services import profiles
@@ -95,6 +101,122 @@ async def upload(
     db.commit()
     db.refresh(artifact)
     return _detail(artifact)
+
+
+@router.post("/bulk", response_model=BulkUploadResponse, status_code=status.HTTP_207_MULTI_STATUS)
+async def upload_many(
+    current_user: CurrentUser, db: DbSession, files: Annotated[list[UploadFile], File()]
+):
+    """Upload several artifacts at once.
+
+    Each file succeeds or fails on its own: one unreadable PDF in a batch of
+    twenty must not cost the user the other nineteen. The response reports
+    every file, so the table can show exactly which rows need attention.
+
+    Each accepted file goes through the same `ingest` as a single upload —
+    inspection, extraction, deterministic enrichment — and is left awaiting
+    review. Nothing is registered here.
+    """
+    if len(files) > MAX_BULK_FILES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Up to {MAX_BULK_FILES} files at a time; {len(files)} were sent.",
+        )
+
+    preferences = profiles.get_preferences(db, current_user.id)
+    items: list[BulkUploadItem] = []
+
+    for file in files:
+        filename = file.filename or "untitled"
+        content = await file.read()
+        try:
+            artifact = service.ingest(
+                db,
+                owner_id=current_user.id,
+                filename=filename,
+                content=content,
+                content_type=file.content_type,
+                max_bytes=settings.max_upload_bytes,
+                ai_suggestions=preferences.ai_suggestions,
+            )
+        except service.DuplicateArtifact as exc:
+            # Rolled back individually, so the rest of the batch survives.
+            db.rollback()
+            items.append(
+                BulkUploadItem(
+                    filename=filename,
+                    accepted=False,
+                    error=f"This file is already in your library as '{exc}'.",
+                )
+            )
+            continue
+        except (service.ArtifactRejected, service.ArtifactStorageUnavailable) as exc:
+            db.rollback()
+            message = (
+                "CEREBRO could not store the file. Artifact storage is unavailable."
+                if isinstance(exc, service.ArtifactStorageUnavailable)
+                else str(exc)
+            )
+            items.append(BulkUploadItem(filename=filename, accepted=False, error=message))
+            continue
+
+        db.commit()
+        db.refresh(artifact)
+        items.append(
+            BulkUploadItem(
+                filename=filename, accepted=True, artifact=_detail(artifact, preview=False)
+            )
+        )
+
+    accepted = sum(1 for item in items if item.accepted)
+    return BulkUploadResponse(
+        items=items, accepted=accepted, rejected=len(items) - accepted
+    )
+
+
+@router.patch("/bulk", response_model=BulkReviewResponse)
+def review_many(
+    payload: BulkReviewRequest, current_user: CurrentUser, db: DbSession
+) -> BulkReviewResponse:
+    """Confirm metadata for several artifacts, registering each.
+
+    Registration is the same path a single approval takes, so each artifact
+    is checksum-verified and its knowledge fragments are chunked and embedded
+    before it counts as knowledge. One artifact failing leaves the others
+    registered.
+    """
+    items: list[BulkReviewResultItem] = []
+
+    for entry in payload.items:
+        artifact = service.get_for_owner(db, current_user.id, entry.id)
+        if artifact is None:
+            items.append(
+                BulkReviewResultItem(id=entry.id, registered=False, error="Artifact not found")
+            )
+            continue
+        try:
+            reviewed = service.review(
+                db, artifact, metadata=entry.metadata.model_dump(), approve=payload.approve
+            )
+        except (RegistrationRejected, FragmentsUnavailable, service.ArtifactRejected) as exc:
+            db.rollback()
+            items.append(BulkReviewResultItem(id=entry.id, registered=False, error=str(exc)))
+            continue
+
+        db.commit()
+        db.refresh(reviewed)
+        items.append(
+            BulkReviewResultItem(
+                id=entry.id,
+                registered=reviewed.status == "registered",
+                artifact=_detail(reviewed, preview=False),
+            )
+        )
+
+    registered = sum(1 for item in items if item.registered)
+    return BulkReviewResponse(
+        items=items, registered=registered, failed=len(items) - registered
+    )
 
 
 @router.get("", response_model=ArtifactListResponse)

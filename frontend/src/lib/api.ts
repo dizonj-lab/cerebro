@@ -325,6 +325,18 @@ export interface CerebroRecallAnswer {
   note: string | null;
 }
 
+export interface CerebroBulkUpload {
+  items: { filename: string; accepted: boolean; artifact: CerebroArtifact | null; error: string | null }[];
+  accepted: number;
+  rejected: number;
+}
+
+export interface CerebroBulkReview {
+  items: { id: string; registered: boolean; artifact: CerebroArtifact | null; error: string | null }[];
+  registered: number;
+  failed: number;
+}
+
 export const api = {
   signup: (input: { display_name: string; email: string; password: string }) =>
     request<CerebroUser>("/api/auth/signup", {
@@ -407,6 +419,27 @@ export const api = {
   /** Ask the configured local model to propose metadata. Saves nothing. */
   suggestArtifact: (id: string) =>
     request<CerebroEnrichmentSuggestion>(`/api/artifacts/${id}/suggest`, { method: "POST" }),
+
+  /** Several files in one request. Each succeeds or fails on its own. */
+  uploadArtifacts: (list: File[]) => {
+    const body = new FormData();
+    for (const file of list) body.append("files", file);
+    return request<CerebroBulkUpload>("/api/artifacts/bulk", {
+      method: "POST",
+      body,
+      rawBody: true,
+    });
+  },
+
+  /** Confirm metadata for several artifacts, registering each. */
+  reviewArtifacts: (
+    items: { id: string; metadata: CerebroArtifactMetadata }[],
+    approve: boolean,
+  ) =>
+    request<CerebroBulkReview>("/api/artifacts/bulk", {
+      method: "PATCH",
+      body: JSON.stringify({ items, approve }),
+    }),
 
   reviewArtifact: (id: string, input: { metadata: CerebroArtifactMetadata; approve: boolean }) =>
     request<CerebroArtifact>(`/api/artifacts/${id}`, {

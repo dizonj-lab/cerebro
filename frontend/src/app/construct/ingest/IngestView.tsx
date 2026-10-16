@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/Input";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { TagInput } from "@/components/ui/TagInput";
 import { Textarea } from "@/components/ui/Textarea";
+import { BulkIngest } from "@/app/construct/ingest/BulkIngest";
 import { ApiError, api } from "@/lib/api";
 import type {
   CerebroArtifact,
@@ -71,6 +72,9 @@ function IngestInner() {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [dragging, setDragging] = useState(false);
+  // Single is the default: one document reviewed carefully is the normal
+  // case, and bulk is for when a pile of them arrives at once.
+  const [mode, setMode] = useState<"single" | "bulk">("single");
   const [suggesting, setSuggesting] = useState(false);
   const [suggestion, setSuggestion] = useState<CerebroEnrichmentSuggestion | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -172,6 +176,27 @@ function IngestInner() {
       <ErrorMessage className="mt-5">{error}</ErrorMessage>
 
       {!artifact && (
+        <div role="group" aria-label="Upload mode" className="mt-5 flex w-fit rounded-lg border border-line bg-surface-subtle p-0.5">
+          {(["single", "bulk"] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => setMode(option)}
+              aria-pressed={mode === option}
+              className={cn(
+                "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                mode === option ? "bg-accent text-accent-ink" : "text-ink-muted hover:text-ink",
+              )}
+            >
+              {option === "single" ? "One document" : "Several documents"}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {!artifact && mode === "bulk" && <BulkIngest />}
+
+      {!artifact && mode === "single" && (
         <div
           onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
           onDragLeave={() => setDragging(false)}

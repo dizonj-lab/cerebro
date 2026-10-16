@@ -120,6 +120,24 @@ offered as a weak match is an unrelated passage offered as evidence.
 The search API is done; there is no search UI yet. The sidebar Search entry
 stays inert until a work package covers it.
 
+### Bulk ingestion
+
+`/construct/ingest` offers one document or several. A batch uploads up to 25
+files in one request and lands as a table, a row per file, with title, topics
+and tags editable in place and prefilled by the same enrichment a single
+upload runs.
+
+A batch is a set of independent files. One unreadable PDF costs the user that
+file and nothing else: the response reports every file, refusals are named in
+the same words a single upload uses, and the rest of the batch is accepted.
+
+**There is no bulk shortcut past review.** Registering a row — one at a time
+or the whole table — runs the identical approval path: checksum
+re-verification, then chunking and embedding, with `field_methods` marked
+`human_confirmed`. Rows left alone stay drafts and reach neither search nor
+the Galaxy. The end-to-end test registers a batch and then searches for it,
+because that is the proof the pipeline ran rather than a status being set.
+
 ### Metadata enrichment
 
 The review form arrives filled in, from three kinds of evidence in descending
@@ -269,7 +287,7 @@ sidebar still have no routes.
 | UI/UX       | APPROVED             |
 | Regression  | PASS                 |
 
-**Engineering** — Backend: 173 pytest tests green against a real PostgreSQL 16
+**Engineering** — Backend: 183 pytest tests green against a real PostgreSQL 16
 database. Frontend: `tsc --noEmit` clean, ESLint clean, production build clean.
 Kubernetes manifests parse as valid YAML.
 

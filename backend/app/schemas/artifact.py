@@ -108,3 +108,45 @@ class EnrichmentSuggestion(BaseModel):
     # False would mean content left the CEREBRO environment. No engine does.
     local: bool = True
     notes: list[str] = Field(default_factory=list)
+
+
+MAX_BULK_FILES = 25
+
+
+class BulkUploadItem(BaseModel):
+    """One file's outcome. A batch reports per file; it never fails as a whole."""
+
+    filename: str
+    accepted: bool
+    artifact: ArtifactDetail | None = None
+    # Why this file was refused, in the same words the single upload uses.
+    error: str | None = None
+
+
+class BulkUploadResponse(BaseModel):
+    items: list[BulkUploadItem] = Field(default_factory=list)
+    accepted: int = 0
+    rejected: int = 0
+
+
+class BulkReviewItem(BaseModel):
+    id: uuid.UUID
+    metadata: ArtifactMetadata
+
+
+class BulkReviewRequest(BaseModel):
+    items: list[BulkReviewItem] = Field(min_length=1, max_length=MAX_BULK_FILES)
+    approve: bool = True
+
+
+class BulkReviewResultItem(BaseModel):
+    id: uuid.UUID
+    registered: bool
+    artifact: ArtifactDetail | None = None
+    error: str | None = None
+
+
+class BulkReviewResponse(BaseModel):
+    items: list[BulkReviewResultItem] = Field(default_factory=list)
+    registered: int = 0
+    failed: int = 0
