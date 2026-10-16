@@ -5,13 +5,15 @@ installed, what is selected, what ran, and where coverage is incomplete —
 measured, never asserted. Everything here is about this deployment, not
 about the user's documents, so no document content passes through it.
 """
+import time
+
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import func, select
 
 from app.api.deps import CurrentUser, DbSession
 from app.models.fragment import FragmentEmbedding, KnowledgeFragment
 from app.services import ollama, telemetry
-from app.services.embeddings import get_embedding_provider
+from app.services.embeddings import EmbeddingFailed, get_embedding_provider
 
 router = APIRouter(prefix="/api/ml", tags=["ml"])
 
@@ -68,6 +70,79 @@ def status(current_user: CurrentUser, db: DbSession) -> dict:
         },
         "operations": telemetry.recent(),
     }
+
+
+@router.post("/probe")
+def probe(current_user: CurrentUser) -> dict:
+    """Actually run the models, rather than reporting that they exist.
+
+    An installed model is not a working one: a daemon can list a model it
+    cannot load, and an embedder can answer with a width nothing else agrees
+    with. This asks for one short generation and one embedding and reports
+    what came back, which is the difference between "configured" and
+    "verified".
+    """
+    found = ollama.discover(force=True)
+    if not found.reachable or found.base_url is None:
+        raise HTTPException(status_code=503, detail=found.error or "Ollama is not reachable.")
+
+    result: dict = {"base_url": found.base_url, "models": found.models}
+
+    answering = found.chat_model()
+    if answering is None:
+        result["generation"] = {"model": None, "ok": False, "error": "No model can answer."}
+    else:
+        try:
+            generated = ollama.generate(
+                found.base_url,
+                answering,
+                "Reply with the single word: ready",
+                operation="ml.probe.generate",
+            )
+            result["generation"] = {
+                "model": generated.model,
+                "ok": bool(generated.text),
+                # The model's own words, truncated. Proof that tokens came
+                # back, not an assertion that they did.
+                "sample": generated.text[:120],
+                "duration_ms": generated.duration_ms,
+                "prompt_tokens": generated.prompt_tokens,
+                "completion_tokens": generated.completion_tokens,
+            }
+        except ollama.OllamaUnavailable as exc:
+            result["generation"] = {"model": answering, "ok": False, "error": str(exc)}
+
+    provider = get_embedding_provider()
+    started = time.perf_counter()
+    try:
+        vector = provider.embed(["cerebro readiness probe"])[0]
+        result["embedding"] = {
+            "provider": provider.name,
+            "model": provider.model,
+            "dimensions": len(vector),
+            "declared_dimensions": provider.dimensions,
+            "pretrained": provider.name != "hashing",
+            "ok": len(vector) == provider.dimensions,
+            "duration_ms": int((time.perf_counter() - started) * 1000),
+        }
+    except EmbeddingFailed as exc:
+        result["embedding"] = {
+            "provider": provider.name,
+            "model": provider.model,
+            "ok": False,
+            "error": str(exc),
+        }
+
+    telemetry.record(
+        "ml.probe",
+        model=answering,
+        duration_ms=int((time.perf_counter() - started) * 1000),
+        detail="generation "
+        + ("ok" if result.get("generation", {}).get("ok") else "failed")
+        + ", embedding "
+        + ("ok" if result.get("embedding", {}).get("ok") else "failed"),
+    )
+    return result
 
 
 @router.post("/embeddings/backfill")

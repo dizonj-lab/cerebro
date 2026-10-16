@@ -100,6 +100,9 @@ class EnrichmentSuggestion(BaseModel):
 
     suggestions: dict = Field(default_factory=dict)
     field_methods: dict = Field(default_factory=dict)
+    # value -> the sentence in the document it was found in. Supporting
+    # evidence for a human review, not a claim that the value is correct.
+    evidence: dict = Field(default_factory=dict)
     # False means no model contributed — the configured one was unreachable,
     # or AI suggestions are switched off in preferences. `notes` says which.
     ai_used: bool = False

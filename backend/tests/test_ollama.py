@@ -45,6 +45,7 @@ class Handler(BaseHTTPRequestHandler):
         request = json.loads(self.rfile.read(length) or b"{}")
         if self.path == "/api/generate":
             STATE["last_prompt"] = request.get("prompt", "")
+            STATE["last_request"] = request
             self.send_response(200)
             self.send_header("Content-Type", "application/x-ndjson")
             self.end_headers()
@@ -149,7 +150,12 @@ def test_generation_streams_and_reports_the_daemons_own_counts(daemon):
         else:
             final = item
 
-    assert pieces == STATE["pieces"]
+    # The text arrives incrementally and adds up to the answer. Chunk
+    # boundaries are deliberately not asserted: the filter that removes a
+    # reasoning model's <think> tags holds a few characters back to catch a
+    # tag split across chunks, so where the breaks fall is its business.
+    assert "".join(pieces) == "".join(STATE["pieces"])
+    assert len(pieces) > 1
     assert final is not None
     assert final.text == "The retention schedule is seven years."
     # Counted by the daemon, not estimated here.

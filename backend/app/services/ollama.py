@@ -21,6 +21,7 @@ does not become one.
 from __future__ import annotations
 
 import json
+import re
 import time
 import urllib.error
 import urllib.request
@@ -43,6 +44,7 @@ EMBED_TIMEOUT_SECONDS = 60
 # model that replies in two seconds is worth more here than a 70B that takes
 # a minute on a laptop.
 CHAT_PREFERENCES = (
+    "qwen3",
     "llama3.2",
     "llama3.1",
     "qwen2.5",
@@ -70,6 +72,72 @@ EMBEDDING_DIMENSIONS = {
     "bge-m3": 1024,
     "all-minilm": 384,
 }
+
+
+# Reasoning models (qwen3, deepseek-r1) emit their deliberation inside
+# <think> tags before the answer. It is not part of the answer: shown to the
+# user it reads as the model talking to itself, and left in a JSON reply it
+# makes the reply unparseable. It is stripped from the text and never
+# streamed, while `think: false` asks the newer daemons not to produce it at
+# all — harmless on a daemon or model that does not know the option.
+_THINK = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
+_THINK_OPEN = "<think>"
+_THINK_CLOSE = "</think>"
+
+
+def strip_thinking(text: str) -> str:
+    cleaned = _THINK.sub("", text)
+    # An unterminated block means the model was cut off mid-deliberation;
+    # everything after the opening tag is deliberation, so it goes too.
+    opened = cleaned.lower().find(_THINK_OPEN)
+    if opened != -1:
+        cleaned = cleaned[:opened]
+    return cleaned.strip()
+
+
+class _ThinkFilter:
+    """Suppresses thinking from a stream, chunk by chunk.
+
+    A tag can arrive split across chunks ("<thi" then "nk>"), so text is held
+    back until it is clear it is not the start of one.
+    """
+
+    def __init__(self) -> None:
+        self.inside = False
+        self.held = ""
+
+    def feed(self, piece: str) -> str:
+        self.held += piece
+        out: list[str] = []
+        while self.held:
+            if self.inside:
+                end = self.held.lower().find(_THINK_CLOSE)
+                if end == -1:
+                    # Keep only enough to recognise a closing tag that is
+                    # still arriving.
+                    self.held = self.held[-len(_THINK_CLOSE) :]
+                    return "".join(out)
+                self.held = self.held[end + len(_THINK_CLOSE) :]
+                self.inside = False
+                continue
+            start = self.held.lower().find(_THINK_OPEN)
+            if start != -1:
+                out.append(self.held[:start])
+                self.held = self.held[start + len(_THINK_OPEN) :]
+                self.inside = True
+                continue
+            # No tag in hand. Emit everything that cannot be a partial tag.
+            safe = len(self.held) - (len(_THINK_OPEN) - 1)
+            if safe > 0:
+                out.append(self.held[:safe])
+                self.held = self.held[safe:]
+            return "".join(out)
+        return "".join(out)
+
+    def flush(self) -> str:
+        rest = "" if self.inside else self.held
+        self.held = ""
+        return rest
 
 
 @dataclass
@@ -193,6 +261,7 @@ def generate_stream(
     prompt: str,
     *,
     operation: str = "ollama.generate",
+    fmt: str | None = None,
 ) -> Iterator[str | Generation]:
     """Stream a generation: each text piece as it arrives, then a summary.
 
@@ -201,16 +270,20 @@ def generate_stream(
     item carries Ollama's own token counts, which is where GOD MODE's
     numbers come from — measured by the daemon, not estimated here.
     """
-    payload = json.dumps(
-        {
-            "model": model,
-            "prompt": prompt,
-            "stream": True,
-            # Deterministic: the same question over the same library should
-            # answer the same way.
-            "options": {"temperature": 0},
-        }
-    ).encode("utf-8")
+    body: dict = {
+        "model": model,
+        "prompt": prompt,
+        "stream": True,
+        # Deterministic: the same question over the same library should
+        # answer the same way.
+        "options": {"temperature": 0},
+        # Reasoning models otherwise spend their budget deliberating in
+        # <think> tags. Ignored by daemons and models that do not know it.
+        "think": False,
+    }
+    if fmt:
+        body["format"] = fmt
+    payload = json.dumps(body).encode("utf-8")
     request = urllib.request.Request(  # noqa: S310 - fixed http scheme, local daemon
         f"{base_url.rstrip('/')}/api/generate",
         data=payload,
@@ -219,6 +292,7 @@ def generate_stream(
 
     started = time.perf_counter()
     collected: list[str] = []
+    filter_ = _ThinkFilter()
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
 
@@ -235,8 +309,10 @@ def generate_stream(
                     continue
                 piece = event.get("response")
                 if isinstance(piece, str) and piece:
-                    collected.append(piece)
-                    yield piece
+                    visible = filter_.feed(piece)
+                    if visible:
+                        collected.append(visible)
+                        yield visible
                 if event.get("done"):
                     prompt_tokens = event.get("prompt_eval_count")
                     completion_tokens = event.get("eval_count")
@@ -252,7 +328,11 @@ def generate_stream(
         ) from exc
 
     duration_ms = int((time.perf_counter() - started) * 1000)
-    text = "".join(collected).strip()
+    trailing = filter_.flush()
+    if trailing:
+        collected.append(trailing)
+        yield trailing
+    text = strip_thinking("".join(collected))
     record(
         operation,
         model=model,
@@ -276,11 +356,16 @@ class OllamaUnavailable(RuntimeError):
 
 
 def generate(
-    base_url: str, model: str, prompt: str, *, operation: str = "ollama.generate"
+    base_url: str,
+    model: str,
+    prompt: str,
+    *,
+    operation: str = "ollama.generate",
+    fmt: str | None = None,
 ) -> Generation:
     """The whole generation at once, for callers that cannot stream."""
     final: Generation | None = None
-    for item in generate_stream(base_url, model, prompt, operation=operation):
+    for item in generate_stream(base_url, model, prompt, operation=operation, fmt=fmt):
         if isinstance(item, Generation):
             final = item
     if final is None:

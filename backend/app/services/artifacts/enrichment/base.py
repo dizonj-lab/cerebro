@@ -50,6 +50,10 @@ class Enrichment:
     # False would mean content left the CEREBRO environment.
     local: bool = True
     notes: list[str] = field(default_factory=list)
+    # value -> the sentence it was found in. An entity CEREBRO shows as
+    # suggested can therefore be checked against the document without
+    # opening it, which is what makes "review before approval" meaningful.
+    evidence: dict = field(default_factory=dict)
 
     def merge(self, other: Enrichment) -> Enrichment:
         """Combine, keeping values already established.
@@ -63,6 +67,8 @@ class Enrichment:
             self.suggestions[name] = value
             self.methods[name] = other.methods.get(name, other.engine)
         self.notes.extend(other.notes)
+        for value, quote in other.evidence.items():
+            self.evidence.setdefault(value, quote)
         if other.ai_used:
             self.ai_used = True
             self.engine = other.engine

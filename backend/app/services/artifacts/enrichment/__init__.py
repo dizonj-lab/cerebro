@@ -26,16 +26,36 @@ from app.services.artifacts.enrichment.llm import OllamaEnricher
 
 
 def _llm_engine() -> EnrichmentEngine | None:
+    """The local model to enrich with, chosen from what is installed.
+
+    "off" pins deterministic enrichment. "ollama" and "auto" both ask the
+    daemon: an explicitly configured model is used when it is installed,
+    otherwise the best installed one. Requiring a model to be named in
+    configuration is how this feature came to look broken on a machine where
+    Ollama was running the whole time.
+    """
     settings = get_settings()
-    if settings.enrichment_llm == "ollama":
-        return OllamaEnricher(
-            base_url=settings.ollama_base_url, model=settings.ollama_enrichment_model
-        )
-    return None
+    if settings.enrichment_llm == "off":
+        return None
+
+    from app.services import ollama as ollama_client
+
+    found = ollama_client.discover()
+    if not found.reachable or found.base_url is None:
+        return None
+
+    configured = settings.ollama_enrichment_model
+    model = next(
+        (m for m in found.models if m == configured or m.split(":", 1)[0] == configured),
+        None,
+    ) or found.chat_model()
+    if model is None:
+        return None
+    return OllamaEnricher(base_url=found.base_url, model=model)
 
 
 def llm_available() -> bool:
-    """Whether a local model is configured. Says nothing about reachability."""
+    """Whether a local model is reachable and installed for enrichment."""
     return _llm_engine() is not None
 
 

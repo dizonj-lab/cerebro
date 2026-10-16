@@ -38,6 +38,30 @@ interface Telemetry {
 export function GodModePanel() {
   const [telemetry, setTelemetry] = useState<Telemetry | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [probe, setProbe] = useState<string | null>(null);
+  const [probing, setProbing] = useState(false);
+
+  async function verify() {
+    setProbing(true);
+    setProbe(null);
+    try {
+      const result = await api.probeModels();
+      // The model's own words, with what the call cost. An installed model
+      // is not a working one, and this is the difference.
+      setProbe(
+        result.generation.ok
+          ? `${result.generation.model}: “${result.generation.sample}” in ` +
+            `${result.generation.duration_ms} ms · embedding ` +
+            `${result.embedding.model} ${result.embedding.dimensions}d ` +
+            `in ${result.embedding.duration_ms} ms`
+          : `${result.generation.model ?? "no model"}: ${result.generation.error ?? "failed"}`,
+      );
+    } catch (e) {
+      setProbe(e instanceof Error ? e.message : "Could not reach the local daemon.");
+    } finally {
+      setProbing(false);
+    }
+  }
 
   useEffect(() => {
     let live = true;
@@ -165,6 +189,23 @@ export function GodModePanel() {
             Backfill {ml.embeddings.missing} embeddings
           </button>
         )}
+
+        <div className="flex flex-wrap items-center gap-2 py-1">
+          <button
+            type="button"
+            data-testid="verify-models"
+            onClick={() => void verify()}
+            disabled={probing}
+            className="rounded-md border border-line px-2 py-1 text-[11px] font-medium text-accent transition-colors hover:bg-surface-subtle disabled:opacity-50"
+          >
+            {probing ? "Running..." : "Verify inference"}
+          </button>
+          {probe && (
+            <span data-testid="probe-result" className="min-w-0 flex-1 text-[11px] text-ink-muted">
+              {probe}
+            </span>
+          )}
+        </div>
 
         <Row label="Retrieval">{ml.retrieval.vector_index}</Row>
         <Row label="Keyword">{ml.retrieval.keyword_index}</Row>

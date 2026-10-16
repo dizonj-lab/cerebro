@@ -29,9 +29,9 @@ about the world, and a model reading the text cannot establish them.
 from __future__ import annotations
 
 import json
-import urllib.error
-import urllib.request
+import re
 
+from app.services import ollama
 from app.services.artifacts.enrichment.base import Enrichment
 
 _TIMEOUT_SECONDS = 120
@@ -77,7 +77,11 @@ class OllamaEnricher:
         self.model = model
 
     def enrich(self, *, text: str, properties: dict, filename: str) -> Enrichment:
-        body = self._ask(text[:MAX_PROMPT_CHARS])
+        # The model only sees the opening of a long document, so grounding is
+        # checked against that same span: a name "found" in a part the model
+        # never read would be a coincidence, not evidence.
+        text = text[:MAX_PROMPT_CHARS]
+        body = self._ask(text)
         if body is None:
             return Enrichment(
                 engine=self.name,
@@ -92,7 +96,8 @@ class OllamaEnricher:
         suggestions: dict = {}
         methods: dict = {}
         notes: list[str] = []
-        haystack = text.lower()
+        evidence: dict = {}
+        haystack = text
 
         title = _clean_text(body.get("title"))
         if title:
@@ -111,10 +116,13 @@ class OllamaEnricher:
             ("organizations", 12),
             ("projects", 12),
         ):
-            grounded, dropped = _grounded(body.get(field), haystack, limit)
+            grounded, dropped, found = _grounded(
+                body.get(field), haystack, limit, source=text
+            )
             if grounded:
                 suggestions[field] = grounded
                 methods[field] = "ai_suggested"
+                evidence.update(found)
             if dropped:
                 # Recorded rather than hidden: a model that keeps proposing
                 # absent phrases is a model to stop trusting.
@@ -137,33 +145,41 @@ class OllamaEnricher:
             ai_used=True,
             local=True,
             notes=notes,
+            evidence=evidence,
         )
 
     def _ask(self, text: str) -> dict | None:
-        payload = json.dumps(
-            {
-                "model": self.model,
-                "prompt": _INSTRUCTION + text,
-                "stream": False,
-                "format": "json",
-                # Deterministic decoding: the same document should enrich the
-                # same way twice.
-                "options": {"temperature": 0},
-            }
-        ).encode("utf-8")
-        request = urllib.request.Request(  # noqa: S310 - fixed http scheme, local daemon
-            f"{self.base_url}/api/generate",
-            data=payload,
-            headers={"Content-Type": "application/json"},
-        )
+        """One JSON reply from the local model, or None.
+
+        The shared client handles the parts that are easy to get wrong per
+        caller: a reasoning model's <think> block (which would make this
+        reply unparseable), the timeout, and recording what ran.
+        """
         try:
-            with urllib.request.urlopen(request, timeout=_TIMEOUT_SECONDS) as response:
-                envelope = json.loads(response.read().decode("utf-8"))
-            parsed = json.loads(envelope.get("response") or "{}")
-        except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError):
-            # Unreachable, slow or not valid JSON. The caller reports that
-            # only deterministic enrichment ran.
+            generated = ollama.generate(
+                self.base_url,
+                self.model,
+                _INSTRUCTION + text,
+                operation="enrichment.suggest",
+                fmt="json",
+            )
+        except ollama.OllamaUnavailable:
+            # The caller reports that only deterministic enrichment ran. It
+            # never becomes a cloud call.
             return None
+
+        try:
+            parsed = json.loads(generated.text or "{}")
+        except json.JSONDecodeError:
+            # Some models wrap JSON in prose or a code fence even when asked
+            # not to. Recover the object rather than losing the whole reply.
+            match = re.search(r"\{.*\}", generated.text, re.DOTALL)
+            if not match:
+                return None
+            try:
+                parsed = json.loads(match.group(0))
+            except json.JSONDecodeError:
+                return None
         return parsed if isinstance(parsed, dict) else None
 
 
@@ -174,25 +190,73 @@ def _clean_text(value: object) -> str | None:
     return cleaned[:1000] or None
 
 
-def _grounded(value: object, haystack: str, limit: int) -> tuple[list[str], int]:
-    """Keep only suggestions the document actually contains."""
+# Everything that is not a letter, digit or space becomes a space, and runs
+# of space collapse. This is what lets "Acme, Inc." match a document that
+# writes "Acme Inc", and a name broken across a line in a PDF match the same
+# name written inline — without loosening the rule that it must be in the
+# document.
+_NOISE = re.compile(r"[^\w\s]+", re.UNICODE)
+_SPACE = re.compile(r"\s+")
+# A trailing gloss the model adds itself: "Maria Santos (CTO)". The gloss is
+# not in the document and must not be, but the name is.
+_PARENTHETICAL = re.compile(r"\s*\([^)]*\)\s*$")
+
+
+def normalise(text: str) -> str:
+    return _SPACE.sub(" ", _NOISE.sub(" ", text.lower())).strip()
+
+
+def _evidence(needle: str, text: str) -> str | None:
+    """The sentence the value was found in, for a human to check."""
+    flat = _SPACE.sub(" ", text)
+    position = normalise(flat).find(normalise(needle))
+    if position == -1:
+        return None
+    # Normalisation can shift offsets, so the window is approximate on
+    # purpose: it is a quote to read, not a citation to compute with.
+    start = max(0, position - 90)
+    return flat[start : position + len(needle) + 90].strip()
+
+
+def _grounded(
+    value: object, haystack: str, limit: int, *, source: str = ""
+) -> tuple[list[str], int, dict]:
+    """Keep only suggestions the document actually contains.
+
+    The check is the guard against a model inventing a person, so it stays a
+    containment test against the document. What changed is that both sides
+    are normalised first: the old exact-substring test dropped "Acme, Inc."
+    and "Maria Santos (CTO)" even though the document named both, which is
+    why People, Organizations and Projects came back empty on documents that
+    plainly contained them.
+    """
     if not isinstance(value, list):
-        return [], 0
+        return [], 0, {}
     kept: list[str] = []
     seen: set[str] = set()
+    evidence: dict = {}
     dropped = 0
+    normalised_haystack = normalise(haystack)
+
     for item in value:
         text = _clean_text(item)
         if text is None:
             continue
-        if text.lower() in haystack:
-            # Case-insensitively unique: "Digital Twin" and "digital twin"
-            # are one topic, not two.
-            if text.lower() not in seen:
-                seen.add(text.lower())
-                kept.append(text)
-        else:
+        candidate = _PARENTHETICAL.sub("", text).strip() or text
+        needle = normalise(candidate)
+        # A single character is not an entity, and would match anything.
+        if len(needle) < 2 or needle not in normalised_haystack:
             dropped += 1
+            continue
+        # Case-insensitively unique: "Digital Twin" and "digital twin" are
+        # one topic, not two.
+        if needle in seen:
+            continue
+        seen.add(needle)
+        kept.append(candidate)
+        quote = _evidence(candidate, source) if source else None
+        if quote:
+            evidence[candidate] = quote
         if len(kept) == limit:
             break
-    return kept, dropped
+    return kept, dropped, evidence

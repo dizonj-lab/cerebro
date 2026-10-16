@@ -302,6 +302,28 @@ function IngestInner() {
                 ))}
               </ul>
             ) : null}
+
+            {/*
+              The evidence for each suggested name. A model proposing a
+              person is the one suggestion a reviewer cannot sanity-check
+              from the field alone, so the sentence it came from is shown
+              next to it rather than left in the document.
+            */}
+            {suggestion?.evidence && Object.keys(suggestion.evidence).length > 0 ? (
+              <details className="mt-3" data-testid="suggestion-evidence">
+                <summary className="cursor-pointer text-xs font-medium text-accent">
+                  Where these came from ({Object.keys(suggestion.evidence).length})
+                </summary>
+                <ul className="mt-2 space-y-1.5">
+                  {Object.entries(suggestion.evidence).map(([value, quote]) => (
+                    <li key={value} className="text-xs text-ink-muted">
+                      <span className="font-medium text-ink">{value}</span>
+                      <span className="block text-ink-subtle">“{quote}”</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ) : null}
           </section>
 
           <form

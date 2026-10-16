@@ -377,6 +377,9 @@ def suggest_with_model(db: Session, artifact: Artifact, *, ai_suggestions: bool)
     return {
         "suggestions": result.suggestions,
         "field_methods": result.methods,
+        # The quote each suggested entity was found in, so the reviewer can
+        # check it without opening the document.
+        "evidence": result.evidence,
         "ai_used": result.ai_used,
         "engine": result.engine,
         "model": result.model,

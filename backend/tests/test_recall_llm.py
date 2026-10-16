@@ -167,7 +167,11 @@ def test_the_stream_sends_sources_first_then_words_then_a_summary(client, librar
 
     assert received[0]["type"] == "sources"
     assert received[0]["sources"][0]["filename"] == "retention.txt"
-    assert [e["text"] for e in received if e["type"] == "delta"] == ["Seven ", "years ", "[1]."]
+    # Streamed incrementally and adding up to the answer; the chunking
+    # itself is not part of the contract.
+    deltas = [e["text"] for e in received if e["type"] == "delta"]
+    assert "".join(deltas) == "Seven years [1]."
+    assert len(deltas) > 1
 
     final = received[-1]
     assert final["type"] == "done"

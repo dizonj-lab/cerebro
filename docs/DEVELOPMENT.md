@@ -247,3 +247,55 @@ docker compose exec api python -c "import urllib.request; \
 
 The second command is the one that matters: it asks from inside the container,
 which is where CEREBRO will be asking from.
+
+
+## Connecting to an Ollama you already run
+
+CEREBRO never starts a daemon and never pulls a model. It asks whatever
+daemon it can reach what is installed, and uses that.
+
+If Ollama runs **on the host** (`ollama serve`, or a container that publishes
+`11434`), the compose defaults already work: the API reaches
+`host.docker.internal:11434`, and `extra_hosts: host-gateway` makes that name
+resolve on Linux too. Inside the API container `localhost:11434` is the API
+container — that is the mistake this avoids.
+
+If the Ollama container **does not publish its port**, put it on this
+project's network and address it by container name:
+
+```bash
+docker network connect cerebro_default cerebro-ollama
+CEREBRO_OLLAMA_BASE_URL=http://cerebro-ollama:11434 docker compose up -d api
+```
+
+Check what CEREBRO can see, from the API's point of view rather than yours:
+
+```bash
+docker compose exec api python -c "from app.services.ollama import discover; print(discover(force=True))"
+```
+
+Then verify the models actually run, which is not the same as being listed —
+a daemon will list a model it cannot load:
+
+```bash
+curl -s -X POST localhost:3100/api/ml/probe -b cookies.txt | python3 -m json.tool
+```
+
+or press **Verify inference** in GOD MODE, which does the same thing and
+shows the model's own words with the latency.
+
+### Two things to expect on first connection
+
+**Reasoning models.** `qwen3` and `deepseek-r1` wrap their deliberation in
+`<think>` tags. CEREBRO strips those from answers, never streams them, and
+asks the daemon not to produce them (`think: false`). Without that, the
+deliberation appears in the chat and makes a JSON reply from enrichment
+unparseable.
+
+**A change of embedder orphans vectors.** Provider, model and width travel
+with every vector and retrieval filters on all three, so moving from the
+384-dimensional hashing fallback to `mxbai-embed-large` (1024) leaves
+existing fragments unretrievable until they are re-embedded. That is visible
+rather than silent: GOD MODE and `/api/ml/status` report how many fragments
+lack a vector for the active model, and **Backfill embeddings** fixes it. The
+old vectors are kept, so switching back needs no re-embedding.

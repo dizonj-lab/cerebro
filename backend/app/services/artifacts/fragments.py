@@ -62,13 +62,28 @@ def build_for_artifact(db: Session, artifact: Artifact, *, document) -> int:
         return 0
 
     provider = get_embedding_provider()
+    started = time.perf_counter()
     try:
         vectors = provider.embed([c.content for c in pending])
     except EmbeddingFailed as exc:
+        telemetry.record(
+            "embeddings.register",
+            model=f"{provider.name}/{provider.model}",
+            duration_ms=int((time.perf_counter() - started) * 1000),
+            detail=f"failed: {exc}",
+        )
         # Deliberately not falling back to another provider: a different
         # provider writes a different vector space, and a cloud one would
         # send content the user did not consent to send.
         raise FragmentsUnavailable(str(exc)) from None
+
+    telemetry.record(
+        "embeddings.register",
+        model=f"{provider.name}/{provider.model}",
+        duration_ms=int((time.perf_counter() - started) * 1000),
+        algorithm=f"{provider.dimensions}-dimensional embedding",
+        detail=f"{len(pending)} fragments",
+    )
 
     if len(vectors) != len(pending):
         raise FragmentsUnavailable(

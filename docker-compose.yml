@@ -61,21 +61,35 @@ services:
       CEREBRO_S3_ACCESS_KEY: cerebro
       CEREBRO_S3_SECRET_KEY: cerebro_dev_password
       CEREBRO_STORAGE_PATH: /data/artifacts
-      # Local AI, off unless you ask for it. Set these in a .env file beside
-      # this one; see .env.example.
+      # Local AI. These used to default to off, which meant a machine with
+      # Ollama running and models pulled still got passages instead of
+      # answers, and hashed vectors instead of learned ones — from the
+      # outside, indistinguishable from a broken feature. They now default to
+      # auto: CEREBRO asks the daemon what is installed and uses it. Set any
+      # of them to "off" to pin the deterministic path.
       #
       # host.docker.internal is not a nicety here: inside this container,
       # localhost is the container, so a default of localhost:11434 would
-      # reach nothing while appearing configured. extra_hosts below makes the
-      # same name work on Linux, where Docker does not provide it.
-      CEREBRO_ENRICHMENT_LLM: ${CEREBRO_ENRICHMENT_LLM:-none}
-      CEREBRO_RECALL_LLM: ${CEREBRO_RECALL_LLM:-none}
-      CEREBRO_OLLAMA_RECALL_MODEL: ${CEREBRO_OLLAMA_RECALL_MODEL:-llama3.2}
-      CEREBRO_EMBEDDING_PROVIDER: ${CEREBRO_EMBEDDING_PROVIDER:-hashing}
+      # reach nothing while appearing configured. It resolves to the host, so
+      # it finds an Ollama running on the machine directly *and* one running
+      # in its own container that publishes 11434. extra_hosts below makes
+      # the same name work on Linux, where Docker does not provide it.
+      #
+      # To reach an Ollama container that does not publish its port, put it
+      # on this project's network and set
+      # CEREBRO_OLLAMA_BASE_URL=http://cerebro-ollama:11434 instead — see
+      # docs/DEVELOPMENT.md. Nothing here starts a daemon or pulls a model:
+      # an existing one is used as it is.
+      CEREBRO_ENRICHMENT_LLM: ${CEREBRO_ENRICHMENT_LLM:-auto}
+      CEREBRO_RECALL_LLM: ${CEREBRO_RECALL_LLM:-auto}
+      CEREBRO_EMBEDDING_PROVIDER: ${CEREBRO_EMBEDDING_PROVIDER:-auto}
       CEREBRO_OLLAMA_BASE_URL: ${CEREBRO_OLLAMA_BASE_URL:-http://host.docker.internal:11434}
-      CEREBRO_OLLAMA_ENRICHMENT_MODEL: ${CEREBRO_OLLAMA_ENRICHMENT_MODEL:-llama3.2}
-      CEREBRO_OLLAMA_EMBEDDING_MODEL: ${CEREBRO_OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
-      CEREBRO_OLLAMA_EMBEDDING_DIMENSIONS: ${CEREBRO_OLLAMA_EMBEDDING_DIMENSIONS:-768}
+      # Preferences, not requirements: discovery falls back to whatever is
+      # installed, and an embedder's width comes from the model itself.
+      CEREBRO_OLLAMA_RECALL_MODEL: ${CEREBRO_OLLAMA_RECALL_MODEL:-qwen3}
+      CEREBRO_OLLAMA_ENRICHMENT_MODEL: ${CEREBRO_OLLAMA_ENRICHMENT_MODEL:-qwen3}
+      CEREBRO_OLLAMA_EMBEDDING_MODEL: ${CEREBRO_OLLAMA_EMBEDDING_MODEL:-mxbai-embed-large}
+      CEREBRO_OLLAMA_EMBEDDING_DIMENSIONS: ${CEREBRO_OLLAMA_EMBEDDING_DIMENSIONS:-1024}
     extra_hosts:
     - host.docker.internal:host-gateway
     ports:

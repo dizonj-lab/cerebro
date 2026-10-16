@@ -178,6 +178,8 @@ export interface CerebroArtifactExtraction {
 export interface CerebroEnrichmentSuggestion {
   suggestions: Partial<CerebroArtifactMetadata>;
   field_methods: Record<string, string>;
+  /** value -> the sentence in the document it was found in. */
+  evidence?: Record<string, string>;
   /** False means no model contributed; `notes` says why. */
   ai_used: boolean;
   engine: string;
@@ -524,6 +526,31 @@ export const api = {
 
   /** What AI and ML is actually installed, selected and running. */
   mlStatus: () => request<CerebroMlStatus>("/api/ml/status"),
+
+  /** Actually run the models: one short generation and one embedding. */
+  probeModels: () =>
+    request<{
+      base_url: string;
+      models: string[];
+      generation: {
+        model: string | null;
+        ok: boolean;
+        sample?: string;
+        duration_ms?: number;
+        prompt_tokens?: number | null;
+        completion_tokens?: number | null;
+        error?: string;
+      };
+      embedding: {
+        provider: string;
+        model: string;
+        ok: boolean;
+        dimensions?: number;
+        declared_dimensions?: number;
+        duration_ms?: number;
+        error?: string;
+      };
+    }>("/api/ml/probe", { method: "POST" }),
 
   /** Embed fragments that have no vector for the active model. */
   backfillEmbeddings: () =>

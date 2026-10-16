@@ -146,8 +146,24 @@ active model, which is what makes `auto` safe: a change of embedder orphans
 vectors rather than deleting them, and the gap is visible and fixable instead
 of showing up as search quietly returning nothing.
 
+Reasoning models are handled: `qwen3` and `deepseek-r1` deliberate inside
+`<think>` tags, which is stripped from answers, never streamed, and switched
+off at the daemon where supported. Left in, it reads as the model talking to
+itself and makes enrichment's JSON reply unparseable.
+
 `make models` lists what the daemon has; `make models-pull` pulls the
-preferred pair.
+preferred pair. `POST /api/ml/probe` — or **Verify inference** in GOD MODE —
+runs one generation and one embedding and reports what came back, because an
+installed model is not necessarily a working one.
+
+Enrichment's grounding check normalises punctuation and spacing on both
+sides before testing that a suggestion appears in the document. The exact
+substring test it replaced dropped "Acme, Inc." and "Maria Santos (CTO)" from
+documents that plainly named both, which is why People, Organizations and
+Projects came back empty. Each accepted entity now carries the sentence it
+was found in, shown in the form, so a reviewer can check a proposed name
+without opening the document. A suggestion the document does not contain is
+still dropped and the drop still recorded.
 
 ### GOD MODE
 
