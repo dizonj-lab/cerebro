@@ -174,3 +174,24 @@ test("TEST 9 — The Construct is usable at desktop width", async ({ page }) => 
     await expect(nav.getByRole("button", { name: item, exact: true })).toBeVisible();
   }
 });
+
+test("the sidebar collapses to icons and stays that way", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await signUp(page, makeAccount("rail"));
+  await page.waitForURL(/\/construct$/);
+
+  const nav = page.locator("nav[aria-label='Workspace']");
+  const label = nav.getByRole("link", { name: "Library", exact: true });
+  await expect(label).toBeVisible();
+  const wide = (await nav.boundingBox())!.width;
+
+  await page.getByRole("button", { name: "Collapse navigation" }).click();
+  expect((await nav.boundingBox())!.width).toBeLessThan(wide);
+  // The link is still there and still named, just not shown as text.
+  await expect(label).toBeVisible();
+
+  // Remembered per browser, so it does not reopen on every navigation.
+  await page.goto("/construct/library");
+  await expect(page.getByRole("button", { name: "Expand navigation" })).toBeVisible();
+  expect((await nav.boundingBox())!.width).toBeLessThan(wide);
+});

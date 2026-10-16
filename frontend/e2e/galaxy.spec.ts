@@ -167,7 +167,7 @@ test("the timeline renders real events and says where each date came from", asyn
   await expect(page.getByRole("heading", { name: "Knowledge Timeline" })).toBeVisible();
   // No document states a date, so every event is labelled as registered.
   await expect(page.getByText("· registered").first()).toBeVisible();
-  await expect(page.getByText(/Dates are stated by the document/)).toBeVisible();
+  await expect(page.getByText(/Dates stated by the document/)).toBeVisible();
 });
 
 test("the timeline shows years, months and how many fall in each", async ({ page }) => {
@@ -182,6 +182,20 @@ test("the timeline shows years, months and how many fall in each", async ({ page
   // Focusing a month narrows the cards without hiding the axis.
   await month.click();
   await expect(page.getByRole("button", { name: "Show all" })).toBeVisible();
+});
+
+test("the timeline collapses to give the galaxy the screen", async ({ page }) => {
+  await openGalaxy(page, "g-tl-collapse");
+
+  const canvas = page.getByRole("application", { name: "Knowledge Galaxy" });
+  const before = (await canvas.boundingBox())!.height;
+
+  await page.getByRole("button", { name: "Hide timeline" }).click();
+  await expect(page.getByRole("button", { name: "Show timeline" })).toBeVisible();
+  expect((await canvas.boundingBox())!.height).toBeGreaterThan(before);
+
+  await page.getByRole("button", { name: "Show timeline" }).click();
+  await expect(page.getByRole("heading", { name: "Knowledge Timeline" })).toBeVisible();
 });
 
 test("a timeline card previews the document itself", async ({ page }) => {
@@ -272,10 +286,11 @@ test("the workspace can be maximised and resized", async ({ page }) => {
   const canvas = page.getByRole("application", { name: "Knowledge Galaxy" });
   const before = (await canvas.boundingBox())!.height;
 
-  const handle = page.getByRole("separator", { name: "Resize galaxy" });
+  const handle = page.getByRole("separator", { name: "Resize timeline" });
   const box = (await handle.boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
+  // Dragging the divider down shrinks the timeline, so the galaxy grows.
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 120, { steps: 6 });
   await page.mouse.up();
   expect((await canvas.boundingBox())!.height).toBeGreaterThan(before);

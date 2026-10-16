@@ -32,7 +32,7 @@ export function NodeDetailsPanel({
 
   if (loading && !details) {
     return (
-      <aside className="w-full shrink-0 rounded-xl border border-white/10 bg-[#101725] p-4 xl:w-[21rem]">
+      <aside className="w-full shrink-0 bg-[#101725] p-4 xl:w-[20rem]">
         <div className="h-5 w-32 animate-pulse rounded bg-white/10" />
         <div className="mt-4 h-20 animate-pulse rounded bg-white/5" />
       </aside>
@@ -43,7 +43,7 @@ export function NodeDetailsPanel({
   const accent = colorFor(details.category);
 
   return (
-    <aside className="flex w-full shrink-0 flex-col rounded-xl border border-white/10 bg-[#101725] xl:w-[21rem]">
+    <aside className="flex min-h-0 w-full shrink-0 flex-col bg-[#101725] xl:w-[20rem]">
       <div className="flex items-start justify-between gap-3 border-b border-white/10 p-4">
         <div className="min-w-0">
           <span
@@ -89,7 +89,7 @@ export function NodeDetailsPanel({
         ))}
       </div>
 
-      <div className="max-h-[22rem] flex-1 overflow-y-auto p-4 text-sm xl:max-h-none">
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 text-sm">
         {tab === "Overview" && <Overview details={details} />}
         {tab === "Related" && <Related details={details} onSelect={onSelectRelated} />}
         {tab === "Documents" && <Documents details={details} />}

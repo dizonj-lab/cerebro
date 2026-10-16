@@ -109,7 +109,7 @@ export function GalaxyCanvas({
   const hoveredPoint = hovered ? positions.get(hovered) : undefined;
 
   return (
-    <div className="relative size-full overflow-hidden rounded-xl bg-[#070b14]">
+    <div className="relative size-full overflow-hidden bg-[#070b14]">
       {/* A still backdrop rather than an animated starfield: atmosphere
           without a compositing loop running behind every interaction. */}
       <div

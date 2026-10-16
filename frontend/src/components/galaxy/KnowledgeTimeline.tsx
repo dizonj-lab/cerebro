@@ -22,11 +22,15 @@ export function KnowledgeTimeline({
   selectedTopic,
   selectedArtifactId,
   onSelect,
+  collapsed = false,
+  onToggleCollapsed,
 }: {
   events: CerebroTimelineEvent[];
   selectedTopic: string | null;
   selectedArtifactId: string | null;
   onSelect: (event: CerebroTimelineEvent) => void;
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
 }) {
   const [focusedMonth, setFocusedMonth] = useState<string | null>(null);
 
@@ -34,7 +38,7 @@ export function KnowledgeTimeline({
 
   if (!events.length) {
     return (
-      <section className="rounded-xl border border-white/10 bg-[#101725] p-6 text-center">
+      <section className="bg-[#101725] px-4 py-5 text-center">
         <p className="text-sm text-white/60">
           Your timeline fills as you register documents. Dates come from the document
           itself where it states one.
@@ -50,46 +54,71 @@ export function KnowledgeTimeline({
     : events;
 
   return (
-    <section className="rounded-xl border border-white/10 bg-[#101725] p-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <div>
-          <h2 className="text-sm font-semibold text-white">Knowledge Timeline</h2>
-          <p className="text-[0.6875rem] text-white/50">
-            {total} document{total === 1 ? "" : "s"} over {years.length} year
+    <section className="flex h-full min-h-0 flex-col bg-[#101725]">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5">
+        <div className="flex items-baseline gap-2">
+          <h2 className="text-xs font-semibold text-white">Knowledge Timeline</h2>
+          <span className="text-[0.625rem] text-white/45">
+            {total} document{total === 1 ? "" : "s"} · {years.length} year
             {years.length === 1 ? "" : "s"}
-          </p>
+          </span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {focusedMonth && (
             <button
               type="button"
               onClick={() => setFocusedMonth(null)}
-              className="rounded-md border border-white/15 px-2 py-1 text-[0.625rem] font-medium text-white/70 transition-colors hover:text-white"
+              className="rounded border border-white/15 px-1.5 py-0.5 text-[0.625rem] font-medium text-white/70 transition-colors hover:text-white"
             >
               Show all
             </button>
           )}
-          <p className="text-[0.625rem] text-white/40">
-            Dates are stated by the document, or the date it was registered.
-          </p>
+          <span className="hidden text-[0.625rem] text-white/35 lg:inline">
+            Dates stated by the document, or when registered.
+          </span>
+          {onToggleCollapsed && (
+            <button
+              type="button"
+              onClick={onToggleCollapsed}
+              aria-expanded={!collapsed}
+              aria-label={collapsed ? "Expand timeline" : "Collapse timeline"}
+              className="rounded p-1 text-white/55 transition-colors hover:bg-white/10 hover:text-white"
+            >
+              <svg viewBox="0 0 20 20" className={cn("size-4 transition-transform", collapsed && "rotate-180")} fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+                <path d="M5.5 12 10 7.5l4.5 4.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* --- axis: years, then months ----------------------------------- */}
-      <div className="mt-4 overflow-x-auto pb-1">
-        <div className="flex min-w-fit gap-6">
-          {years.map((year) => (
-            <div key={year.year} className="min-w-fit">
-              <div className="flex items-baseline gap-2 border-b border-white/10 pb-1">
-                <span className="text-sm font-semibold tabular-nums text-white">{year.year}</span>
-                <span className="text-[0.625rem] text-white/40">
-                  {year.count} document{year.count === 1 ? "" : "s"}
+      {collapsed ? null : (
+      <>
+
+      {/* --- axis: years, then months. Stretched to the full width, each
+              year taking room in proportion to the months it holds. ------- */}
+      <div className="flex items-stretch gap-3 px-3">
+        {years.map((year) => (
+            <div
+              key={year.year}
+              className="min-w-0"
+              // A year takes room in proportion to the months it holds, so a
+              // long year is wider than a short one.
+              style={{ flex: `${year.months.length} 0 auto` }}
+            >
+              <div className="flex items-baseline gap-1.5 border-b border-white/10 pb-0.5">
+                <span className="text-[0.6875rem] font-semibold tabular-nums text-white">
+                  {year.year}
+                </span>
+                <span className="truncate text-[0.5625rem] text-white/40">
+                  {year.count} doc{year.count === 1 ? "" : "s"}
                 </span>
               </div>
 
-              <div className="mt-2 flex items-end gap-1.5">
+              <div className="mt-1 flex items-end gap-px">
                 {year.months.map((month) => {
                   const active = focusedMonth === month.key;
+                  const empty = month.events.length === 0;
                   const related =
                     selectedTopic !== null &&
                     month.events.some((e) => e.topics.includes(selectedTopic));
@@ -97,6 +126,7 @@ export function KnowledgeTimeline({
                     <button
                       key={month.key}
                       type="button"
+                      disabled={empty}
                       onClick={() => setFocusedMonth(active ? null : month.key)}
                       aria-pressed={active}
                       // The visible text is a bare number and a short month,
@@ -108,35 +138,42 @@ export function KnowledgeTimeline({
                         month.events.length === 1 ? "" : "s"
                       }`}
                       className={cn(
-                        "flex w-9 flex-col items-center gap-1 rounded-md px-0.5 py-1 transition-colors",
-                        active ? "bg-white/15" : "hover:bg-white/8",
+                        // Capped so a year with one month does not become a
+                        // single bar the width of the screen.
+                        "flex min-w-0 max-w-10 flex-1 flex-col items-center gap-0.5 rounded-sm py-0.5 transition-colors",
+                        active ? "bg-white/15" : !empty && "hover:bg-white/8",
+                        empty && "cursor-default",
                       )}
                     >
                       {/* Height carries the month's volume; the number states
-                          it outright, because a bar alone is a guess. */}
+                          it outright, because a bar alone is a guess. An empty
+                          month keeps its place as a flat tick. */}
                       <span
-                        className="w-full rounded-sm"
+                        className="w-full rounded-[1px]"
                         style={{
-                          height: `${8 + (month.events.length / year.peak) * 26}px`,
-                          background: colorFor(month.events[0].category),
-                          opacity: related || active ? 1 : 0.55,
+                          height: empty ? 2 : 4 + (month.events.length / year.peak) * 18,
+                          background: empty
+                            ? "rgba(255,255,255,0.12)"
+                            : colorFor(month.events[0].category),
+                          opacity: empty || related || active ? 1 : 0.6,
                         }}
                       />
-                      <span className="text-[0.5625rem] tabular-nums text-white/70">
-                        {month.events.length}
+                      <span className="text-[0.5rem] tabular-nums text-white/55">
+                        {empty ? "" : month.events.length}
                       </span>
-                      <span className="text-[0.5625rem] text-white/40">{month.short}</span>
+                      <span className="truncate text-[0.5rem] text-white/35">
+                        {month.short.slice(0, 1)}
+                      </span>
                     </button>
                   );
                 })}
               </div>
             </div>
           ))}
-        </div>
       </div>
 
       {/* --- cards: a preview of each document --------------------------- */}
-      <ul className="mt-4 flex gap-3 overflow-x-auto pb-1">
+      <ul className="mt-1.5 flex min-h-0 flex-1 gap-2 overflow-x-auto px-3 pb-2">
         {shown.map((event) => {
           const active =
             event.artifact_id === selectedArtifactId ||
@@ -147,7 +184,7 @@ export function KnowledgeTimeline({
                 type="button"
                 onClick={() => onSelect(event)}
                 className={cn(
-                  "flex w-60 flex-col gap-2 rounded-lg border p-2.5 text-left transition-colors",
+                  "flex h-full w-44 flex-col gap-1.5 rounded-md border p-1.5 text-left transition-colors",
                   active
                     ? "border-white/35 bg-white/10"
                     : "border-white/10 hover:border-white/20 hover:bg-white/5",
@@ -171,6 +208,8 @@ export function KnowledgeTimeline({
           );
         })}
       </ul>
+      </>
+      )}
     </section>
   );
 }
@@ -187,14 +226,14 @@ function DocumentPreview({ event }: { event: CerebroTimelineEvent }) {
   return (
     <span
       aria-hidden="true"
-      className="relative block h-20 overflow-hidden rounded-md border border-white/10 bg-white/95 p-2"
+      className="relative block min-h-0 flex-1 overflow-hidden rounded-sm border border-white/10 bg-white/95 p-1.5"
     >
       <span
         className="absolute inset-x-0 top-0 h-1"
         style={{ background: tint }}
       />
       {event.preview ? (
-        <span className="mt-1 block text-[0.4375rem] leading-[1.45] text-slate-700">
+        <span className="mt-0.5 block text-[0.4rem] leading-[1.4] text-slate-700">
           {event.preview}
         </span>
       ) : (
@@ -233,7 +272,24 @@ interface Year {
   months: Month[];
 }
 
-/** Groups events by month, and months by year. Only months with events appear. */
+/**
+ * Groups events by month, and months by year.
+ *
+ * Every month between the first and the last appears, including empty ones:
+ * a gap in the record is itself information, and skipping quiet months makes
+ * a sparse year look as busy as a dense one.
+ */
+function monthsBetween(first: string, last: string): string[] {
+  const out: string[] = [];
+  const cursor = new Date(`${first}-01T00:00:00`);
+  const end = new Date(`${last}-01T00:00:00`);
+  while (cursor <= end) {
+    out.push(`${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`);
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+  return out;
+}
+
 function groupByMonth(events: CerebroTimelineEvent[]): {
   months: Month[];
   years: Year[];
@@ -245,17 +301,16 @@ function groupByMonth(events: CerebroTimelineEvent[]): {
     buckets.set(key, [...(buckets.get(key) ?? []), event]);
   }
 
-  const months: Month[] = [...buckets.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, list]) => {
-      const date = new Date(`${key}-01T00:00:00`);
-      return {
-        key,
-        label: date.toLocaleDateString(undefined, { month: "long", year: "numeric" }),
-        short: date.toLocaleDateString(undefined, { month: "short" }),
-        events: list,
-      };
-    });
+  const keys = [...buckets.keys()].sort();
+  const months: Month[] = monthsBetween(keys[0], keys[keys.length - 1]).map((key) => {
+    const date = new Date(`${key}-01T00:00:00`);
+    return {
+      key,
+      label: date.toLocaleDateString(undefined, { month: "long", year: "numeric" }),
+      short: date.toLocaleDateString(undefined, { month: "short" }),
+      events: buckets.get(key) ?? [],
+    };
+  });
 
   const byYear = new Map<string, Month[]>();
   for (const month of months) {

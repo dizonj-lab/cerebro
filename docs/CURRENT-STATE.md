@@ -274,9 +274,20 @@ many artifacts fall in it rather than leaving a bar to be read. Cards preview
 the document's own opening, quoted, so a card can be checked against its
 source.
 
-Galaxy and Timeline share one column, so the Timeline is as wide as the
-Galaxy and both grow when the details panel collapses; the panel is a column
-beside them rather than above the Timeline.
+The workspace is one surface rather than three cards: Galaxy, details and
+Timeline share a single border and divide with hairlines, with no gutters
+between them. The Timeline spans the full width beneath both, takes about a
+quarter of the height, and collapses to its header to give the Galaxy the
+screen. The divider between them is also the resize grip.
+
+Every month between the first and the last appears on the axis, including
+empty ones — a gap in the record is itself information, and skipping quiet
+months would make a sparse year look as busy as a dense one. Month ticks are
+capped in width so a year holding one month does not become a single bar the
+width of the screen.
+
+The sidebar collapses to its icon rail from the header, and the choice is
+remembered per browser so it does not reopen on every navigation.
 
 Rendered as SVG: the node count is capped server-side at a couple of dozen,
 which SVG handles comfortably while keeping nodes focusable and hoverable

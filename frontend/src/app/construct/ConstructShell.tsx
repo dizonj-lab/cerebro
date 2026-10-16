@@ -1,11 +1,17 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 
 import { ConstructHeader } from "@/components/construct/ConstructHeader";
 import { Sidebar } from "@/components/construct/Sidebar";
 import { api } from "@/lib/api";
+import {
+  railServerSnapshot,
+  railSnapshot,
+  setRailCollapsed,
+  subscribeRail,
+} from "@/lib/railState";
 import type { CerebroUser } from "@/lib/api";
 
 interface ConstructShellProps {
@@ -17,8 +23,12 @@ interface ConstructShellProps {
 export function ConstructShell({ user, children }: ConstructShellProps) {
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [railCollapsed, setRailCollapsed] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const railCollapsed = useSyncExternalStore(
+    subscribeRail,
+    railSnapshot,
+    railServerSnapshot,
+  );
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -42,7 +52,7 @@ export function ConstructShell({ user, children }: ConstructShellProps) {
         sidebarOpen={sidebarOpen}
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
         railCollapsed={railCollapsed}
-        onToggleRail={() => setRailCollapsed((v) => !v)}
+        onToggleRail={() => setRailCollapsed(!railCollapsed)}
       />
 
       <div className="flex flex-1">
