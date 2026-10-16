@@ -227,6 +227,35 @@ Relevance is stated in words, excerpts are the document's own text with the
 matched terms marked by PostgreSQL, and a document awaiting review is findable
 but labelled as not yet part of the user's knowledge. See `docs/SEARCH.md`.
 
+### Ingestion
+
+One drop zone. Dropping a single file opens the review form; dropping several
+opens the table, a row each. There is no mode to choose first — the shape
+follows what the user did.
+
+A file under 1MB is read inside the upload request: extraction finishes in
+well under a second and a round trip is simpler than a poll. A larger one is
+answered for as soon as its bytes are stored, with status **processing**, and
+read in the background. The work happens in CEREBRO rather than in the tab,
+so the user can go elsewhere and find it finished; the form polls while it is
+open and says that leaving is safe.
+
+Cheap refusals still happen in the upload request, whatever the size: the
+limit, the checksum, the duplicate check, and whether the bytes match the
+extension. What needs the text — a PDF with no text layer — can only be found
+later, so that refusal is written to the artifact as a rejection reason the
+library shows, rather than raised into a request that has already answered.
+`POST /api/artifacts/{id}/process` reads an artifact that is still waiting,
+for the case the API restarted mid-task; it is idempotent by status, so a
+review in progress cannot be clobbered.
+
+Artifacts can be deleted, from the library, the review form or a table row,
+each behind a confirmation. Deletion removes the row, the stored original,
+the derived extraction object and — by database cascade — the fragments and
+embeddings built from it. A deleted document must not leave retrievable
+passages behind: that would be the library answering from something the user
+deleted.
+
 ### Bulk ingestion
 
 `/construct/ingest` offers one document or several. A batch uploads up to 25

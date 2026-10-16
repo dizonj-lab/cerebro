@@ -1,6 +1,10 @@
 import { cn } from "@/lib/cn";
 
 const LABELS: Record<string, { label: string; tone: string }> = {
+  // Stored, not yet read. Distinct from "Awaiting review" on purpose: there
+  // is nothing to review yet, and defaulting to that label would invite a
+  // user to approve metadata that has not been proposed.
+  processing: { label: "Reading", tone: "border-line-strong bg-surface-subtle text-ink-subtle" },
   inspected: { label: "Awaiting review", tone: "border-line-strong bg-surface-subtle text-ink-muted" },
   registered: { label: "Registered", tone: "border-accent/25 bg-accent-subtle text-accent" },
   approved: { label: "Approved", tone: "border-accent/25 bg-accent-subtle text-accent" },

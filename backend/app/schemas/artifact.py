@@ -65,7 +65,13 @@ class ArtifactSummary(BaseModel):
     filename: str
     modality: str
     size_bytes: int
+    # uploaded | processing | inspected | approved | registered | rejected.
+    # "processing" means the bytes are stored and the text has not been read
+    # yet, which is a real state for a large file rather than a transient one.
     status: str
+    # Why a rejected artifact was rejected. Only set when extraction refused
+    # it after the upload request had already answered.
+    rejection_reason: str | None = None
     sha256: str
     title: str | None = None
     created_at: datetime

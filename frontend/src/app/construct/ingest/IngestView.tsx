@@ -72,9 +72,9 @@ function IngestInner() {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [dragging, setDragging] = useState(false);
-  // Single is the default: one document reviewed carefully is the normal
-  // case, and bulk is for when a pile of them arrives at once.
-  const [mode, setMode] = useState<"single" | "bulk">("single");
+  // Several files dropped at once go to the table; one goes to the form.
+  // The shape follows what the user did rather than asking them first.
+  const [batch, setBatch] = useState<File[] | null>(null);
   const [suggesting, setSuggesting] = useState(false);
   const [suggestion, setSuggestion] = useState<CerebroEnrichmentSuggestion | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -105,6 +105,66 @@ function IngestInner() {
       setBusy(false);
     }
   }, []);
+
+  /** One file fills the form; several fill the table. */
+  const onFiles = useCallback(
+    (list: FileList | null) => {
+      const files = list ? [...list] : [];
+      if (files.length === 0) return;
+      if (files.length === 1) {
+        void onFile(files[0]);
+        return;
+      }
+      setBatch(files);
+    },
+    [onFile],
+  );
+
+  /*
+    A large document is stored immediately and read afterwards, so the form
+    waits for the text rather than the upload. Polling rather than a socket:
+    this is one row changing state once, and the user is free to leave the
+    page while it happens — the work is on the server, not in this tab.
+  */
+  useEffect(() => {
+    if (artifact?.status !== "processing") return;
+    const id = artifact.id;
+    let live = true;
+    const timer = window.setInterval(() => {
+      void api
+        .artifact(id)
+        .then((a) => {
+          if (!live || a.status === "processing") return;
+          setArtifact(a);
+          setDraft(toDraft(a.metadata));
+        })
+        .catch(() => {
+          // A failed poll is not a failed upload. The next one tries again.
+        });
+    }, 2000);
+    return () => {
+      live = false;
+      window.clearInterval(timer);
+    };
+  }, [artifact?.status, artifact?.id]);
+
+  async function discard() {
+    if (!artifact) return;
+    setError(null);
+    setBusy(true);
+    try {
+      await api.deleteArtifact(artifact.id);
+      // Back to an empty page: the artifact, its bytes and anything derived
+      // from it are gone.
+      setArtifact(null);
+      setSuggestion(null);
+      setSaved(false);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not delete that artifact.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function askTheModel() {
     if (!artifact) return;
@@ -175,57 +235,57 @@ function IngestInner() {
 
       <ErrorMessage className="mt-5">{error}</ErrorMessage>
 
-      {!artifact && (
-        <div role="group" aria-label="Upload mode" className="mt-5 flex w-fit rounded-lg border border-line bg-surface-subtle p-0.5">
-          {(["single", "bulk"] as const).map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => setMode(option)}
-              aria-pressed={mode === option}
-              className={cn(
-                "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-                mode === option ? "bg-accent text-accent-ink" : "text-ink-muted hover:text-ink",
-              )}
-            >
-              {option === "single" ? "One document" : "Several documents"}
-            </button>
-          ))}
-        </div>
+      {/*
+        A large document is read after its upload has been answered for, so
+        the form has nothing to show yet. Saying so — and saying that leaving
+        is safe — is the whole point of doing it this way.
+      */}
+      {artifact?.status === "processing" && (
+        <p
+          role="status"
+          data-testid="artifact-processing"
+          className="mt-5 rounded-lg border border-line bg-surface-subtle px-4 py-3 text-sm text-ink-muted"
+        >
+          Reading <span className="font-medium text-ink">{artifact.filename}</span>. This runs in
+          CEREBRO, not in this tab — you can go elsewhere and come back to it in the library.
+        </p>
       )}
 
-      {!artifact && mode === "bulk" && <BulkIngest />}
+      {/*
+        Deliberately no onDone handler: that fires when the batch has finished
+        registering, and tearing the table down at that moment would take the
+        results away just as the user wants to read them.
+      */}
+      {!artifact && batch && <BulkIngest initialFiles={batch} />}
 
-      {!artifact && mode === "single" && (
+      {!artifact && !batch && (
         <div
           onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
           onDragLeave={() => setDragging(false)}
           onDrop={(e) => {
             e.preventDefault();
             setDragging(false);
-            const f = e.dataTransfer.files?.[0];
-            if (f) void onFile(f);
+            onFiles(e.dataTransfer.files);
           }}
           className={cn(
             "mt-7 rounded-lg border border-dashed p-10 text-center transition-colors",
             dragging ? "border-accent bg-accent-subtle" : "border-line-strong bg-surface-subtle",
           )}
         >
-          <p className="text-sm font-medium text-ink">Drop a document here</p>
+          <p className="text-sm font-medium text-ink">Drop documents here</p>
           <p className="mx-auto mt-1.5 max-w-sm text-xs text-ink-muted">
-            PDF, Word, PowerPoint, plain text and Markdown, up to 25MB. Text is extracted
-            deterministically — no AI reads your document. Scanned pages and audio need OCR and
-            transcription, which arrive in a later phase.
+            One opens a form; several open a table. PDF, Word, PowerPoint, plain text and
+            Markdown, up to 25MB each. Text is extracted deterministically — no AI reads your
+            document. Scanned pages and audio need OCR and transcription, which arrive in a
+            later phase.
           </p>
           <input
             ref={fileRef}
             type="file"
+            multiple
             accept=".pdf,.docx,.pptx,.txt,.md,.markdown,application/pdf,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation"
             className="sr-only"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void onFile(f);
-            }}
+            onChange={(e) => onFiles(e.target.files)}
           />
           <Button
             variant="secondary"
@@ -233,7 +293,7 @@ function IngestInner() {
             loading={busy}
             onClick={() => fileRef.current?.click()}
           >
-            {busy ? "Inspecting" : "Choose a file"}
+            {busy ? "Inspecting" : "Choose files"}
           </Button>
         </div>
       )}
@@ -415,6 +475,22 @@ function IngestInner() {
                 </Button>
                 <Button type="button" loading={busy} onClick={() => void submit(true)}>
                   Confirm and register
+                </Button>
+                {/* Deletes the artifact, its bytes and anything derived from
+                    it. Offered here because the alternative — leaving an
+                    unwanted upload in the library — is worse. */}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  loading={busy}
+                  data-testid="discard-artifact"
+                  onClick={() => {
+                    if (window.confirm(`Delete ${artifact.filename}? This cannot be undone.`)) {
+                      void discard();
+                    }
+                  }}
+                >
+                  Delete
                 </Button>
                 {saved && (
                   <span role="status" className="text-sm text-ink-muted">

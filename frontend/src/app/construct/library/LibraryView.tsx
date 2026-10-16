@@ -15,6 +15,28 @@ export function LibraryView() {
   const [items, setItems] = useState<CerebroArtifactSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  async function remove(artifact: CerebroArtifactSummary) {
+    // Confirmed first, and the warning says what goes with it: deleting a
+    // registered document removes the knowledge retrieved from it too.
+    const extra =
+      artifact.status === "registered"
+        ? " Its knowledge fragments and embeddings go with it."
+        : "";
+    if (!window.confirm(`Delete ${artifact.filename}?${extra} This cannot be undone.`)) return;
+
+    setError(null);
+    setDeleting(artifact.id);
+    try {
+      await api.deleteArtifact(artifact.id);
+      setItems((current) => current.filter((item) => item.id !== artifact.id));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not delete that artifact.");
+    } finally {
+      setDeleting(null);
+    }
+  }
 
   useEffect(() => {
     api
@@ -80,6 +102,16 @@ export function LibraryView() {
                   Open original
                   <span className="sr-only"> document {a.filename} in a new tab</span>
                 </a>
+                <button
+                  type="button"
+                  onClick={() => void remove(a)}
+                  disabled={deleting === a.id}
+                  data-testid="delete-artifact"
+                  className="rounded-md text-xs font-medium text-ink-muted underline-offset-2 transition-colors hover:text-danger hover:underline disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
+                >
+                  {deleting === a.id ? "Deleting" : "Delete"}
+                  <span className="sr-only"> {a.filename}</span>
+                </button>
               </div>
             </li>
           ))}

@@ -154,7 +154,10 @@ export interface CerebroArtifactSummary {
   filename: string;
   modality: string;
   size_bytes: number;
-  status: "inspected" | "approved" | "registered" | "rejected";
+  /** "processing" means stored but not yet read — a large file in flight. */
+  status: "processing" | "inspected" | "approved" | "registered" | "rejected";
+  /** Why a rejected artifact was rejected, when extraction refused it late. */
+  rejection_reason?: string | null;
   sha256: string;
   title: string | null;
   created_at: string;
@@ -584,6 +587,14 @@ export const api = {
 
   artifact: (id: string) => request<CerebroArtifact>(`/api/artifacts/${id}`),
 
+  /** Delete an artifact, the knowledge from it, and its stored bytes. */
+  deleteArtifact: (id: string) =>
+    request<void>(`/api/artifacts/${id}`, { method: "DELETE" }),
+
+  /** Ask for an artifact still waiting to be read to be read now. */
+  processArtifact: (id: string) =>
+    request<CerebroArtifact>(`/api/artifacts/${id}/process`, { method: "POST" }),
+
   uploadArtifact: (file: File) => {
     const body = new FormData();
     body.append("file", file);
@@ -630,6 +641,4 @@ export const api = {
       body: JSON.stringify(input),
     }),
 
-  deleteArtifact: (id: string) =>
-    request<void>(`/api/artifacts/${id}`, { method: "DELETE" }),
 };

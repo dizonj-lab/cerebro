@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { formatBytes } from "@/components/construct/ArtifactStatus";
 import { Button } from "@/components/ui/Button";
@@ -42,7 +42,14 @@ interface Refused {
  * every row's metadata is still confirmed by a human before it counts as
  * knowledge.
  */
-export function BulkIngest({ onDone }: { onDone?: () => void }) {
+export function BulkIngest({
+  initialFiles,
+  onDone,
+}: {
+  /** Files already chosen on the ingest page, uploaded as soon as this mounts. */
+  initialFiles?: File[];
+  onDone?: () => void;
+}) {
   const [rows, setRows] = useState<Row[]>([]);
   const [refused, setRefused] = useState<Refused[]>([]);
   const [busy, setBusy] = useState(false);
@@ -50,7 +57,7 @@ export function BulkIngest({ onDone }: { onDone?: () => void }) {
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const addFiles = useCallback(async (list: FileList | null) => {
+  const addFiles = useCallback(async (list: FileList | File[] | null) => {
     if (!list || list.length === 0) return;
     setError(null);
     setBusy(true);
@@ -75,6 +82,28 @@ export function BulkIngest({ onDone }: { onDone?: () => void }) {
       if (fileRef.current) fileRef.current.value = "";
     }
   }, []);
+
+  /*
+    Uploads what the ingest page already collected. The page decides between
+    the form and this table by counting the files, so they arrive here rather
+    than being chosen again.
+  */
+  const started = useRef(false);
+  useEffect(() => {
+    if (!initialFiles?.length || started.current) return;
+    started.current = true;
+    void addFiles(initialFiles);
+  }, [initialFiles, addFiles]);
+
+  async function remove(id: string) {
+    setError(null);
+    try {
+      await api.deleteArtifact(id);
+      setRows((current) => current.filter((row) => row.artifact.id !== id));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not delete that artifact.");
+    }
+  }
 
   function update(id: string, patch: Partial<Row>) {
     setRows((current) => current.map((row) => (row.artifact.id === id ? { ...row, ...patch } : row)));
@@ -202,7 +231,7 @@ export function BulkIngest({ onDone }: { onDone?: () => void }) {
           dragging ? "border-accent bg-accent-subtle" : "border-line-strong bg-surface-subtle",
         )}
       >
-        <p className="text-sm font-medium text-ink">Drop several documents here</p>
+        <p className="text-sm font-medium text-ink">Drop more documents here</p>
         <p className="mx-auto mt-1 max-w-md text-xs text-ink-muted">
           Up to 25 at a time. Each is inspected and extracted on arrival; nothing is
           registered until you confirm it below.
@@ -299,6 +328,15 @@ export function BulkIngest({ onDone }: { onDone?: () => void }) {
                           row={row}
                           onRegister={() => void register([row.artifact.id])}
                           onEnrich={() => void enrich([row.artifact.id])}
+                          onRemove={() => {
+                            if (
+                              window.confirm(
+                                `Delete ${row.artifact.filename}? This cannot be undone.`,
+                              )
+                            ) {
+                              void remove(row.artifact.id);
+                            }
+                          }}
                           busy={busy}
                         />
                       </td>
@@ -343,11 +381,13 @@ function RowStatus({
   row,
   onRegister,
   onEnrich,
+  onRemove,
   busy,
 }: {
   row: Row;
   onRegister: () => void;
   onEnrich: () => void;
+  onRemove: () => void;
   busy: boolean;
 }) {
   if (row.state === "enriching") {
@@ -375,6 +415,15 @@ function RowStatus({
           className="rounded-md border border-line px-2 py-1 text-[0.6875rem] font-medium text-ink-muted transition-colors hover:border-accent hover:text-accent"
         >
           Register
+        </button>
+        <button
+          type="button"
+          onClick={onRemove}
+          data-testid="row-delete"
+          title="Delete this file and anything derived from it"
+          className="rounded-md border border-line px-2 py-1 text-[0.6875rem] font-medium text-ink-muted transition-colors hover:border-danger hover:text-danger"
+        >
+          Delete
         </button>
         <button
           type="button"

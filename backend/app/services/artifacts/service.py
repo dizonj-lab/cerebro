@@ -103,14 +103,25 @@ def extracted_document(artifact: Artifact) -> ExtractionResult | None:
         return None
 
 
-def ingest(
-    db: Session, *, owner_id: uuid.UUID, filename: str, content: bytes,
-    content_type: str | None, max_bytes: int, ai_suggestions: bool = True,
-) -> Artifact:
-    """Inspect, store and draft metadata for an uploaded artifact.
+# Below this size, extraction runs inside the upload request: it finishes in
+# well under a second and a round trip is simpler than a poll. Above it, the
+# request returns as soon as the bytes are safely stored and extraction
+# continues in the background, so a 20MB PDF does not hold the browser — and
+# does not lose its work if the user navigates away, because the work is
+# happening on the server rather than in the tab.
+INLINE_BYTES = 1024 * 1024
 
-    Stops short of registration: the artifact is INSPECTED and awaits human
-    review. Nothing is stored until inspection has accepted the bytes.
+
+def store_upload(
+    db: Session, *, owner_id: uuid.UUID, filename: str, content: bytes,
+    content_type: str | None, max_bytes: int,
+) -> Artifact:
+    """Accept and store the bytes, leaving extraction for `process`.
+
+    Everything cheap and everything that can refuse the file happens here —
+    the size limit, the checksum, the duplicate check, and whether the bytes
+    match the extension — so a file that will never be accepted is rejected
+    in the request that uploaded it rather than minutes later.
     """
     if not content:
         raise ArtifactRejected("The file is empty.")
@@ -120,8 +131,9 @@ def ingest(
         )
 
     inspection = inspect_artifact(filename, content)
+    # Refuses when the bytes contradict the extension, before anything is
+    # stored: the filename is a claim and the bytes are the evidence.
     adapter = _select_adapter(filename, inspection)
-    modality = adapter.modality
 
     sha256 = inspection["file"]["sha256"]
     existing = db.scalar(
@@ -130,48 +142,11 @@ def ingest(
     if existing is not None:
         raise DuplicateArtifact(existing.filename)
 
-    # Extract before storing anything. A file whose text cannot be read is
-    # refused outright rather than registered as an empty artifact — an
-    # artifact with no retrievable content is worse than no artifact.
-    try:
-        extracted = adapter.extract(content, filename=filename)
-    except ExtractionFailed as exc:
-        raise ArtifactRejected(str(exc)) from None
-
-    md = extract_text_metadata(filename=filename, text=extracted.text, sha256=sha256)
-
-    # Propose what can be grounded in the document. These are suggestions for
-    # the human to confirm at review, not established values: field_methods
-    # records how each one was arrived at, and only approval turns any of them
-    # into "human_confirmed".
-    #
-    # Deliberately deterministic here. Asking a local language model takes
-    # tens of seconds, and an upload that hangs for that long is worse than
-    # one that offers less; the model is asked from the review screen, when
-    # the user asks for it.
-    suggested = enrich(
-        text=extracted.text,
-        properties=extracted.properties,
-        filename=filename,
-        ai_suggestions=ai_suggestions,
-        use_llm=False,
-    )
-    metadata = {**md["extracted_metadata"], **suggested.suggestions}
-    field_methods = {**md["field_methods"], **suggested.methods}
-
     artifact_id = uuid.uuid4()
     key = _storage_key(owner_id, artifact_id, filename)
-    store = get_object_store()
     try:
-        uri = store.put(key, content)
-        # Blocks keep their page or slide, so a chunk built from them later can
-        # still point back at where in the document it came from.
-        store.put(
-            _extraction_key(key),
-            json.dumps(extracted.as_document(), ensure_ascii=False).encode("utf-8"),
-        )
+        uri = get_object_store().put(key, content)
     except OSError as exc:
-        # The path is in the message, so it is logged rather than returned.
         logger.exception("Artifact storage write failed for key %s", key)
         raise ArtifactStorageUnavailable(str(exc)) from None
 
@@ -180,33 +155,19 @@ def ingest(
         owner_id=owner_id,
         filename=filename,
         content_type=content_type,
-        modality=modality,
+        modality=adapter.modality,
         size_bytes=len(content),
         sha256=sha256,
         storage_key=key,
         storage_uri=uri,
-        status="inspected",
+        # Stored but not yet read. The status is honest about that: no
+        # metadata has been proposed and no text exists yet.
+        status="processing",
         inspection=inspection,
-        artifact_metadata=metadata,
-        field_methods=field_methods,
-        extraction=_extraction_summary(extracted, adapter=adapter, key=_extraction_key(key)),
-        provenance={
-            "inspection": md["provenance"]["method"],
-            # Deterministic enrichment is recorded here; `ai_enrichment` stays
-            # null unless a language model actually contributed, so the field
-            # keeps meaning "AI touched this".
-            "enrichment": suggested.provenance(),
-            "ai_enrichment": suggested.provenance() if suggested.ai_used else None,
-            "extraction": "deterministic_metadata_extraction",
-            "text_extraction": {
-                "method": "deterministic_extraction",
-                "adapter": type(adapter).__name__,
-                "ai_used": False,
-            },
-            "human_review": None,
-            "registration": None,
-            "content_facts": md["content_facts"],
-        },
+        artifact_metadata={},
+        field_methods={},
+        extraction={},
+        provenance={"inspection": inspection.get("method", "deterministic_inspection")},
         integrity={
             "human_reviewed": False,
             "human_approved": False,
@@ -216,6 +177,168 @@ def ingest(
     db.add(artifact)
     db.flush()
     return artifact
+
+
+def process(
+    db: Session,
+    artifact: Artifact,
+    *,
+    ai_suggestions: bool = True,
+    record_failure: bool = False,
+) -> Artifact:
+    """Extract the text and draft metadata for a stored artifact.
+
+    Separated from storage so it can run in the background for a large file.
+    Idempotent by status: an artifact that has already been read is returned
+    untouched, so a retry cannot overwrite a review in progress.
+
+    `record_failure` decides where a refusal goes. Inline it is raised, so
+    the upload request answers 400 and nothing is kept — a document with no
+    retrievable text must not enter the library. In the background the
+    request has already returned, so the reason is written to the artifact
+    instead: that is the only place left to tell the user.
+    """
+    if artifact.status != "processing":
+        return artifact
+
+    content = original_bytes(artifact)
+    adapter = _select_adapter(artifact.filename, artifact.inspection)
+
+    try:
+        extracted = adapter.extract(content, filename=artifact.filename)
+    except ExtractionFailed as exc:
+        if not record_failure:
+            raise ArtifactRejected(str(exc)) from None
+        artifact.status = "rejected"
+        artifact.inspection = {**artifact.inspection, "rejected_reason": str(exc)}
+        db.flush()
+        return artifact
+
+    md = extract_text_metadata(
+        filename=artifact.filename, text=extracted.text, sha256=artifact.sha256
+    )
+
+    # Deliberately deterministic here. Asking a local language model takes
+    # tens of seconds, and it is asked from the review screen, when the user
+    # asks for it.
+    suggested = enrich(
+        text=extracted.text,
+        properties=extracted.properties,
+        filename=artifact.filename,
+        ai_suggestions=ai_suggestions,
+        use_llm=False,
+    )
+
+    try:
+        # Blocks keep their page or slide, so a chunk built from them later
+        # can still point back at where in the document it came from.
+        get_object_store().put(
+            _extraction_key(artifact.storage_key),
+            json.dumps(extracted.as_document(), ensure_ascii=False).encode("utf-8"),
+        )
+    except OSError as exc:
+        logger.exception("Extraction write failed for key %s", artifact.storage_key)
+        raise ArtifactStorageUnavailable(str(exc)) from None
+
+    artifact.artifact_metadata = {**md["extracted_metadata"], **suggested.suggestions}
+    artifact.field_methods = {**md["field_methods"], **suggested.methods}
+    artifact.extraction = _extraction_summary(
+        extracted, adapter=adapter, key=_extraction_key(artifact.storage_key)
+    )
+    artifact.provenance = {
+        **artifact.provenance,
+        "inspection": md["provenance"]["method"],
+        # Deterministic enrichment is recorded here; `ai_enrichment` stays
+        # null unless a language model actually contributed, so the field
+        # keeps meaning "AI touched this".
+        "enrichment": suggested.provenance(),
+        "ai_enrichment": suggested.provenance() if suggested.ai_used else None,
+        "extraction": "deterministic_metadata_extraction",
+        "text_extraction": {
+            "method": "deterministic_extraction",
+            "adapter": type(adapter).__name__,
+            "ai_used": False,
+        },
+        "human_review": None,
+        "registration": None,
+        "content_facts": md["content_facts"],
+    }
+    artifact.status = "inspected"
+    db.flush()
+    return artifact
+
+
+def process_later(artifact_id: uuid.UUID, owner_id: uuid.UUID, ai_suggestions: bool) -> None:
+    """Run `process` in its own session, after the response has gone out.
+
+    Its own session because the request's is closed by then. Failures are
+    written to the artifact rather than logged and forgotten: an artifact
+    stuck at "processing" with no explanation is the worst outcome here.
+    """
+    from app.db.session import SessionLocal
+
+    with SessionLocal() as db:
+        artifact = get_for_owner(db, owner_id, artifact_id)
+        if artifact is None:
+            return
+        try:
+            process(db, artifact, ai_suggestions=ai_suggestions, record_failure=True)
+            db.commit()
+        except Exception as exc:  # noqa: BLE001 - nothing else can report this
+            logger.exception("Background processing failed for artifact %s", artifact_id)
+            db.rollback()
+            artifact = get_for_owner(db, owner_id, artifact_id)
+            if artifact is not None and artifact.status == "processing":
+                artifact.status = "rejected"
+                artifact.inspection = {
+                    **artifact.inspection,
+                    "rejected_reason": f"Processing failed: {exc}",
+                }
+                db.commit()
+
+
+def delete_artifact(db: Session, artifact: Artifact) -> None:
+    """Remove an artifact, its knowledge and its stored bytes.
+
+    The database cascades fragments and their embeddings, so deleting the row
+    removes the knowledge derived from it — a deleted document must not leave
+    retrievable passages behind.
+
+    The objects go too: the original and the derived extraction. Storage
+    failures are logged and swallowed deliberately, because the row is gone
+    either way and an orphaned object is a cleanup problem, not a reason to
+    tell the user their deletion failed.
+    """
+    store = get_object_store()
+    for key in (artifact.storage_key, _extraction_key(artifact.storage_key)):
+        try:
+            store.delete(key)
+        except OSError:
+            logger.exception("Could not delete object %s", key)
+
+    db.delete(artifact)
+    db.flush()
+
+
+def ingest(
+    db: Session, *, owner_id: uuid.UUID, filename: str, content: bytes,
+    content_type: str | None, max_bytes: int, ai_suggestions: bool = True,
+) -> Artifact:
+    """Store and read an artifact in one go.
+
+    Stops short of registration: the artifact ends up INSPECTED and awaits
+    human review. One code path with the deferred route — the only difference
+    there is when `process` runs.
+    """
+    artifact = store_upload(
+        db,
+        owner_id=owner_id,
+        filename=filename,
+        content=content,
+        content_type=content_type,
+        max_bytes=max_bytes,
+    )
+    return process(db, artifact, ai_suggestions=ai_suggestions)
 
 
 def list_for_owner(db: Session, owner_id: uuid.UUID) -> tuple[list[Artifact], int]:

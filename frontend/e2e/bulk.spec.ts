@@ -15,7 +15,8 @@ async function openBulk(page: import("@playwright/test").Page, prefix: string) {
   await signUp(page, makeAccount(prefix));
   await page.waitForURL(/\/construct$/);
   await page.goto("/construct/ingest");
-  await page.getByRole("button", { name: "Several documents" }).click();
+  // There is no mode to pick: dropping several files is what opens the
+  // table, so each test selects its own files below.
 }
 
 test("several documents upload into one table", async ({ page }) => {
@@ -48,7 +49,10 @@ test("a refused file is named without costing the rest", async ({ page }) => {
 
 test("rows arrive prefilled and stay editable until registered", async ({ page }) => {
   await openBulk(page, "b-edit");
-  await page.locator('input[type="file"]').setInputFiles([textFile("notes.txt", "Notes.")]);
+  await page.locator('input[type="file"]').setInputFiles([
+    textFile("notes.txt", "Notes."),
+    textFile("appendix.txt", "Appendix."),
+  ]);
 
   const title = page.getByLabel("Title for notes.txt");
   await expect(title).toHaveValue("notes");
@@ -83,13 +87,17 @@ test("registering the batch makes every row searchable", async ({ page }) => {
 
 test("an unregistered row stays a draft and out of search", async ({ page }) => {
   await openBulk(page, "b-draft");
-  await page.locator('input[type="file"]').setInputFiles([textFile("draft.txt", "Draft only.")]);
+  await page.locator('input[type="file"]').setInputFiles([
+    textFile("draft.txt", "Draft only."),
+    textFile("second-draft.txt", "Also a draft."),
+  ]);
+  await expect(page.getByLabel("Title for draft.txt")).toBeVisible();
 
   const dashboard = await (await page.request.get("/api/dashboard")).json();
   expect(dashboard.documents.total).toBe(0);
   expect(dashboard.fragments.total).toBe(0);
-  // It is still listed as work to do.
-  expect(dashboard.recent[0].filename).toBe("draft.txt");
+  // They are still listed as work to do.
+  expect(dashboard.recent.map((a: { filename: string }) => a.filename)).toContain("draft.txt");
 });
 
 test("a single row can be registered on its own", async ({ page }) => {

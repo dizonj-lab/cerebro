@@ -7,7 +7,15 @@ finds nothing rather than someone else's document.
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, File, HTTPException, Response, UploadFile, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    File,
+    HTTPException,
+    Response,
+    UploadFile,
+    status,
+)
 
 from app.api.deps import CurrentUser, DbSession
 from app.core.config import get_settings
@@ -43,6 +51,7 @@ def _summary(a: Artifact) -> ArtifactSummary:
         status=a.status, sha256=a.sha256, created_at=a.created_at,
         registered_at=a.registered_at,
         title=(a.artifact_metadata or {}).get("title"),
+        rejection_reason=(a.inspection or {}).get("rejected_reason"),
     )
 
 
@@ -62,24 +71,46 @@ def _detail(a: Artifact, *, preview: bool = True) -> ArtifactDetail:
 
 @router.post("", response_model=ArtifactDetail, status_code=status.HTTP_201_CREATED)
 async def upload(
-    current_user: CurrentUser, db: DbSession, file: Annotated[UploadFile, File()]
+    current_user: CurrentUser,
+    db: DbSession,
+    background: BackgroundTasks,
+    file: Annotated[UploadFile, File()],
 ):
-    """Upload an artifact: inspect, store, draft metadata. Not yet registered."""
+    """Upload an artifact: inspect, store, draft metadata. Not yet registered.
+
+    A small file is read during the request. A large one is stored, answered
+    for immediately with status "processing", and extracted in the background
+    — so a 20MB PDF neither holds the browser nor loses its work when the
+    user moves to another part of CEREBRO. Either way the file is refused
+    outright, in this request, if its bytes contradict its extension or it
+    duplicates something already in the library.
+    """
     content = await file.read()
     # Enrichment honours the user's own setting. Deterministic enrichment —
     # the document's own metadata and statistics over its text — always runs;
     # this governs whether a local language model is also asked.
     preferences = profiles.get_preferences(db, current_user.id)
+    deferred = len(content) > service.INLINE_BYTES
     try:
-        artifact = service.ingest(
-            db,
-            owner_id=current_user.id,
-            filename=file.filename or "untitled",
-            content=content,
-            content_type=file.content_type,
-            max_bytes=settings.max_upload_bytes,
-            ai_suggestions=preferences.ai_suggestions,
-        )
+        if deferred:
+            artifact = service.store_upload(
+                db,
+                owner_id=current_user.id,
+                filename=file.filename or "untitled",
+                content=content,
+                content_type=file.content_type,
+                max_bytes=settings.max_upload_bytes,
+            )
+        else:
+            artifact = service.ingest(
+                db,
+                owner_id=current_user.id,
+                filename=file.filename or "untitled",
+                content=content,
+                content_type=file.content_type,
+                max_bytes=settings.max_upload_bytes,
+                ai_suggestions=preferences.ai_suggestions,
+            )
     except service.DuplicateArtifact as exc:
         db.rollback()
         raise HTTPException(
@@ -100,6 +131,16 @@ async def upload(
 
     db.commit()
     db.refresh(artifact)
+    if deferred:
+        # Scheduled after the commit, so the task cannot read a row that is
+        # not there yet, and queued rather than awaited so the response goes
+        # out now.
+        background.add_task(
+            service.process_later,
+            artifact.id,
+            current_user.id,
+            preferences.ai_suggestions,
+        )
     return _detail(artifact)
 
 
@@ -339,5 +380,52 @@ def remove(artifact_id: uuid.UUID, current_user: CurrentUser, db: DbSession) -> 
     if artifact is None:
         raise NOT_FOUND
     service.delete(db, artifact)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/{artifact_id}/process", response_model=ArtifactDetail)
+def process_now(
+    artifact_id: uuid.UUID,
+    current_user: CurrentUser,
+    db: DbSession,
+    background: BackgroundTasks,
+) -> ArtifactDetail:
+    """Read an artifact that is still waiting to be read.
+
+    For the case the background task did not finish: the API restarted while
+    it was running, say. Processing is idempotent by status, so asking twice
+    is harmless, and an artifact that was already read is returned unchanged.
+    """
+    artifact = service.get_for_owner(db, current_user.id, artifact_id)
+    if artifact is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No such artifact.")
+
+    if artifact.status == "processing":
+        preferences = profiles.get_preferences(db, current_user.id)
+        background.add_task(
+            service.process_later, artifact.id, current_user.id, preferences.ai_suggestions
+        )
+    return _detail(artifact)
+
+
+@router.delete("/{artifact_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete(artifact_id: uuid.UUID, current_user: CurrentUser, db: DbSession) -> Response:
+    """Delete an artifact, the knowledge derived from it, and its stored bytes.
+
+    Scoped to the owner, like every other route here: another user's artifact
+    is not found rather than forbidden, so the endpoint cannot be used to
+    discover what exists.
+
+    This removes knowledge as well as the document. Fragments and their
+    embeddings cascade, because a deleted document must not leave retrievable
+    passages behind — that would be the library answering from something the
+    user deleted.
+    """
+    artifact = service.get_for_owner(db, current_user.id, artifact_id)
+    if artifact is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No such artifact.")
+
+    service.delete_artifact(db, artifact)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -173,7 +173,7 @@ test("a file whose bytes contradict its name is refused", async ({ page }) => {
 
   await expect(page.getByText(/do not match its name/)).toBeVisible();
   // Nothing was stored, so the upload surface is still offered.
-  await expect(page.getByRole("button", { name: "Choose a file" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Choose files" })).toBeVisible();
 });
 
 // --- enrichment and the original document ---------------------------------
@@ -257,4 +257,68 @@ test("asking the local model says so when none is configured", async ({ page }) 
   // doing nothing or claiming AI ran.
   await expect(page.getByText(/no local model is configured/i)).toBeVisible();
   await expect(page.getByText(/no AI has read this artifact/i)).toBeVisible();
+});
+
+test("one file opens the form and several open the table", async ({ page }) => {
+  await signUp(page, makeAccount("adaptive"));
+  await page.waitForURL(/\/construct$/);
+  await page.goto("/construct/ingest");
+
+  // No mode to choose: the drop zone takes whatever is dropped on it.
+  await expect(page.getByRole("group", { name: "Upload mode" })).toHaveCount(0);
+
+  await page.setInputFiles('input[type="file"]', {
+    name: "one.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("A single note about ledger retention."),
+  });
+  // One file: the review form, with the metadata fields.
+  await expect(page.getByLabel("Title")).toBeVisible();
+
+  await page.goto("/construct/ingest");
+  await page.setInputFiles('input[type="file"]', [
+    { name: "a.txt", mimeType: "text/plain", buffer: Buffer.from("First note on cutover.") },
+    { name: "b.txt", mimeType: "text/plain", buffer: Buffer.from("Second note on cutover.") },
+  ]);
+  // Several: the table, a row each.
+  await expect(page.getByRole("table")).toBeVisible();
+  await expect(page.getByRole("row").filter({ hasText: "a.txt" })).toBeVisible();
+  await expect(page.getByRole("row").filter({ hasText: "b.txt" })).toBeVisible();
+});
+
+test("a document can be deleted from the library, with its knowledge", async ({ page }) => {
+  await signUp(page, makeAccount("delete"));
+  await page.waitForURL(/\/construct$/);
+
+  const created = await page.request.post("/api/artifacts", {
+    multipart: {
+      file: {
+        name: "disposable.txt",
+        mimeType: "text/plain",
+        buffer: Buffer.from("Quarterly reconciliation notes for the ledger."),
+      },
+    },
+  });
+  const artifact = await created.json();
+  await page.request.patch(`/api/artifacts/${artifact.id}`, {
+    data: { metadata: { ...artifact.metadata, title: "Disposable" }, approve: true },
+  });
+
+  await page.goto("/construct/library");
+  const row = page.getByRole("listitem").filter({ hasText: "disposable.txt" });
+  await expect(row).toBeVisible();
+
+  // Confirmed first: deletion is not undoable and takes the knowledge too.
+  page.once("dialog", (dialog) => {
+    expect(dialog.message()).toContain("knowledge fragments");
+    void dialog.accept();
+  });
+  await row.getByTestId("delete-artifact").click();
+
+  await expect(row).toHaveCount(0);
+  // And the knowledge is gone with it, not left answering questions.
+  const search = await page.request.post("/api/search", {
+    data: { query: "reconciliation" },
+  });
+  expect((await search.json()).total).toBe(0);
 });
