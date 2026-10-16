@@ -469,6 +469,53 @@ export interface CerebroMlStatus {
   }[];
 }
 
+export interface CerebroTimelineEventDetail {
+  id: string;
+  artifact_id: string;
+  fragment_id: string;
+  title: string;
+  description: string | null;
+  category: string;
+  /** The word that put this event in its lane, or null for "Other". */
+  category_basis: string | null;
+  event_type: string;
+  date: string;
+  end_date: string | null;
+  /** day | month | quarter | year — kept, never flattened. */
+  precision: string;
+  /** The date expression matched in the text, verbatim. */
+  expression: string;
+  /** The sentence the event came from, verbatim. */
+  evidence: string;
+  source_location: Record<string, number | string>;
+  filename: string;
+  author: string | null;
+  entities: Record<string, string[]>;
+  extraction_method: string;
+  approval_status: string;
+  relationship?: string;
+}
+
+export interface CerebroTimeline {
+  events: CerebroTimelineEventDetail[];
+  lanes: { name: string; count: number }[];
+  histogram: { month: string; count: number }[];
+  range: { earliest: string | null; latest: string | null };
+  sources: [string, string][];
+  entity_values: Record<string, string[]>;
+  extraction: {
+    method: string;
+    version: number;
+    fragments_scanned: number;
+    events: number;
+    duplicates_dropped: number;
+    unknown_dates: number;
+    took_ms: number;
+  };
+  total: number;
+  took_ms: number;
+}
+
 export interface CerebroBulkUpload {
   items: { filename: string; accepted: boolean; artifact: CerebroArtifact | null; error: string | null }[];
   accepted: number;
@@ -593,6 +640,31 @@ export const api = {
 
   graphNode: (id: string) =>
     request<CerebroNodeDetails>(`/api/graph/node?id=${encodeURIComponent(id)}`),
+
+  /** Events dated by the documents themselves, with their evidence. */
+  timeline: (params?: {
+    categories?: string[];
+    sources?: string[];
+    entity_type?: string;
+    entity?: string;
+    start?: string;
+    end?: string;
+  }) => {
+    const query = new URLSearchParams();
+    for (const value of params?.categories ?? []) query.append("categories", value);
+    for (const value of params?.sources ?? []) query.append("sources", value);
+    if (params?.entity_type) query.set("entity_type", params.entity_type);
+    if (params?.entity) query.set("entity", params.entity);
+    if (params?.start) query.set("start", params.start);
+    if (params?.end) query.set("end", params.end);
+    const suffix = query.toString();
+    return request<CerebroTimeline>(`/api/timeline${suffix ? `?${suffix}` : ""}`);
+  },
+
+  timelineRelated: (event: string) =>
+    request<{ event: CerebroTimelineEventDetail; related: CerebroTimelineEventDetail[] }>(
+      `/api/timeline/related?event=${encodeURIComponent(event)}`,
+    ),
 
   knowledgeTimeline: () =>
     request<{ events: CerebroTimelineEvent[] }>("/api/graph/timeline"),

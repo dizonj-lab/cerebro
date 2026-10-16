@@ -1,0 +1,165 @@
+"""The timeline: approved knowledge placed at the dates its documents state.
+
+Events come from registered fragments only, and every one carries the
+expression that dated it and the sentence it came from. Filters are applied
+server-side so the browser is never handed the whole library to sift.
+"""
+import time
+from collections import Counter, defaultdict
+from typing import Annotated
+
+from fastapi import APIRouter, HTTPException, Query
+
+from app.api.deps import CurrentUser, DbSession
+from app.services import telemetry, temporal
+
+router = APIRouter(prefix="/api/timeline", tags=["timeline"])
+
+MAX_EVENTS = 1500
+MAX_RELATED = 8
+
+
+def _within(event: temporal.Event, start: str | None, end: str | None) -> bool:
+    if start and event.date < start:
+        return False
+    return not (end and event.date > end)
+
+
+@router.get("")
+def read(
+    current_user: CurrentUser,
+    db: DbSession,
+    categories: Annotated[list[str], Query()] = [],  # noqa: B006 - FastAPI query list
+    sources: Annotated[list[str], Query()] = [],  # noqa: B006 - FastAPI query list
+    entity_type: str | None = None,
+    entity: str | None = None,
+    start: str | None = None,
+    end: str | None = None,
+) -> dict:
+    started = time.perf_counter()
+    events, stats = temporal.events_for_owner(db, current_user.id)
+
+    # The histogram is built from everything, so the navigator keeps showing
+    # the whole range while the lanes show a filtered slice of it.
+    months = Counter(event.date[:7] for event in events)
+
+    selected = [
+        event
+        for event in events
+        if (not categories or event.category in categories)
+        and (not sources or event.artifact_id in sources)
+        and _within(event, start, end)
+        and (
+            not entity
+            or any(
+                entity in values
+                for field, values in event.entities.items()
+                if not entity_type or field == entity_type
+            )
+        )
+    ]
+
+    lanes = []
+    counts = Counter(event.category for event in selected)
+    for name in temporal.LANE_NAMES:
+        lanes.append({"name": name, "count": counts.get(name, 0)})
+
+    # Facets are the values actually present, so no filter is offered that
+    # would select nothing.
+    entity_values: dict[str, set[str]] = defaultdict(set)
+    for event in events:
+        for field, values in event.entities.items():
+            entity_values[field].update(values)
+
+    took_ms = round((time.perf_counter() - started) * 1000, 1)
+    telemetry.record(
+        "timeline.query",
+        model=None,
+        duration_ms=int(took_ms),
+        algorithm="deterministic date parsing + server-side filtering",
+        detail=f"{len(selected)} of {len(events)} events",
+    )
+
+    return {
+        "events": [event.as_dict() for event in selected[:MAX_EVENTS]],
+        "lanes": lanes,
+        "histogram": [{"month": month, "count": count} for month, count in sorted(months.items())],
+        "range": {
+            "earliest": events[0].date if events else None,
+            "latest": events[-1].date if events else None,
+        },
+        "sources": sorted(
+            {(event.artifact_id, event.filename) for event in events},
+            key=lambda pair: pair[1],
+        ),
+        "entity_values": {field: sorted(values) for field, values in entity_values.items()},
+        "extraction": {
+            "method": temporal.EXTRACTION_METHOD,
+            "version": temporal.EXTRACTION_VERSION,
+            **stats,
+        },
+        "total": len(selected),
+        "took_ms": took_ms,
+    }
+
+
+@router.get("/related")
+def related(current_user: CurrentUser, db: DbSession, event: str) -> dict:
+    """Events sharing an entity, a source or a lane with this one.
+
+    Each one says why it is related. The relationship is co-occurrence of
+    something both events actually carry — never an inferred semantic link,
+    which CEREBRO has no way to establish and so does not claim.
+    """
+    events, _ = temporal.events_for_owner(db, current_user.id)
+    by_id = {item.id: item for item in events}
+    anchor = by_id.get(event)
+    if anchor is None:
+        raise HTTPException(status_code=404, detail="No such event.")
+
+    anchor_entities = {(f, v) for f, values in anchor.entities.items() for v in values}
+
+    scored: list[tuple[int, str, temporal.Event]] = []
+    for other in events:
+        if other.id == anchor.id:
+            continue
+        shared = {
+            (f, v) for f, values in other.entities.items() for v in values
+        } & anchor_entities
+        if shared:
+            field, value = sorted(shared)[0]
+            scored.append((3, f"Both mention {value}", other))
+        elif other.artifact_id == anchor.artifact_id:
+            scored.append((2, "From the same document", other))
+        elif other.category == anchor.category and anchor.category != temporal.OTHER_LANE:
+            scored.append((1, f"Both in {anchor.category}", other))
+
+    scored.sort(key=lambda row: (-row[0], abs((row[2].date > anchor.date) - 0.5), row[2].date))
+    return {
+        "event": anchor.as_dict(),
+        "related": [
+            {**other.as_dict(), "relationship": why} for _, why, other in scored[:MAX_RELATED]
+        ],
+    }
+
+
+@router.get("/journey")
+def journey(current_user: CurrentUser, db: DbSession, entity: str, field: str = "projects") -> dict:
+    """One entity's events in order — the Knowledge Journey, second mode.
+
+    The same extraction, filtered to what mentions the entity. Milestones are
+    whatever the documents actually say about it, in the order they say it
+    happened; nothing is added to make a story complete.
+    """
+    events, _ = temporal.events_for_owner(db, current_user.id)
+    steps = [
+        event
+        for event in events
+        if entity in (event.entities.get(field) or [])
+    ]
+    return {
+        "entity": entity,
+        "field": field,
+        "steps": [event.as_dict() for event in steps],
+        "total": len(steps),
+    }

@@ -15,6 +15,7 @@ from app.api.ml import router as ml_router
 from app.api.profile import router as profile_router
 from app.api.recall import router as recall_router
 from app.api.search import router as search_router
+from app.api.timeline import router as timeline_router
 from app.core.config import get_settings
 from app.db.session import engine
 
@@ -75,6 +76,7 @@ app.include_router(graph_router)
 app.include_router(ml_router)
 app.include_router(recall_router)
 app.include_router(search_router)
+app.include_router(timeline_router)
 
 
 @app.get("/api/health", tags=["system"])

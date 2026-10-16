@@ -37,7 +37,8 @@ export function ConstructShell({ user, children }: ConstructShellProps) {
     collapse the sidebar a frame after the page appeared, and the
     visualisation would resize twice on every visit.
   */
-  const visualisation = pathname.startsWith("/construct/galaxy");
+  const visualisation =
+    pathname.startsWith("/construct/galaxy") || pathname.startsWith("/construct/timeline");
   const railCollapsed = preference === null ? visualisation : preference === "collapsed";
 
   async function handleLogout() {

@@ -208,6 +208,39 @@ measure. **CEREBRO keeps no server-side metrics**: there are no request
 rates, no CPU and no queue depths, so GOD MODE shows none. A dial reading a
 number nobody measured would be worse than an absent dial.
 
+### Timeline
+
+`/construct/timeline` places events at the dates the documents themselves
+state. "The cutover completed in March 2021" is an event in March 2021,
+whoever uploaded the deck and whenever they did. Dates are found by regular
+expression over the sentences of registered fragments, and every event
+carries the expression that was matched and the sentence it came from, so
+nothing on the timeline is unaccountable.
+
+Precision is kept rather than flattened: a year is a year, "Q3 2024" a
+quarter, "March 2021" a month, "12 Sep 2023" a day. An impossible date
+degrades to the precision the text does support — "31 February 2024" is
+February 2024, not a guessed day and not silence. **An upload or
+registration date is never used as an event date**: that would be CEREBRO
+inventing history out of its own filing.
+
+The six lanes are assigned on evidence — a lane word present in the sentence
+or in the artifact's confirmed topics — and the matching word is shown in the
+panel. Anything unmatched goes to "Other" rather than being pushed into a
+lane a model guessed at. Events from overlapping chunks are deduplicated by
+document, date and sentence.
+
+The window is a pair of timestamps: zoom, pan, fit and the navigator all move
+the same two numbers, and only events inside them are rendered. Cards that
+would overlap are packed onto further rows, so nothing is hidden behind
+anything. The navigator's histogram counts the whole library, so filtering
+the lanes does not change the shape of the knowledge behind it.
+
+Related events say what they share — an entity, a document, a lane — and
+never assert a semantic relationship, which CEREBRO has no way to establish.
+`/api/timeline/journey` follows one entity's events in order, which is the
+second mode the design calls Knowledge Journey.
+
 ### Appearance
 
 Light and dark switch from the header, in place: the control used to live only
