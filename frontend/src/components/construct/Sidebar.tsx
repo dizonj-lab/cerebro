@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { useSyncExternalStore } from "react";
 
 import { NavigationItem } from "@/components/construct/NavigationItem";
 import {
@@ -8,6 +9,7 @@ import {
   IconCollections,
   IconDashboard,
   IconGalaxy,
+  IconGodMode,
   IconHelp,
   IconIngest,
   IconLibrary,
@@ -19,6 +21,12 @@ import {
   IconTags,
   IconTimeline,
 } from "@/components/construct/icons";
+import {
+  godModeServerSnapshot,
+  godModeSnapshot,
+  setGodMode,
+  subscribeGodMode,
+} from "@/lib/godModeState";
 import { cn } from "@/lib/cn";
 
 interface SidebarProps {
@@ -39,6 +47,11 @@ export function Sidebar({
   collapsed = false,
 }: SidebarProps) {
   const pathname = usePathname();
+  const godMode = useSyncExternalStore(
+    subscribeGodMode,
+    godModeSnapshot,
+    godModeServerSnapshot,
+  );
 
   return (
     <nav
@@ -68,6 +81,26 @@ export function Sidebar({
             collapsed={collapsed}
           />
         ))}
+        {/*
+          GOD MODE is a tool rather than a destination: it opens a floating
+          window over whatever the user is looking at, so it toggles here
+          instead of navigating. The item reports that state, which is why it
+          is not a placeholder and not a link.
+        */}
+        <NavigationItem
+          label="GOD MODE"
+          icon={<IconGodMode />}
+          active={godMode.open}
+          pressed={godMode.open}
+          collapsed={collapsed}
+          onClick={() =>
+            setGodMode(
+              godMode.open
+                ? { open: false }
+                : { open: true, mode: godMode.mode === "minimized" ? "normal" : godMode.mode },
+            )
+          }
+        />
       </div>
 
       <div className="flex flex-col gap-0.5 border-t border-line p-3">

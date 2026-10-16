@@ -192,3 +192,26 @@ test("the window does not swallow interaction with what it floats over", async (
   await page.waitForURL(/\/construct\/library$/);
   await expect(page.getByTestId("god-mode")).toBeVisible();
 });
+
+test("GOD MODE opens from the sidebar as well as the header", async ({ page }) => {
+  await signUp(page, makeAccount("god-entries"));
+  await page.waitForURL(/\/construct$/);
+
+  const nav = page.locator("nav[aria-label='Workspace']");
+  const item = nav.getByRole("button", { name: "GOD MODE", exact: true });
+
+  // It reports a switch, not a destination: the window opens over the page
+  // the user is on rather than navigating anywhere.
+  await expect(item).toHaveAttribute("aria-pressed", "false");
+  await item.click();
+  await expect(page.getByTestId("god-mode")).toBeVisible();
+  await expect(item).toHaveAttribute("aria-pressed", "true");
+  expect(new URL(page.url()).pathname).toBe("/construct");
+
+  // The header entry is the same switch, beside Ingest.
+  const header = page.locator("header");
+  await expect(header.getByTestId("god-mode-launcher")).toHaveAttribute("aria-pressed", "true");
+  await header.getByTestId("god-mode-launcher").click();
+  await expect(page.getByTestId("god-mode")).toHaveCount(0);
+  await expect(item).toHaveAttribute("aria-pressed", "false");
+});

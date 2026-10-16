@@ -23,6 +23,12 @@ interface NavigationItemProps {
    * the native tooltip carries it for sighted users.
    */
   collapsed?: boolean;
+  /**
+   * For an item that turns something on rather than navigating. It reports
+   * `aria-pressed` instead of `aria-current`, which would claim the item is
+   * the current page when it is a switch.
+   */
+  pressed?: boolean;
 }
 
 export function NavigationItem({
@@ -34,6 +40,7 @@ export function NavigationItem({
   nested = false,
   href,
   collapsed = false,
+  pressed,
 }: NavigationItemProps) {
   const classes = cn(
     "flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm",
@@ -72,7 +79,8 @@ export function NavigationItem({
     <button
       type="button"
       onClick={onClick}
-      aria-current={active ? "page" : undefined}
+      aria-current={pressed === undefined && active ? "page" : undefined}
+      aria-pressed={pressed}
       aria-disabled={placeholder || undefined}
       title={placeholder ? `${label} — coming soon` : label}
       className={classes}

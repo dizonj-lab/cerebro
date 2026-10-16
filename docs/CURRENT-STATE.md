@@ -119,7 +119,8 @@ offered as a weak match is an unrelated passage offered as evidence.
 
 ### GOD MODE
 
-A floating window, opened from the header, that reports on the library while
+A floating window, opened from the sidebar or from the header beside
+Ingest, that reports on the library while
 the user works in any module. It drags by its title bar, resizes from every
 edge and corner down to a floor of 320x240, minimises to a pill, maximises on
 a double-click, and its opacity is adjustable from 50% to 100% (85% by

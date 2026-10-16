@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 
+import { IconGodMode } from "@/components/construct/icons";
 import {
   godModeServerSnapshot,
   godModeSnapshot,
@@ -36,10 +37,9 @@ export function GodModeLauncher() {
       }
       className="hidden rounded-md p-2 text-ink-muted transition-colors hover:bg-surface-subtle hover:text-ink aria-pressed:bg-accent-subtle aria-pressed:text-accent sm:block"
     >
-      <svg viewBox="0 0 20 20" className="block size-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <circle cx="10" cy="10" r="2.25" />
-        <path d="M10 1.5v3M10 15.5v3M1.5 10h3M15.5 10h3M4 4l2.1 2.1M13.9 13.9 16 16M16 4l-2.1 2.1M6.1 13.9 4 16" />
-      </svg>
+      <span className="block size-5">
+        <IconGodMode />
+      </span>
     </button>
   );
 }

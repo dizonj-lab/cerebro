@@ -128,6 +128,13 @@ export const IconAgents = () => (
   </Icon>
 );
 
+export const IconGodMode = () => (
+  <Icon>
+    <circle cx="10" cy="10" r="2.25" />
+    <path d="M10 1.5v3M10 15.5v3M1.5 10h3M15.5 10h3M4 4l2.1 2.1M13.9 13.9 16 16M16 4l-2.1 2.1M6.1 13.9 4 16" />
+  </Icon>
+);
+
 export const IconHelp = () => (
   <Icon>
     <circle cx="10" cy="10" r="7" />

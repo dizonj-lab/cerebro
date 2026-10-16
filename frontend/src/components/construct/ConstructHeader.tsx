@@ -74,6 +74,10 @@ export function ConstructHeader({
           <span className="hidden sm:inline">Ingest</span>
         </Link>
 
+        {/* GOD MODE sits beside Ingest: both act on the workspace itself
+            rather than being account utilities like theme and settings. */}
+        <GodModeLauncher />
+
         {/*
           Notifications has no backend. It is rendered as unavailable rather
           than as an empty bell that looks like "nothing new" — and it never
@@ -88,8 +92,6 @@ export function ConstructHeader({
           <span className="sr-only">Notifications (coming soon)</span>
           <span className="block size-5"><IconBell /></span>
         </button>
-
-        <GodModeLauncher />
 
         <ThemeToggle />
 
