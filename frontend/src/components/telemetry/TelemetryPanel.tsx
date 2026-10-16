@@ -17,7 +17,7 @@ interface Telemetry {
 }
 
 /**
- * What GOD MODE shows.
+ * What Telemetry shows.
  *
  * Every number here is read from the user's own library through the existing
  * endpoints: document, fragment and topic counts, bytes stored, the last
@@ -35,7 +35,7 @@ interface Telemetry {
  * no queue depth — so none is displayed. A dial reading a number nobody
  * measured would be worse than an absent dial.
  */
-export function GodModePanel() {
+export function TelemetryPanel() {
   const [telemetry, setTelemetry] = useState<Telemetry | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [probe, setProbe] = useState<string | null>(null);

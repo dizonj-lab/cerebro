@@ -5,7 +5,7 @@ import { makeAccount, signUp } from "./helpers";
 import { makePdf } from "./pdf";
 
 /**
- * GOD MODE — the floating window.
+ * Telemetry — the floating window.
  *
  * Driven with real pointer events against the real browser, because the
  * whole point of the feature is the gesture.
@@ -13,16 +13,16 @@ import { makePdf } from "./pdf";
 async function open(page: Page, prefix: string) {
   await signUp(page, makeAccount(prefix));
   await page.waitForURL(/\/construct$/);
-  await page.getByTestId("god-mode-launcher").click();
-  await expect(page.getByTestId("god-mode")).toBeVisible();
+  await page.getByTestId("telemetry-launcher").click();
+  await expect(page.getByTestId("telemetry-window")).toBeVisible();
 }
 
 async function box(page: Page) {
-  return (await page.getByTestId("god-mode").boundingBox())!;
+  return (await page.getByTestId("telemetry-window").boundingBox())!;
 }
 
 async function dragTitle(page: Page, dx: number, dy: number) {
-  const title = page.getByTestId("god-mode-title");
+  const title = page.getByTestId("telemetry-title");
   const start = (await title.boundingBox())!;
   // Grab the bar itself, left of its controls.
   const from = { x: start.x + 20, y: start.y + start.height / 2 };
@@ -54,7 +54,7 @@ test("the window resizes from a corner and refuses to go below its minimum", asy
   await open(page, "god-resize");
   const before = await box(page);
 
-  const corner = (await page.getByTestId("god-mode-resize-se").boundingBox())!;
+  const corner = (await page.getByTestId("telemetry-resize-se").boundingBox())!;
   await page.mouse.move(corner.x + corner.width / 2, corner.y + corner.height / 2);
   await page.mouse.down();
   await page.mouse.move(corner.x + 140, corner.y + 90, { steps: 8 });
@@ -65,7 +65,7 @@ test("the window resizes from a corner and refuses to go below its minimum", asy
   expect(grown.height).toBeGreaterThan(before.height + 50);
 
   // Dragged far past the minimum, it stops at 320 x 240.
-  const again = (await page.getByTestId("god-mode-resize-se").boundingBox())!;
+  const again = (await page.getByTestId("telemetry-resize-se").boundingBox())!;
   await page.mouse.move(again.x + again.width / 2, again.y + again.height / 2);
   await page.mouse.down();
   await page.mouse.move(again.x - 2000, again.y - 2000, { steps: 10 });
@@ -82,28 +82,28 @@ test("title-bar controls work without starting a drag", async ({ page }) => {
 
   // Minimize collapses to a widget, which restores the window.
   await page.getByRole("button", { name: "Minimize" }).click();
-  await expect(page.getByTestId("god-mode")).toHaveCount(0);
-  await page.getByTestId("god-mode-widget").click();
-  await expect(page.getByTestId("god-mode")).toBeVisible();
+  await expect(page.getByTestId("telemetry-window")).toHaveCount(0);
+  await page.getByTestId("telemetry-widget").click();
+  await expect(page.getByTestId("telemetry-window")).toBeVisible();
   // The press on the control moved nothing.
   expect(await box(page)).toEqual(before);
 
   // Maximize and restore, by button and by double-click.
   await page.getByRole("button", { name: "Maximize" }).click();
-  await expect(page.getByTestId("god-mode")).toHaveAttribute("data-mode", "maximized");
-  await page.getByTestId("god-mode-title").dblclick({ position: { x: 20, y: 10 } });
-  await expect(page.getByTestId("god-mode")).toHaveAttribute("data-mode", "normal");
-  await page.getByTestId("god-mode-title").dblclick({ position: { x: 20, y: 10 } });
-  await expect(page.getByTestId("god-mode")).toHaveAttribute("data-mode", "maximized");
+  await expect(page.getByTestId("telemetry-window")).toHaveAttribute("data-mode", "maximized");
+  await page.getByTestId("telemetry-title").dblclick({ position: { x: 20, y: 10 } });
+  await expect(page.getByTestId("telemetry-window")).toHaveAttribute("data-mode", "normal");
+  await page.getByTestId("telemetry-title").dblclick({ position: { x: 20, y: 10 } });
+  await expect(page.getByTestId("telemetry-window")).toHaveAttribute("data-mode", "maximized");
 
   await page.getByRole("button", { name: "Restore" }).click();
-  await page.getByRole("button", { name: "Close GOD MODE" }).first().click();
-  await expect(page.getByTestId("god-mode")).toHaveCount(0);
+  await page.getByRole("button", { name: "Close Telemetry" }).first().click();
+  await expect(page.getByTestId("telemetry-window")).toHaveCount(0);
 });
 
 test("opacity is adjustable and never drops below half", async ({ page }) => {
   await open(page, "god-opacity");
-  const window_ = page.getByTestId("god-mode");
+  const window_ = page.getByTestId("telemetry-window");
 
   // 85% by default: visible, without hiding what it floats over.
   expect(Number(await window_.evaluate((el) => getComputedStyle(el).opacity))).toBeCloseTo(0.85, 2);
@@ -119,7 +119,7 @@ test("the keyboard moves and resizes the window", async ({ page }) => {
   await open(page, "god-keyboard");
   const before = await box(page);
 
-  await page.getByTestId("god-mode-title").focus();
+  await page.getByTestId("telemetry-title").focus();
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("ArrowDown");
   const moved = await box(page);
@@ -131,7 +131,7 @@ test("the keyboard moves and resizes the window", async ({ page }) => {
   expect(Math.round(resized.width - moved.width)).toBe(16);
 });
 
-test("GOD MODE survives navigation and remembers where it was put", async ({ page }) => {
+test("Telemetry survives navigation and remembers where it was put", async ({ page }) => {
   await signUp(page, makeAccount("god-journey"));
   await page.waitForURL(/\/construct$/);
 
@@ -151,11 +151,11 @@ test("GOD MODE survives navigation and remembers where it was put", async ({ pag
   });
 
   await page.goto("/construct/galaxy");
-  await page.getByTestId("god-mode-launcher").click();
-  await expect(page.getByTestId("god-mode")).toContainText("Documents");
+  await page.getByTestId("telemetry-launcher").click();
+  await expect(page.getByTestId("telemetry-window")).toContainText("Documents");
 
   await dragTitle(page, 200, 140);
-  const corner = (await page.getByTestId("god-mode-resize-se").boundingBox())!;
+  const corner = (await page.getByTestId("telemetry-resize-se").boundingBox())!;
   await page.mouse.move(corner.x + corner.width / 2, corner.y + corner.height / 2);
   await page.mouse.down();
   await page.mouse.move(corner.x + 120, corner.y + 80, { steps: 6 });
@@ -174,12 +174,12 @@ test("GOD MODE survives navigation and remembers where it was put", async ({ pag
   expect(Math.round(restored.width)).toBe(Math.round(placed.width));
   expect(Math.round(restored.height)).toBe(Math.round(placed.height));
   expect(
-    Number(await page.getByTestId("god-mode").evaluate((el) => getComputedStyle(el).opacity)),
+    Number(await page.getByTestId("telemetry-window").evaluate((el) => getComputedStyle(el).opacity)),
   ).toBeCloseTo(0.7, 2);
 
   // And the numbers are the library's own, not a reset placeholder.
-  await expect(page.getByTestId("god-mode")).toContainText("ledger.pdf");
-  await expect(page.getByTestId("god-mode")).toContainText("no quota configured");
+  await expect(page.getByTestId("telemetry-window")).toContainText("ledger.pdf");
+  await expect(page.getByTestId("telemetry-window")).toContainText("no quota configured");
 });
 
 test("the window does not swallow interaction with what it floats over", async ({ page }) => {
@@ -190,36 +190,36 @@ test("the window does not swallow interaction with what it floats over", async (
 
   await page.getByRole("link", { name: "Library", exact: true }).click();
   await page.waitForURL(/\/construct\/library$/);
-  await expect(page.getByTestId("god-mode")).toBeVisible();
+  await expect(page.getByTestId("telemetry-window")).toBeVisible();
 });
 
-test("GOD MODE opens from the sidebar as well as the header", async ({ page }) => {
+test("Telemetry opens from the sidebar as well as the header", async ({ page }) => {
   await signUp(page, makeAccount("god-entries"));
   await page.waitForURL(/\/construct$/);
 
   const nav = page.locator("nav[aria-label='Workspace']");
-  const item = nav.getByRole("button", { name: "GOD MODE", exact: true });
+  const item = nav.getByRole("button", { name: "Telemetry", exact: true });
 
   // It reports a switch, not a destination: the window opens over the page
   // the user is on rather than navigating anywhere.
   await expect(item).toHaveAttribute("aria-pressed", "false");
   await item.click();
-  await expect(page.getByTestId("god-mode")).toBeVisible();
+  await expect(page.getByTestId("telemetry-window")).toBeVisible();
   await expect(item).toHaveAttribute("aria-pressed", "true");
   expect(new URL(page.url()).pathname).toBe("/construct");
 
   // The header entry is the same switch, beside Ingest.
   const header = page.locator("header");
-  await expect(header.getByTestId("god-mode-launcher")).toHaveAttribute("aria-pressed", "true");
-  await header.getByTestId("god-mode-launcher").click();
-  await expect(page.getByTestId("god-mode")).toHaveCount(0);
+  await expect(header.getByTestId("telemetry-launcher")).toHaveAttribute("aria-pressed", "true");
+  await header.getByTestId("telemetry-launcher").click();
+  await expect(page.getByTestId("telemetry-window")).toHaveCount(0);
   await expect(item).toHaveAttribute("aria-pressed", "false");
 });
 
-test("GOD MODE names the models and algorithms actually in use", async ({ page }) => {
-  await open(page, "god-models");
+test("Telemetry names the models and algorithms actually in use", async ({ page }) => {
+  await open(page, "telemetry-windowls");
 
-  const window_ = page.getByTestId("god-mode");
+  const window_ = page.getByTestId("telemetry-window");
   // The deterministic embedder is labelled as such rather than passed off as
   // a pretrained model. This environment has no Ollama daemon, which is
   // itself reported rather than left blank.
@@ -230,7 +230,7 @@ test("GOD MODE names the models and algorithms actually in use", async ({ page }
   await expect(window_).toContainText(/Ollama/);
 });
 
-test("GOD MODE shows the operations that ran, with their durations", async ({ page }) => {
+test("Telemetry shows the operations that ran, with their durations", async ({ page }) => {
   await signUp(page, makeAccount("god-ops"));
   await page.waitForURL(/\/construct$/);
 
@@ -250,7 +250,7 @@ test("GOD MODE shows the operations that ran, with their durations", async ({ pa
   // A retrieval, so there is an operation to report.
   await page.request.post("/api/recall", { data: { question: "reconciliation" } });
 
-  await page.getByTestId("god-mode-launcher").click();
+  await page.getByTestId("telemetry-launcher").click();
   const operations = page.getByTestId("ml-operations");
   await expect(operations).toContainText("recall.retrieve");
   await expect(operations).toContainText("cosine similarity");

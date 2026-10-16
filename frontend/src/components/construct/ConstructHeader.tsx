@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Logo } from "@/components/brand/Logo";
 import { IconBell, IconPlus, IconSettings } from "@/components/construct/icons";
 import { ThemeToggle } from "@/components/construct/ThemeToggle";
-import { GodModeLauncher } from "@/components/godmode/GodModeLauncher";
+import { TelemetryLauncher } from "@/components/telemetry/TelemetryLauncher";
 import { UserMenu } from "@/components/construct/UserMenu";
 import { GlobalSearch } from "@/components/search/GlobalSearch";
 import type { CerebroUser } from "@/lib/api";
@@ -74,9 +74,9 @@ export function ConstructHeader({
           <span className="hidden sm:inline">Ingest</span>
         </Link>
 
-        {/* GOD MODE sits beside Ingest: both act on the workspace itself
+        {/* Telemetry sits beside Ingest: both act on the workspace itself
             rather than being account utilities like theme and settings. */}
-        <GodModeLauncher />
+        <TelemetryLauncher />
 
         {/*
           Notifications has no backend. It is rendered as unavailable rather

@@ -182,7 +182,7 @@ def test_generation_streams_and_reports_the_daemons_own_counts(daemon):
     assert final.duration_ms >= 0
 
 
-def test_every_call_is_recorded_for_god_mode(daemon):
+def test_every_call_is_recorded_for_telemetry_window(daemon):
     ollama.generate(daemon, "llama3.2:3b", "question")
     operations = telemetry.recent()
     assert operations[0]["operation"] == "ollama.generate"

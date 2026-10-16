@@ -210,7 +210,7 @@ def test_the_journey_follows_one_entity_in_order(client, registered):
     assert [s["date"] for s in body["steps"]] == sorted(s["date"] for s in body["steps"])
 
 
-def test_extraction_is_reported_for_god_mode(client, registered):
+def test_extraction_is_reported_for_telemetry_window(client, registered):
     client.get("/api/timeline")
 
     operations = {o["operation"] for o in client.get("/api/ml/status").json()["operations"]}

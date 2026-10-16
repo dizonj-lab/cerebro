@@ -281,7 +281,7 @@ a daemon will list a model it cannot load:
 curl -s -X POST localhost:3100/api/ml/probe -b cookies.txt | python3 -m json.tool
 ```
 
-or press **Verify inference** in GOD MODE, which does the same thing and
+or press **Verify inference** in Telemetry, which does the same thing and
 shows the model's own words with the latency.
 
 ### Two things to expect on first connection
@@ -296,6 +296,6 @@ unparseable.
 with every vector and retrieval filters on all three, so moving from the
 384-dimensional hashing fallback to `mxbai-embed-large` (1024) leaves
 existing fragments unretrievable until they are re-embedded. That is visible
-rather than silent: GOD MODE and `/api/ml/status` report how many fragments
+rather than silent: Telemetry and `/api/ml/status` report how many fragments
 lack a vector for the active model, and **Backfill embeddings** fixes it. The
 old vectors are kept, so switching back needs no re-embedding.

@@ -208,7 +208,7 @@ def test_recall_requires_a_session(client):
     assert client.post("/api/recall/stream", json={"question": "x"}).status_code == 401
 
 
-# --- the status GOD MODE reads ---------------------------------------------
+# --- the status Telemetry reads ---------------------------------------------
 
 def test_status_reports_the_models_in_use_and_embedding_coverage(client, library, answering):
     telemetry.clear()

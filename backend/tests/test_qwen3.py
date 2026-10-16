@@ -279,7 +279,7 @@ def test_a_long_document_is_read_in_windows_not_truncated(client, valid_signup, 
     assert body["suggestions"]["people"] == ["Priya Raman"]
 
 
-def test_god_mode_sees_a_call_while_it_is_still_running(client, valid_signup, deployed):
+def test_telemetry_window_sees_a_call_while_it_is_still_running(client, valid_signup, deployed):
     client.post("/api/auth/signup", json=valid_signup)
     telemetry.clear()
     STATE["pieces"] = ["ready"]

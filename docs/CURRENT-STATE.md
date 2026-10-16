@@ -169,7 +169,7 @@ off at the daemon where supported. Left in, it reads as the model talking to
 itself and makes enrichment's JSON reply unparseable.
 
 `make models` lists what the daemon has; `make models-pull` pulls the
-preferred pair. `POST /api/ml/probe` — or **Verify inference** in GOD MODE —
+preferred pair. `POST /api/ml/probe` — or **Verify inference** in Telemetry —
 runs one generation and one embedding and reports what came back, because an
 installed model is not necessarily a working one.
 
@@ -182,11 +182,10 @@ was found in, shown in the form, so a reviewer can check a proposed name
 without opening the document. A suggestion the document does not contain is
 still dropped and the drop still recorded.
 
-### GOD MODE
+### Telemetry
 
-A floating window, opened from the sidebar or from the header beside
-Ingest, that reports on the library while
-the user works in any module. It drags by its title bar, resizes from every
+A floating window, opened from the sidebar or from the header beside Ingest,
+that reports on the library while the user works in any module. It drags by its title bar, resizes from every
 edge and corner down to a floor of 320x240, minimises to a pill, maximises on
 a double-click, and its opacity is adjustable from 50% to 100% (85% by
 default). Position, size, opacity and mode are stored, so closing and
@@ -205,8 +204,8 @@ endpoints — document, fragment and topic counts, bytes stored, the week's
 ingestion, the most recent artifact and its status, the configured engines —
 plus the round trip of its own request, which the browser can honestly
 measure. **CEREBRO keeps no server-side metrics**: there are no request
-rates, no CPU and no queue depths, so GOD MODE shows none. A dial reading a
-number nobody measured would be worse than an absent dial.
+rates, no CPU and no queue depths, so the window shows none. A dial reading a number nobody
+measured would be worse than an absent dial.
 
 ### Timeline
 

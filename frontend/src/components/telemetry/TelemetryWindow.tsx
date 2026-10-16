@@ -2,18 +2,18 @@
 
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 
-import { GodModePanel } from "@/components/godmode/GodModePanel";
+import { TelemetryPanel } from "@/components/telemetry/TelemetryPanel";
 import {
   clampToViewport,
-  godModeServerSnapshot,
-  godModeSnapshot,
+  telemetryWindowServerSnapshot,
+  telemetryWindowSnapshot,
   MIN_HEIGHT,
   MIN_OPACITY,
   MIN_WIDTH,
-  setGodMode,
-  subscribeGodMode,
-} from "@/lib/godModeState";
-import type { GodModeGeometry } from "@/lib/godModeState";
+  setTelemetryWindow,
+  subscribeTelemetryWindow,
+} from "@/lib/telemetryWindowState";
+import type { TelemetryWindowGeometry } from "@/lib/telemetryWindowState";
 import { cn } from "@/lib/cn";
 
 /** Which edges a drag on this handle moves. */
@@ -31,7 +31,7 @@ const HANDLES = [
 const STEP = 16;
 
 /**
- * GOD MODE — a floating window over whichever module the user is in.
+ * Telemetry — a floating window over whichever module the user is in.
  *
  * Mounted once in the shell, so it survives navigation between Dashboard,
  * Library, Galaxy and Timeline: a client-side route change re-renders the
@@ -42,20 +42,20 @@ const STEP = 16;
  * would re-render the telemetry inside the window sixty times a second in
  * order to move a box; the DOM can move the box on its own.
  */
-export function GodModeWindow() {
+export function TelemetryWindow() {
   const geometry = useSyncExternalStore(
-    subscribeGodMode,
-    godModeSnapshot,
-    godModeServerSnapshot,
+    subscribeTelemetryWindow,
+    telemetryWindowSnapshot,
+    telemetryWindowServerSnapshot,
   );
   const frame = useRef<HTMLDivElement>(null);
   // Where a gesture started, and the values it is currently writing.
-  const gesture = useRef<{ geometry: GodModeGeometry; x: number; y: number } | null>(null);
+  const gesture = useRef<{ geometry: TelemetryWindowGeometry; x: number; y: number } | null>(null);
   // Only the in-flight value of a gesture; the store stays the source of
   // truth, so nothing is mirrored into a ref during render.
-  const live = useRef<GodModeGeometry | null>(null);
+  const live = useRef<TelemetryWindowGeometry | null>(null);
 
-  const paint = useCallback((next: GodModeGeometry) => {
+  const paint = useCallback((next: TelemetryWindowGeometry) => {
     const element = frame.current;
     if (!element) return;
     // transform rather than top/left: the compositor can move it without a
@@ -68,7 +68,7 @@ export function GodModeWindow() {
   /* Keep the window reachable when the viewport changes. */
   useEffect(() => {
     function onResize() {
-      const current = godModeSnapshot();
+      const current = telemetryWindowSnapshot();
       if (!current.open || current.mode !== "normal") return;
       const clamped = clampToViewport(current, {
         width: window.innerWidth,
@@ -80,7 +80,7 @@ export function GodModeWindow() {
         clamped.width !== current.width ||
         clamped.height !== current.height
       ) {
-        setGodMode(clamped);
+        setTelemetryWindow(clamped);
       }
     }
     window.addEventListener("resize", onResize);
@@ -90,7 +90,7 @@ export function GodModeWindow() {
   function begin(event: React.PointerEvent, handle: (typeof HANDLES)[number] | null) {
     if (event.button !== 0) return;
     event.preventDefault();
-    const from = godModeSnapshot();
+    const from = telemetryWindowSnapshot();
     live.current = from;
     gesture.current = { geometry: from, x: event.clientX, y: event.clientY };
     const element = frame.current;
@@ -117,7 +117,7 @@ export function GodModeWindow() {
       window.removeEventListener("pointercancel", end);
       // One store write per gesture: the window is remembered without
       // persisting every intermediate pixel.
-      if (live.current) setGodMode(live.current);
+      if (live.current) setTelemetryWindow(live.current);
     };
     // Listeners on the window, not the handle: a fast drag outruns a 6px
     // strip, and the gesture must continue anyway.
@@ -137,7 +137,7 @@ export function GodModeWindow() {
     const next = event.shiftKey
       ? { ...geometry, width: geometry.width + dx, height: geometry.height + dy }
       : { ...geometry, x: geometry.x + dx, y: geometry.y + dy };
-    setGodMode(clampToViewport(next, { width: window.innerWidth, height: window.innerHeight }));
+    setTelemetryWindow(clampToViewport(next, { width: window.innerWidth, height: window.innerHeight }));
   }
 
   if (!geometry.open) return null;
@@ -146,12 +146,12 @@ export function GodModeWindow() {
     return (
       <button
         type="button"
-        data-testid="god-mode-widget"
-        onClick={() => setGodMode({ mode: "normal" })}
+        data-testid="telemetry-widget"
+        onClick={() => setTelemetryWindow({ mode: "normal" })}
         className="fixed bottom-4 right-4 z-[60] inline-flex items-center gap-2 rounded-full border border-line bg-surface px-4 py-2.5 text-sm font-medium text-ink shadow-subtle"
       >
         <span className="size-2 rounded-full bg-accent" aria-hidden="true" />
-        GOD MODE
+        Telemetry
       </button>
     );
   }
@@ -162,8 +162,8 @@ export function GodModeWindow() {
     <div
       ref={frame}
       role="dialog"
-      aria-label="GOD MODE"
-      data-testid="god-mode"
+      aria-label="Telemetry"
+      data-testid="telemetry-window"
       data-mode={geometry.mode}
       style={
         maximized
@@ -191,20 +191,20 @@ export function GodModeWindow() {
         }}
         onDoubleClick={(event) => {
           if (event.target !== event.currentTarget) return;
-          setGodMode({ mode: maximized ? "normal" : "maximized" });
+          setTelemetryWindow({ mode: maximized ? "normal" : "maximized" });
         }}
         onKeyDown={onTitleKeyDown}
         tabIndex={0}
         role="toolbar"
-        aria-label="GOD MODE window — arrow keys move, shift and arrow keys resize"
-        data-testid="god-mode-title"
+        aria-label="Telemetry window — arrow keys move, shift and arrow keys resize"
+        data-testid="telemetry-title"
         className={cn(
           "flex shrink-0 select-none items-center gap-2 border-b border-line bg-surface-subtle px-3 py-2",
           "text-xs font-semibold uppercase tracking-wide text-ink",
           maximized ? "cursor-default" : "cursor-grab active:cursor-grabbing",
         )}
       >
-        GOD MODE
+        Telemetry
         <div className="ml-auto flex items-center gap-2">
           <label className="flex items-center gap-1.5 text-[10px] font-normal normal-case text-ink-muted">
             <span className="sr-only">Opacity</span>
@@ -215,27 +215,27 @@ export function GodModeWindow() {
               step={5}
               value={Math.round(geometry.opacity * 100)}
               aria-label="Window opacity"
-              onChange={(e) => setGodMode({ opacity: Number(e.target.value) / 100 })}
+              onChange={(e) => setTelemetryWindow({ opacity: Number(e.target.value) / 100 })}
               className="w-16 accent-accent"
             />
           </label>
-          <Control label="Minimize" onClick={() => setGodMode({ mode: "minimized" })}>
+          <Control label="Minimize" onClick={() => setTelemetryWindow({ mode: "minimized" })}>
             <path d="M5 14h10" />
           </Control>
           <Control
             label={maximized ? "Restore" : "Maximize"}
-            onClick={() => setGodMode({ mode: maximized ? "normal" : "maximized" })}
+            onClick={() => setTelemetryWindow({ mode: maximized ? "normal" : "maximized" })}
           >
             {maximized ? <path d="M7 7h8v8H7zM4 13V4h9" /> : <rect x="5" y="5" width="10" height="10" rx="1.5" />}
           </Control>
-          <Control label="Close GOD MODE" onClick={() => setGodMode({ open: false })}>
+          <Control label="Close Telemetry" onClick={() => setTelemetryWindow({ open: false })}>
             <path d="m6 6 8 8M14 6l-8 8" />
           </Control>
         </div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <GodModePanel />
+        <TelemetryPanel />
       </div>
 
       {/* Resize handles. Absent when maximized, where there is nothing to resize. */}
@@ -244,7 +244,7 @@ export function GodModeWindow() {
           <div
             key={handle.key}
             onPointerDown={(event) => begin(event, handle)}
-            data-testid={`god-mode-resize-${handle.key}`}
+            data-testid={`telemetry-resize-${handle.key}`}
             aria-hidden="true"
             className={cn("absolute touch-none", handle.className)}
           />
@@ -254,11 +254,11 @@ export function GodModeWindow() {
 }
 
 function resize(
-  start: GodModeGeometry,
+  start: TelemetryWindowGeometry,
   handle: (typeof HANDLES)[number],
   dx: number,
   dy: number,
-): GodModeGeometry {
+): TelemetryWindowGeometry {
   let { x, y, width, height } = start;
   if (handle.x === 1) width = Math.max(MIN_WIDTH, start.width + dx);
   if (handle.x === -1) {

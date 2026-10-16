@@ -9,7 +9,7 @@ import {
   IconCollections,
   IconDashboard,
   IconGalaxy,
-  IconGodMode,
+  IconTelemetry,
   IconHelp,
   IconIngest,
   IconLibrary,
@@ -22,11 +22,11 @@ import {
   IconTimeline,
 } from "@/components/construct/icons";
 import {
-  godModeServerSnapshot,
-  godModeSnapshot,
-  setGodMode,
-  subscribeGodMode,
-} from "@/lib/godModeState";
+  telemetryWindowServerSnapshot,
+  telemetryWindowSnapshot,
+  setTelemetryWindow,
+  subscribeTelemetryWindow,
+} from "@/lib/telemetryWindowState";
 import { cn } from "@/lib/cn";
 
 interface SidebarProps {
@@ -47,10 +47,10 @@ export function Sidebar({
   collapsed = false,
 }: SidebarProps) {
   const pathname = usePathname();
-  const godMode = useSyncExternalStore(
-    subscribeGodMode,
-    godModeSnapshot,
-    godModeServerSnapshot,
+  const telemetryWindow = useSyncExternalStore(
+    subscribeTelemetryWindow,
+    telemetryWindowSnapshot,
+    telemetryWindowServerSnapshot,
   );
 
   return (
@@ -82,22 +82,22 @@ export function Sidebar({
           />
         ))}
         {/*
-          GOD MODE is a tool rather than a destination: it opens a floating
+          Telemetry is a tool rather than a destination: it opens a floating
           window over whatever the user is looking at, so it toggles here
           instead of navigating. The item reports that state, which is why it
           is not a placeholder and not a link.
         */}
         <NavigationItem
-          label="GOD MODE"
-          icon={<IconGodMode />}
-          active={godMode.open}
-          pressed={godMode.open}
+          label="Telemetry"
+          icon={<IconTelemetry />}
+          active={telemetryWindow.open}
+          pressed={telemetryWindow.open}
           collapsed={collapsed}
           onClick={() =>
-            setGodMode(
-              godMode.open
+            setTelemetryWindow(
+              telemetryWindow.open
                 ? { open: false }
-                : { open: true, mode: godMode.mode === "minimized" ? "normal" : godMode.mode },
+                : { open: true, mode: telemetryWindow.mode === "minimized" ? "normal" : telemetryWindow.mode },
             )
           }
         />

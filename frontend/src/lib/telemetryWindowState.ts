@@ -1,5 +1,5 @@
 /**
- * The GOD MODE window's geometry.
+ * The Telemetry window's geometry.
  *
  * Position, size, opacity and display mode live in one external store read
  * through `useSyncExternalStore`, for the same reason the sidebar rail does:
@@ -9,13 +9,16 @@
  * Geometry is stored, not the telemetry. Numbers the user is looking at are
  * fetched fresh; only where they chose to put the window is remembered.
  */
-const KEY = "cerebro-godmode";
+const KEY = "cerebro-telemetry-window";
+// What the key was called before the window was renamed. Read once, so the
+// rename does not throw away a position someone had arranged.
+const LEGACY_KEY = "cerebro-godmode";
 
-export type GodModeMode = "normal" | "minimized" | "maximized";
+export type TelemetryWindowMode = "normal" | "minimized" | "maximized";
 
-export interface GodModeGeometry {
+export interface TelemetryWindowGeometry {
   open: boolean;
-  mode: GodModeMode;
+  mode: TelemetryWindowMode;
   x: number;
   y: number;
   width: number;
@@ -28,7 +31,7 @@ export const MIN_WIDTH = 320;
 export const MIN_HEIGHT = 240;
 export const MIN_OPACITY = 0.5;
 
-const DEFAULTS: GodModeGeometry = {
+const DEFAULTS: TelemetryWindowGeometry = {
   open: false,
   mode: "normal",
   x: 24,
@@ -39,11 +42,11 @@ const DEFAULTS: GodModeGeometry = {
 };
 
 const listeners = new Set<() => void>();
-let snapshot: GodModeGeometry | undefined;
+let snapshot: TelemetryWindowGeometry | undefined;
 
-function sane(value: unknown): GodModeGeometry {
+function sane(value: unknown): TelemetryWindowGeometry {
   if (typeof value !== "object" || value === null) return DEFAULTS;
-  const raw = value as Partial<GodModeGeometry>;
+  const raw = value as Partial<TelemetryWindowGeometry>;
   const number = (v: unknown, fallback: number) =>
     typeof v === "number" && Number.isFinite(v) ? v : fallback;
   return {
@@ -60,9 +63,9 @@ function sane(value: unknown): GodModeGeometry {
   };
 }
 
-function read(): GodModeGeometry {
+function read(): TelemetryWindowGeometry {
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = window.localStorage.getItem(KEY) ?? window.localStorage.getItem(LEGACY_KEY);
     // Anything stored by an older version, or edited by hand, is normalised
     // rather than trusted: a NaN width would render an invisible window.
     return raw ? sane(JSON.parse(raw)) : DEFAULTS;
@@ -71,23 +74,23 @@ function read(): GodModeGeometry {
   }
 }
 
-export function subscribeGodMode(listener: () => void): () => void {
+export function subscribeTelemetryWindow(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
 
-export function godModeSnapshot(): GodModeGeometry {
+export function telemetryWindowSnapshot(): TelemetryWindowGeometry {
   if (snapshot === undefined) snapshot = read();
   return snapshot;
 }
 
 /** The server has no storage, and must agree with the first client render. */
-export function godModeServerSnapshot(): GodModeGeometry {
+export function telemetryWindowServerSnapshot(): TelemetryWindowGeometry {
   return DEFAULTS;
 }
 
-export function setGodMode(next: Partial<GodModeGeometry>): void {
-  const merged = sane({ ...godModeSnapshot(), ...next });
+export function setTelemetryWindow(next: Partial<TelemetryWindowGeometry>): void {
+  const merged = sane({ ...telemetryWindowSnapshot(), ...next });
   snapshot = merged;
   try {
     window.localStorage.setItem(KEY, JSON.stringify(merged));
@@ -106,9 +109,9 @@ export function setGodMode(next: Partial<GodModeGeometry>): void {
  * title bar is always grabbable.
  */
 export function clampToViewport(
-  geometry: GodModeGeometry,
+  geometry: TelemetryWindowGeometry,
   viewport: { width: number; height: number },
-): GodModeGeometry {
+): TelemetryWindowGeometry {
   const margin = 8;
   const width = Math.min(Math.max(MIN_WIDTH, geometry.width), Math.max(MIN_WIDTH, viewport.width - margin * 2));
   const height = Math.min(

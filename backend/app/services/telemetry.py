@@ -1,6 +1,6 @@
 """What actually ran: a short in-memory log of AI/ML operations.
 
-GOD MODE is supposed to show real execution, which means something has to
+Telemetry is supposed to show real execution, which means something has to
 record it. Every model call writes one entry here with the model it used,
 how long it took and the token counts the daemon reported.
 
@@ -99,7 +99,7 @@ def execution(operation: str, *, model: str | None = None, algorithm: str | None
     Yields a dict the body can fill in — token counts, how many things were
     processed — which is written out with the closing event. A failure is
     recorded with its type and message before the exception continues on its
-    way: GOD MODE's job is to show what happened, including when it broke.
+    way: Telemetry's job is to show what happened, including when it broke.
     """
     execution_id = uuid.uuid4().hex[:8]
     started = time.perf_counter()
@@ -144,7 +144,7 @@ def resources() -> dict:
     Read from /proc, which is the container's own view — no agent, no
     monitoring platform. GPU figures are reported as unavailable rather than
     guessed: nothing here can see one, and a fabricated utilisation bar in a
-    window called GOD MODE would be exactly the wrong thing to invent.
+    window reporting measurements would be exactly the wrong thing to invent.
     """
     out: dict = {
         "cpu_percent": None,

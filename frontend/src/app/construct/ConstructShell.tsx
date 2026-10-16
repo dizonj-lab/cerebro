@@ -5,7 +5,7 @@ import { useState, useSyncExternalStore } from "react";
 
 import { ConstructHeader } from "@/components/construct/ConstructHeader";
 import { Sidebar } from "@/components/construct/Sidebar";
-import { GodModeWindow } from "@/components/godmode/GodModeWindow";
+import { TelemetryWindow } from "@/components/telemetry/TelemetryWindow";
 import { api } from "@/lib/api";
 import {
   railServerSnapshot,
@@ -97,7 +97,7 @@ export function ConstructShell({ user, children }: ConstructShellProps) {
         route change replaces `children` and leaves this alone, position,
         size and telemetry intact.
       */}
-      <GodModeWindow />
+      <TelemetryWindow />
     </div>
   );
 }

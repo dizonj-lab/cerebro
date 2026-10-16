@@ -268,7 +268,7 @@ def generate_stream(
 
     Streaming is the daemon's own default, and the reason the chat can show
     words as they arrive rather than a spinner for ten seconds. The final
-    item carries Ollama's own token counts, which is where GOD MODE's
+    item carries Ollama's own token counts, which is where Telemetry's
     numbers come from — measured by the daemon, not estimated here.
     """
     body: dict = {
@@ -294,7 +294,7 @@ def generate_stream(
     started = time.perf_counter()
     execution_id = uuid.uuid4().hex[:8]
     # A 4B model on a laptop takes seconds to a minute. Emitting the start
-    # means GOD MODE shows the call in flight rather than nothing at all
+    # means Telemetry shows the call in flight rather than nothing at all
     # until it returns.
     record(
         operation,

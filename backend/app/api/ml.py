@@ -1,6 +1,6 @@
 """What CEREBRO's AI and ML actually consists of, right now.
 
-One endpoint behind GOD MODE and the AI settings. It reports what is
+One endpoint behind Telemetry and the AI settings. It reports what is
 installed, what is selected, what ran, and where coverage is incomplete —
 measured, never asserted. Everything here is about this deployment, not
 about the user's documents, so no document content passes through it.

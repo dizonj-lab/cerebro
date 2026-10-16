@@ -128,10 +128,12 @@ export const IconAgents = () => (
   </Icon>
 );
 
-export const IconGodMode = () => (
+// A signal trace: what the window shows is activity over time. It replaced
+// a sun, which was a joke about the old name and meant nothing about the
+// contents.
+export const IconTelemetry = () => (
   <Icon>
-    <circle cx="10" cy="10" r="2.25" />
-    <path d="M10 1.5v3M10 15.5v3M1.5 10h3M15.5 10h3M4 4l2.1 2.1M13.9 13.9 16 16M16 4l-2.1 2.1M6.1 13.9 4 16" />
+    <path d="M2.5 10h3l2-5 3 10 2.5-6 1.5 3h3" />
   </Icon>
 );
 
