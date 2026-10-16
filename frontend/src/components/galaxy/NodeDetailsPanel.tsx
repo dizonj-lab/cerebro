@@ -116,6 +116,18 @@ function Overview({ details }: { details: CerebroNodeDetails }) {
       {details.source_location && Object.keys(details.source_location).length > 0 && (
         <Row label="Source location">{describeLocation(details.source_location)}</Row>
       )}
+
+      {/* The other half of the pair: the Galaxy answers what relates to
+          what, the Timeline answers when it happened. The focus travels so
+          the subject survives the switch. */}
+      {details.type === "cluster" && (
+        <Link
+          href={`/construct/timeline?focus=${encodeURIComponent(details.label)}`}
+          className="inline-block pt-1 text-[0.75rem] font-medium text-sky-300 hover:underline"
+        >
+          See {details.label} over time →
+        </Link>
+      )}
     </div>
   );
 }

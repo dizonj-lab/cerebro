@@ -323,6 +323,8 @@ export interface CerebroRecallSource {
   source_location: Record<string, number | string>;
   excerpt: string;
   score: number;
+  /** Confirmed topics of the source document, for mapping onto the Galaxy. */
+  topics?: string[];
 }
 
 export interface CerebroRecallAnswer {

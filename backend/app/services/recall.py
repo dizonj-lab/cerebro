@@ -164,6 +164,15 @@ def _passages(db: Session, owner_id: uuid.UUID, query: str, *, topic: str | None
             "source_location": match.source_location,
             "excerpt": match.content[:MAX_PASSAGE_CHARS],
             "score": round(match.score, 4),
+            # The confirmed topics of the document this passage came from.
+            # They are what lets the Galaxy light up the part of the map an
+            # answer actually rests on — the same topics it draws clusters
+            # from, so no new classification is involved.
+            "topics": [
+                t
+                for t in ((titles.get(match.artifact_id) or {}).get("topics") or [])
+                if isinstance(t, str)
+            ],
         }
         for i, match in enumerate(matches)
     ]

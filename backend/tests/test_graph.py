@@ -181,3 +181,46 @@ def test_one_user_never_sees_another_users_galaxy(client, valid_signup):
 def test_the_galaxy_requires_a_session(client):
     for path in ("/api/graph", "/api/graph/timeline"):
         assert client.get(path).status_code == 401
+
+
+# --- entities as threads through the library --------------------------------
+
+def test_an_entity_named_in_two_documents_joins_their_topics(client, signed_in):
+    """A person in two documents is a real link; one mention is a detail."""
+    for name, topics, people in (
+        ("alpha.txt", ["Migration"], ["Maria Santos"]),
+        ("beta.txt", ["Governance"], ["Maria Santos"]),
+        ("gamma.txt", ["Migration"], ["Someone Once"]),
+    ):
+        artifact = client.post(
+            "/api/artifacts",
+            # Distinct content per file: identical bytes are the same
+            # artifact, and the second upload is refused as a duplicate.
+            files={
+                "file": (
+                    name,
+                    f"The cutover and the policy were discussed in {name}.".encode(),
+                    "text/plain",
+                )
+            },
+        ).json()
+        client.patch(
+            f"/api/artifacts/{artifact['id']}",
+            json={
+                "metadata": {"title": name, "topics": topics, "people": people},
+                "approve": True,
+            },
+        )
+
+    body = client.get("/api/graph").json()
+    entities = [n for n in body["nodes"] if n["type"] == "entity"]
+
+    assert [e["label"] for e in entities] == ["Maria Santos"]
+    assert entities[0]["category"] == "people"
+    # Human-confirmed at registration, and labelled as such.
+    assert entities[0]["provenance"] == "human_confirmed"
+
+    named_in = [e for e in body["edges"] if e["kind"] == "named_in"]
+    assert {e["target"] for e in named_in} == {"topic:Migration", "topic:Governance"}
+    # Co-occurrence, stated as what they share — never an inferred meaning.
+    assert all(e["relevance"] for e in named_in)

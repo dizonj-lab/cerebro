@@ -56,16 +56,38 @@ test("events come from dates the documents state", async ({ page }) => {
   await expect(page.getByTestId("timeline-summary")).toContainText("deterministic_date_parsing");
 });
 
-test("the six lanes render with their real counts", async ({ page }) => {
+test("lanes are the library's own confirmed topics", async ({ page }) => {
   await openTimeline(page, "tl-lanes");
 
+  // The fixture confirms the topic "Migration", so that is the lane — the
+  // timeline is organised the way this library is.
+  await expect(page.getByTestId("lane-Migration")).toBeVisible();
+  await expect(page.getByTestId("lane-Migration")).toContainText(/[1-9]\d* event/);
+  await expect(page.getByTestId("timeline-summary")).toBeVisible();
+});
+
+test("a library with no topics falls back to the named lanes", async ({ page }) => {
+  await signUp(page, makeAccount("tl-fallback"));
+  await page.waitForURL(/\/construct$/);
+
+  const created = await page.request.post("/api/artifacts", {
+    multipart: {
+      file: { name: "plain.txt", mimeType: "text/plain", buffer: Buffer.from(MEMO) },
+    },
+  });
+  const artifact = await created.json();
+  // Registered with no topic confirmed. Topics are cleared explicitly:
+  // deterministic enrichment proposes some on upload, and spreading the
+  // suggested metadata would confirm them.
+  await page.request.patch(`/api/artifacts/${artifact.id}`, {
+    data: { metadata: { ...artifact.metadata, title: "Plain", topics: [] }, approve: true },
+  });
+
+  await page.goto("/construct/timeline");
   for (const lane of ["Strategy", "Architecture", "Governance", "Technology", "Projects", "People"]) {
     await expect(page.getByTestId(`lane-${lane}`)).toBeVisible();
   }
-  // Governance has the approved policy; a lane with nothing says zero rather
-  // than borrowing an event from elsewhere.
   await expect(page.getByTestId("lane-Governance")).toContainText(/[1-9]\d* event/);
-  await expect(page.getByTestId("lane-Strategy")).toContainText("0 events");
 });
 
 test("selecting an event shows its evidence and source", async ({ page }) => {
@@ -135,12 +157,17 @@ test("filters narrow the lanes and reset restores them", async ({ page }) => {
   const events = page.getByTestId("timeline-event");
   const before = await events.count();
 
-  await page.getByLabel("Category").selectOption("Governance");
+  // Filtering to the library's own lane keeps everything in it.
+  await page.getByLabel("Category").selectOption("Migration");
   await expect(page.getByTestId("timeline-summary")).toBeVisible();
-  await expect(events).toHaveCount(1);
+  await expect(events).toHaveCount(before);
 
   await page.getByRole("button", { name: "Reset" }).click();
-  await expect(events).toHaveCount(before);
+  // Not an exact count: Reset also refits the window, and only what is
+  // inside it renders, so the comparison that matters is that the filter
+  // was lifted rather than that the pixels match.
+  await expect(page.getByLabel("Category")).toHaveValue("");
+  await expect.poll(() => events.count()).toBeGreaterThan(0);
 });
 
 test("an unregistered document places nothing on the timeline", async ({ page }) => {

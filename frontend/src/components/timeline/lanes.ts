@@ -22,6 +22,18 @@ export const LANE_COLOR: Record<string, string> = Object.fromEntries(
   LANES.map((lane) => [lane.name, lane.color]),
 );
 
+/**
+ * A lane's colour.
+ *
+ * Lanes are the library's own confirmed topics, so most names will not be
+ * one of the six the design names. A named lane keeps its colour; anything
+ * else takes the next hue in the same palette, by position, so the colours
+ * stay stable while the lanes do.
+ */
+export function colorForLane(name: string, index: number): string {
+  return LANE_COLOR[name] ?? LANES[index % (LANES.length - 1)].color;
+}
+
 /** How a date reads, at the precision the document actually gave. */
 export function formatEventDate(event: CerebroTimelineEventDetail): string {
   const date = new Date(`${event.date}T00:00:00`);

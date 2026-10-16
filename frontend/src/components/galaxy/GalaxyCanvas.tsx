@@ -11,6 +11,15 @@ import { cn } from "@/lib/cn";
 interface GalaxyCanvasProps {
   graph: CerebroGalaxy;
   selectedId: string | null;
+  /**
+   * The part of the map an answer rests on, when one has been mapped.
+   *
+   * `cited` are the documents the answer actually quoted, `retrieved` the
+   * ones that were searched up but not used. Everything else greys out. The
+   * distinction is what retrieval and the citation guard established, not a
+   * judgement about quality.
+   */
+  answerMap?: { cited: Set<string>; retrieved: Set<string> } | null;
   expandedTopic: string | null;
   onSelect: (node: GraphNode) => void;
   onExpand: (topic: string | null) => void;
@@ -31,6 +40,7 @@ interface GalaxyCanvasProps {
 export function GalaxyCanvas({
   graph,
   selectedId,
+  answerMap = null,
   expandedTopic,
   onSelect,
   onExpand,
@@ -62,6 +72,9 @@ export function GalaxyCanvas({
   // preview; selection persists.
   const focus = hovered ?? selectedId;
   const connected = useMemo(() => {
+    // A mapped answer takes over the dimming: the map is the point, and
+    // hovering should not wash it away.
+    if (answerMap) return new Set([...answerMap.cited, ...answerMap.retrieved]);
     if (!focus) return null;
     const set = new Set<string>([focus]);
     for (const edge of graph.edges) {
@@ -69,7 +82,7 @@ export function GalaxyCanvas({
       if (edge.target === focus) set.add(edge.source);
     }
     return set;
-  }, [focus, graph.edges]);
+  }, [focus, graph.edges, answerMap]);
 
   const reset = useCallback(() => {
     setView({ scale: 1, x: 0, y: 0 });
@@ -191,11 +204,17 @@ export function GalaxyCanvas({
           {[...positions.values()].map(({ node, x, y, radius }) => {
             const lit = !connected || connected.has(node.id);
             const isSelected = node.id === selectedId;
+            // Three states when an answer is mapped: quoted, merely found,
+            // and not part of this answer at all.
+            const cited = answerMap?.cited.has(node.id) ?? false;
+            const retrieved = answerMap?.retrieved.has(node.id) ?? false;
+            const outside = Boolean(answerMap) && !cited && !retrieved;
+            const mappedOpacity = answerMap ? (cited ? 1 : retrieved ? 0.6 : 0.16) : null;
             return (
               <g
                 key={node.id}
                 transform={`translate(${x} ${y})`}
-                opacity={lit ? 1 : 0.25}
+                opacity={mappedOpacity ?? (lit ? 1 : 0.25)}
                 onPointerEnter={() => setHovered(node.id)}
                 onPointerDown={(event) => {
                   // Nodes are draggable so a crowded cluster can be pulled
@@ -251,17 +270,31 @@ export function GalaxyCanvas({
                     unless the user is doing something. */}
                 <circle
                   r={radius * 2.6}
-                  fill={`url(#${gradientId(node.id)})`}
-                  opacity={isSelected ? 0.45 : 0.22}
-                  className={isSelected ? "animate-pulse" : undefined}
+                  fill={outside ? "#64748b" : `url(#${gradientId(node.id)})`}
+                  opacity={isSelected ? 0.45 : outside ? 0.1 : 0.22}
+                  className={isSelected && !answerMap ? "animate-pulse" : undefined}
                 />
-                <circle r={radius} fill={`url(#${gradientId(node.id)})`} />
+                {/* Outside the answer, a node keeps its place but loses its
+                    colour: it is still knowledge, just not what this answer
+                    was built from. */}
+                <circle
+                  r={radius}
+                  fill={outside ? "#64748b" : `url(#${gradientId(node.id)})`}
+                />
                 <circle
                   r={radius}
                   fill="none"
-                  stroke={isSelected ? "#ffffff" : colorFor(node.category, 78)}
-                  strokeWidth={isSelected ? 1.6 : 0.7}
-                  opacity={isSelected ? 0.95 : 0.5}
+                  stroke={
+                    isSelected
+                      ? "#ffffff"
+                      : cited
+                        ? "#ffffff"
+                        : outside
+                          ? "#94a3b8"
+                          : colorFor(node.category, 78)
+                  }
+                  strokeWidth={isSelected || cited ? 1.6 : 0.7}
+                  opacity={isSelected || cited ? 0.95 : outside ? 0.35 : 0.5}
                 />
                 {(node.type === "cluster" || node.id === focus) && (
                   <text

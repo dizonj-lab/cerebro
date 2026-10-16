@@ -24,7 +24,14 @@ interface Turn {
  * user's registered documents first and a model only ever sees those
  * passages — so every reply shows its sources.
  */
-export function RecallChat({ topic }: { topic: string | null }) {
+export function RecallChat({
+  topic,
+  onShowMe,
+}: {
+  topic: string | null;
+  /** Light up the part of the map this answer was built from. */
+  onShowMe?: (reply: CerebroRecallAnswer) => void;
+}) {
   const [open, setOpen] = useState(false);
   const [question, setQuestion] = useState("");
   const [busy, setBusy] = useState(false);
@@ -157,7 +164,7 @@ export function RecallChat({ topic }: { topic: string | null }) {
             {turn.error ? (
               <p className="text-[0.75rem] text-rose-300">{turn.error}</p>
             ) : turn.reply ? (
-              <Reply reply={turn.reply} />
+              <Reply reply={turn.reply} onShowMe={onShowMe} />
             ) : (
               <p className="text-[0.75rem] text-white/40">Searching your library…</p>
             )}
@@ -185,7 +192,13 @@ export function RecallChat({ topic }: { topic: string | null }) {
   );
 }
 
-function Reply({ reply }: { reply: CerebroRecallAnswer }) {
+function Reply({
+  reply,
+  onShowMe,
+}: {
+  reply: CerebroRecallAnswer;
+  onShowMe?: (reply: CerebroRecallAnswer) => void;
+}) {
   return (
     <div className="w-fit max-w-[92%] space-y-2 rounded-lg rounded-bl-sm bg-white/8 px-2.5 py-2">
       {reply.answer ? (
@@ -208,6 +221,19 @@ function Reply({ reply }: { reply: CerebroRecallAnswer }) {
       )}
 
       {reply.note && <p className="text-[0.625rem] text-white/50">{reply.note}</p>}
+
+      {/* Maps the answer onto the galaxy: what it quoted, what it merely
+          found, and what it did not touch. */}
+      {onShowMe && reply.sources.length > 0 && (
+        <button
+          type="button"
+          data-testid="show-me"
+          onClick={() => onShowMe(reply)}
+          className="rounded-md border border-sky-400/40 px-2 py-1 text-[0.6875rem] font-medium text-sky-300 transition-colors hover:bg-sky-400/10"
+        >
+          Show me on the map
+        </button>
+      )}
 
       {reply.sources.map((source) => (
         <a

@@ -179,7 +179,13 @@ export function EventPanel({
         <div className="shrink-0 border-t border-white/10 p-3">
           <div className="flex items-center justify-between text-[0.7rem]">
             <span className="text-white/45">Galaxy view</span>
-            <Link href="/construct/galaxy" className="text-sky-300">Open in Galaxy</Link>
+            {/* Carries the subject across: the Galaxy selects it on arrival. */}
+            <Link
+              href={`/construct/galaxy?focus=${encodeURIComponent(galaxyFocus(event))}`}
+              className="text-sky-300"
+            >
+              Open in Galaxy
+            </Link>
           </div>
           <svg viewBox="0 0 200 110" className="mt-1 w-full" role="img" aria-label="Related knowledge">
             {related.slice(0, 5).map((other, index) => {
@@ -204,6 +210,20 @@ export function EventPanel({
       )}
     </aside>
   );
+}
+
+/**
+ * What this event is about, in the Galaxy's own node ids.
+ *
+ * A named entity is the more specific subject, so it wins; otherwise the
+ * lane, which is a confirmed topic when the library has its own.
+ */
+function galaxyFocus(event: CerebroTimelineEventDetail): string {
+  for (const field of ["projects", "people", "organizations", "technologies"]) {
+    const values = event.entities[field];
+    if (values?.length) return `${field}:${values[0]}`;
+  }
+  return `topic:${event.category}`;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

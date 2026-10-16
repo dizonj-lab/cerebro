@@ -37,7 +37,10 @@ def read(
     end: str | None = None,
 ) -> dict:
     started = time.perf_counter()
-    events, stats = temporal.events_for_owner(db, current_user.id)
+    # The owner's own topics are the lanes; the six named ones are the
+    # fallback for a library that has not confirmed any.
+    owner_lanes = temporal.lanes_for_owner(db, current_user.id)
+    events, stats = temporal.events_for_owner(db, current_user.id, lanes=owner_lanes)
 
     # The histogram is built from everything, so the navigator keeps showing
     # the whole range while the lanes show a filtered slice of it.
@@ -59,10 +62,13 @@ def read(
         )
     ]
 
-    lanes = []
     counts = Counter(event.category for event in selected)
-    for name in temporal.LANE_NAMES:
-        lanes.append({"name": name, "count": counts.get(name, 0)})
+    # Named lanes are only shown when the library has no topics of its own:
+    # six empty rows of someone else's taxonomy is noise.
+    names = owner_lanes or [name for name, _ in temporal.LANES]
+    lanes = [{"name": name, "count": counts.get(name, 0)} for name in names]
+    if counts.get(temporal.OTHER_LANE) or not names:
+        lanes.append({"name": temporal.OTHER_LANE, "count": counts.get(temporal.OTHER_LANE, 0)})
 
     # Facets are the values actually present, so no filter is offered that
     # would select nothing.
@@ -93,6 +99,7 @@ def read(
             key=lambda pair: pair[1],
         ),
         "entity_values": {field: sorted(values) for field, values in entity_values.items()},
+        "lane_source": "confirmed topics" if owner_lanes else "keyword fallback",
         "extraction": {
             "method": temporal.EXTRACTION_METHOD,
             "version": temporal.EXTRACTION_VERSION,
@@ -111,7 +118,9 @@ def related(current_user: CurrentUser, db: DbSession, event: str) -> dict:
     something both events actually carry — never an inferred semantic link,
     which CEREBRO has no way to establish and so does not claim.
     """
-    events, _ = temporal.events_for_owner(db, current_user.id)
+    events, _ = temporal.events_for_owner(
+        db, current_user.id, lanes=temporal.lanes_for_owner(db, current_user.id)
+    )
     by_id = {item.id: item for item in events}
     anchor = by_id.get(event)
     if anchor is None:
@@ -151,7 +160,9 @@ def journey(current_user: CurrentUser, db: DbSession, entity: str, field: str = 
     whatever the documents actually say about it, in the order they say it
     happened; nothing is added to make a story complete.
     """
-    events, _ = temporal.events_for_owner(db, current_user.id)
+    events, _ = temporal.events_for_owner(
+        db, current_user.id, lanes=temporal.lanes_for_owner(db, current_user.id)
+    )
     steps = [
         event
         for event in events

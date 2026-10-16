@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { GalaxyCanvas } from "@/components/galaxy/GalaxyCanvas";
 import { RecallChat } from "@/components/galaxy/RecallChat";
@@ -31,13 +32,24 @@ export function GalaxyView() {
   const [events, setEvents] = useState<CerebroTimelineEvent[]>([]);
   const [details, setDetails] = useState<CerebroNodeDetails | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // One focus, shared with the Timeline through the URL: arriving from
+  // there with ?focus=topic:Atlas selects the same thing, so switching view
+  // keeps the subject rather than starting over.
+  const params = useSearchParams();
+  const [selectedId, setSelectedId] = useState<string | null>(params.get("focus"));
   const [expandedTopic, setExpandedTopic] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // Workspace shape. The galaxy is the thing being read, so it gets to take
   // the whole screen, and the split between it and the timeline is the
   // user's to set rather than a fixed ratio.
+  // The part of the map an answer rests on, once one has been mapped.
+  // Cleared by Reset, which returns the galaxy to its unmapped state.
+  const [answerMap, setAnswerMap] = useState<{
+    question: string;
+    cited: Set<string>;
+    retrieved: Set<string>;
+  } | null>(null);
   const [panelOpen, setPanelOpen] = useState(true);
   const [maximized, setMaximized] = useState(false);
   const [timelineOpen, setTimelineOpen] = useState(true);
@@ -203,8 +215,62 @@ export function GalaxyView() {
               expandedTopic={expandedTopic}
               onSelect={onSelectNode}
               onExpand={(topic) => void expand(topic)}
+              answerMap={answerMap}
             />
-            <RecallChat topic={selectedTopic} />
+
+            {/* What the answer was built from, and the way back. */}
+            {answerMap && (
+              <div
+                data-testid="answer-map"
+                className="pointer-events-auto absolute left-4 top-4 z-30 flex max-w-sm items-start gap-3 rounded-lg border border-white/15 bg-[#0e1522]/95 px-3 py-2 text-xs shadow-xl backdrop-blur"
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-white">
+                    Mapped: {answerMap.question}
+                  </p>
+                  <p className="mt-0.5 text-white/55">
+                    <span className="text-white">{answerMap.cited.size} quoted</span>
+                    {" · "}
+                    {answerMap.retrieved.size} found but not quoted · the rest is not
+                    part of this answer
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  data-testid="reset-map"
+                  onClick={() => setAnswerMap(null)}
+                  className="shrink-0 rounded-md border border-white/20 px-2 py-1 font-medium text-white/80 transition-colors hover:bg-white/10"
+                >
+                  Reset
+                </button>
+              </div>
+            )}
+
+            <RecallChat
+              topic={selectedTopic}
+              onShowMe={(reply) => {
+                // Cited passages are the ones the answer actually used; the
+                // citation guard has already removed any that pointed at a
+                // passage which was never retrieved. Everything else it
+                // searched up is "found but not quoted".
+                const cited = new Set<string>();
+                const retrieved = new Set<string>();
+                const citedIndexes = new Set(reply.cited ?? []);
+                for (const source of reply.sources) {
+                  const target = citedIndexes.has(source.index) ? cited : retrieved;
+                  for (const topic of source.topics ?? []) target.add(`topic:${topic}`);
+                  target.add(`fragment:${source.fragment_id}`);
+                }
+                // A topic quoted somewhere is quoted, even if another passage
+                // from it went unused.
+                for (const id of cited) retrieved.delete(id);
+                setAnswerMap({
+                  question: reply.answer?.slice(0, 60) ?? "this answer",
+                  cited,
+                  retrieved,
+                });
+              }}
+            />
           </div>
 
           {panelOpen ? (

@@ -35,6 +35,12 @@ from app.models.fragment import KnowledgeFragment
 MAX_CLUSTERS = 12
 MAX_FRAGMENTS_PER_CLUSTER = 12
 MAX_EDGES = 80
+# Entities drawn alongside the topics. Capped for the same reason as
+# clusters: past a dozen or so, a graph stops being readable.
+MAX_ENTITIES = 14
+# The confirmed entity fields. Concepts and tags are deliberately absent —
+# they describe a document rather than naming something in the world.
+ENTITY_FIELDS = ("people", "organizations", "projects", "technologies")
 
 # Co-occurrence counts, turned into words rather than a bare percentage. A
 # number would read as a confidence the data does not support.
@@ -117,6 +123,13 @@ def galaxy(db: Session, owner_id: uuid.UUID) -> dict:
             for b in present[i + 1 :]:
                 pairs[(a, b)] += 1
 
+    # Entities the documents name — people, organizations, projects and
+    # technologies a human confirmed at registration. An entity that appears
+    # in two topics is a real link between them, and a more interesting one
+    # than two topics merely sharing a file. It is still co-occurrence:
+    # CEREBRO says what they share, never what the relationship means.
+    entity_nodes, entity_edges = _entity_graph(artifacts, keep_set)
+
     nodes = [
         {
             "id": f"topic:{label}",
@@ -148,11 +161,70 @@ def galaxy(db: Session, owner_id: uuid.UUID) -> dict:
     ]
 
     return {
-        "nodes": nodes,
-        "edges": edges,
+        "nodes": nodes + entity_nodes,
+        "edges": edges + entity_edges,
         "clusters": keep,
         "truncated": len(counts) > len(keep),
     }
+
+
+def _entity_graph(
+    artifacts: list[_Registered], topics: set[str]
+) -> tuple[list[dict], list[dict]]:
+    """Confirmed entities, and the topics whose documents name them.
+
+    Only entities appearing in more than one document are kept: a name
+    mentioned once is a detail of that document, not a thread through the
+    library, and drawing every one of them would bury the graph.
+    """
+    mentions: dict[tuple[str, str], set[uuid.UUID]] = defaultdict(set)
+    links: Counter = Counter()
+
+    for artifact in artifacts:
+        present = {t for t in artifact.topics if t in topics}
+        for field in ENTITY_FIELDS:
+            for value in artifact.metadata.get(field) or []:
+                if not isinstance(value, str) or not value.strip():
+                    continue
+                key = (field, value.strip())
+                mentions[key].add(artifact.id)
+                for topic in present:
+                    links[(key, topic)] += 1
+
+    shared = {
+        key: documents for key, documents in mentions.items() if len(documents) > 1
+    }
+    ranked = sorted(shared.items(), key=lambda row: (-len(row[1]), row[0][1]))[:MAX_ENTITIES]
+
+    nodes = [
+        {
+            "id": f"{field}:{value}",
+            "label": value,
+            "type": "entity",
+            "category": field,
+            "document_count": len(documents),
+            "fragment_count": 0,
+            "relationship_count": sum(1 for (key, _), _ in links.items() if key == (field, value)),
+            "provenance": "human_confirmed",
+        }
+        for (field, value), documents in ranked
+    ]
+
+    keep_keys = {key for key, _ in ranked}
+    edges = [
+        {
+            "id": f"{field}:{value}|topic:{topic}",
+            "source": f"{field}:{value}",
+            "target": f"topic:{topic}",
+            "kind": "named_in",
+            "weight": weight,
+            "relevance": _relevance(weight),
+        }
+        for ((field, value), topic), weight in links.most_common()
+        if (field, value) in keep_keys
+    ][:MAX_EDGES]
+
+    return nodes, edges
 
 
 def expand(db: Session, owner_id: uuid.UUID, topic: str) -> dict:

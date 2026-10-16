@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { EventPanel } from "@/components/timeline/EventPanel";
 import { Navigator } from "@/components/timeline/Navigator";
-import { LANES, formatEventDate, fractionOf } from "@/components/timeline/lanes";
+import { colorForLane, formatEventDate, fractionOf } from "@/components/timeline/lanes";
 import { api, ApiError } from "@/lib/api";
 import type { CerebroTimeline, CerebroTimelineEventDetail } from "@/lib/api";
 import { cn } from "@/lib/cn";
@@ -45,7 +46,13 @@ export function TimelineView() {
   const [panelOpen, setPanelOpen] = useState(true);
   const [window_, setWindow] = useState<Window | null>(null);
 
-  const [categories, setCategories] = useState<string[]>([]);
+  // Arriving from the Galaxy with ?focus=Atlas opens on that lane, so the
+  // subject survives the switch between the two views.
+  const params = useSearchParams();
+  const [categories, setCategories] = useState<string[]>(() => {
+    const focus = params.get("focus");
+    return focus ? [focus] : [];
+  });
   const [source, setSource] = useState<string>("");
   const [entityType, setEntityType] = useState<string>("");
   const [entity, setEntity] = useState<string>("");
@@ -141,13 +148,26 @@ export function TimelineView() {
     }
   }
 
+  // The lanes the API decided on: the owner's own confirmed topics, or the
+  // six named ones when the library has none. The page follows the data
+  // rather than imposing a taxonomy of its own.
+  const lanes = useMemo(
+    () =>
+      (data?.lanes ?? []).map((lane, index) => ({
+        name: lane.name,
+        count: lane.count,
+        color: colorForLane(lane.name, index),
+      })),
+    [data],
+  );
+
   const visible = useMemo(() => {
     if (!data || !window_) return new Map<string, Placed[]>();
     const byLane = new Map<string, Placed[]>();
     const width = canvas.current?.clientWidth ?? 1000;
     const minimumGap = (CARD_WIDTH_PX / width) * 100;
 
-    for (const lane of LANES) {
+    for (const lane of lanes) {
       const inLane = data.events
         .filter((event) => event.category === lane.name)
         .map((event) => ({
@@ -175,7 +195,7 @@ export function TimelineView() {
       byLane.set(lane.name, inLane);
     }
     return byLane;
-  }, [data, window_]);
+  }, [data, window_, lanes]);
 
   const ticks = useMemo(() => {
     if (!window_) return [] as { at: number; label: string; major: boolean }[];
@@ -262,7 +282,7 @@ export function TimelineView() {
           className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white outline-none"
         >
           <option value="">All Categories</option>
-          {LANES.map((lane) => (
+          {lanes.map((lane) => (
             <option key={lane.name} value={lane.name}>{lane.name}</option>
           ))}
         </select>
@@ -399,9 +419,9 @@ export function TimelineView() {
                   />
                 ))}
 
-                {LANES.map((lane) => {
+                {lanes.map((lane) => {
                   const placed = visible.get(lane.name) ?? [];
-                  const count = data.lanes.find((l) => l.name === lane.name)?.count ?? 0;
+                  const count = lane.count;
                   if (lane.name === "Other" && count === 0) return null;
                   const rows = Math.max(1, ...placed.map((p) => p.row + 1));
                   return (
@@ -483,7 +503,7 @@ export function TimelineView() {
               />
 
               <div className="flex flex-wrap items-center gap-3 border-t border-white/10 px-3 py-2 text-[0.65rem]">
-                {LANES.filter((lane) => lane.name !== "Other" || (data.lanes.find((l) => l.name === "Other")?.count ?? 0) > 0).map((lane) => (
+                {lanes.filter((lane) => lane.name !== "Other" || lane.count > 0).map((lane) => (
                   <span key={lane.name} className="flex items-center gap-1.5 text-white/55">
                     <span className="size-2 rounded-full" style={{ background: lane.color }} />
                     {lane.name}

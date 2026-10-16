@@ -28,6 +28,9 @@ class RecallSource(BaseModel):
     source_location: dict = Field(default_factory=dict)
     excerpt: str
     score: float
+    # Confirmed topics of the source document, so a client can map an answer
+    # onto the knowledge graph without a second request.
+    topics: list[str] = Field(default_factory=list)
 
 
 class RecallTelemetry(BaseModel):

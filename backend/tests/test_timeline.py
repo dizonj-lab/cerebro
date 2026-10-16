@@ -133,23 +133,48 @@ def test_the_upload_date_is_never_used_as_an_event_date(client, registered):
     assert all(e["expression"] for e in body["events"])
 
 
-def test_lanes_report_real_counts(client, registered):
+def test_lanes_are_the_library_own_confirmed_topics(client, registered):
+    """A topic was approved by a human, so grouping by it guesses nothing."""
     body = client.get("/api/timeline").json()
 
     lanes = {lane["name"]: lane["count"] for lane in body["lanes"]}
-    # All six lanes are present whether or not they hold anything.
+    assert "Migration" in lanes
+    assert body["lane_source"] == "confirmed topics"
+    assert sum(lanes.values()) == body["total"]
+    # Someone else's taxonomy is not imposed on a library that has its own.
+    assert "Governance" not in lanes
+
+
+def test_a_library_without_topics_falls_back_to_the_named_lanes(client, signed_in):
+    artifact = client.post(
+        "/api/artifacts", files={"file": ("plain.txt", MEMO.encode(), "text/plain")}
+    ).json()
+    client.patch(
+        f"/api/artifacts/{artifact['id']}",
+        # Registered, with no topic confirmed.
+        json={"metadata": {"title": "Plain"}, "approve": True},
+    )
+
+    body = client.get("/api/timeline").json()
+
+    lanes = {lane["name"]: lane["count"] for lane in body["lanes"]}
     expected = {"Strategy", "Architecture", "Governance", "Technology", "Projects", "People"}
     assert expected <= set(lanes)
-    assert lanes["Governance"] >= 1
-    assert sum(lanes.values()) == body["total"]
+    assert body["lane_source"] == "keyword fallback"
+    # The keyword lanes still say what matched.
+    governance = next(e for e in body["events"] if e["category"] == "Governance")
+    assert governance["category_basis"] in ("governance", "policy")
 
 
 def test_filters_narrow_the_events(client, registered):
     everything = client.get("/api/timeline").json()["total"]
 
-    governance = client.get("/api/timeline", params={"categories": ["Governance"]}).json()
-    assert 0 < governance["total"] < everything
-    assert {e["category"] for e in governance["events"]} == {"Governance"}
+    by_topic = client.get("/api/timeline", params={"categories": ["Migration"]}).json()
+    assert by_topic["total"] == everything
+    assert {e["category"] for e in by_topic["events"]} == {"Migration"}
+
+    nothing = client.get("/api/timeline", params={"categories": ["Governance"]}).json()
+    assert nothing["total"] == 0
 
     window = client.get("/api/timeline", params={"start": "2023-01-01"}).json()
     assert all(e["date"] >= "2023-01-01" for e in window["events"])

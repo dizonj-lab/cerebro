@@ -330,7 +330,30 @@ test("the chat says so rather than inventing an answer", async ({ page }) => {
   await page.getByLabel("Ask or describe what you're looking for").fill("zzz unrelated xylophone");
   await page.getByRole("button", { name: "Send" }).click();
 
-  // The product's words for abstaining. Retrieval found nothing, so no model
-  // was asked and nothing was invented.
-  await expect(page.getByText(/Insufficient evidence/)).toBeVisible();
+  // Retrieval found nothing, so no model was asked and nothing was invented.
+  await expect(page.getByText(/could not find anything/)).toBeVisible();
+});
+
+test("Show me lights the part of the map an answer came from", async ({ page }) => {
+  await openGalaxy(page, "g-showme");
+
+  await page.getByRole("button", { name: /Ask CEREBRO/ }).first().click();
+  await page.getByLabel("Ask or describe what you're looking for").fill("machine learning");
+  await page.getByRole("button", { name: "Send" }).click();
+
+  // The answer arrives with its sources, and offers to map them.
+  const showMe = page.getByTestId("show-me").first();
+  await expect(showMe).toBeVisible({ timeout: 15000 });
+  await showMe.click();
+
+  const map = page.getByTestId("answer-map");
+  await expect(map).toBeVisible();
+  // It says what was quoted and what was merely found — the distinction
+  // retrieval and the citation guard established, not a quality judgement.
+  await expect(map).toContainText("quoted");
+  await expect(map).toContainText("not part of this answer");
+
+  // Reset returns the galaxy to its unmapped state.
+  await page.getByTestId("reset-map").click();
+  await expect(map).toHaveCount(0);
 });

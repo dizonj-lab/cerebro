@@ -223,7 +223,10 @@ February 2024, not a guessed day and not silence. **An upload or
 registration date is never used as an event date**: that would be CEREBRO
 inventing history out of its own filing.
 
-The six lanes are assigned on evidence — a lane word present in the sentence
+Lanes are the library's own confirmed topics, most-used first. A topic was
+approved by a human at registration, so grouping by it groups by a judgement
+already made rather than one CEREBRO invented. A library that has confirmed
+no topics falls back to the six named lanes, assigned on evidence — a lane word present in the sentence
 or in the artifact's confirmed topics — and the matching word is shown in the
 panel. Anything unmatched goes to "Other" rather than being pushed into a
 lane a model guessed at. Events from overlapping chunks are deduplicated by
@@ -237,6 +240,20 @@ the lanes does not change the shape of the knowledge behind it.
 
 Related events say what they share — an entity, a document, a lane — and
 never assert a semantic relationship, which CEREBRO has no way to establish.
+
+The Galaxy and the Timeline share a focus through the URL. Opening an event
+in the Galaxy selects its subject there; a cluster offers to show itself over
+time. The Galaxy also draws the entities a human confirmed — people,
+organizations, projects, technologies — joined to the topics whose documents
+name them, but only where an entity appears in more than one document: a name
+mentioned once is a detail of that document, not a thread through the
+library.
+
+An answer from Ask CEREBRO can be mapped onto the Galaxy. "Show me on the
+map" lights the topics the answer quoted, dims the ones it found but did not
+use, and greys everything else; Reset returns the unmapped galaxy. The three
+states are what retrieval and the citation guard established, not a judgement
+about quality.
 `/api/timeline/journey` follows one entity's events in order, which is the
 second mode the design calls Knowledge Journey.
 

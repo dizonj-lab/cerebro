@@ -25,6 +25,7 @@ import hashlib
 import re
 import time
 import uuid
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import date
 
@@ -61,10 +62,19 @@ _COMPILED = [(name, re.compile(pattern, re.IGNORECASE)) for name, pattern in PAT
 
 _SENTENCE = re.compile(r"[^.!?\n]+(?:[.!?]|\n|$)")
 
-# The six lanes of the approved design. A lane is assigned only when the
-# evidence contains one of its words — the alternative, asking a model to
-# classify, would put a document in "Governance" with nothing to point at.
-# Anything unmatched goes to "Other" rather than being forced into a lane.
+# Two ways to put an event in a lane, and neither of them guesses.
+#
+# The library's own topics come first: a topic was confirmed by a human at
+# registration, so grouping by it is grouping by a judgement that was
+# already made. Lanes are the owner's most-used topics, which means the
+# timeline is organised the way their library is rather than the way a
+# generic taxonomy assumes it should be.
+#
+# The six named lanes below are the fallback, used when a document carries
+# no confirmed topic. A lane is assigned only when the evidence contains one
+# of its words, so the panel can show what matched. The alternative — asking
+# a model to classify — would put a document in "Governance" with nothing to
+# point at.
 LANES: list[tuple[str, tuple[str, ...]]] = [
     ("Strategy", ("strategy", "strategic", "vision", "roadmap", "mission", "objective")),
     (
@@ -167,8 +177,21 @@ def _expressions(sentence: str) -> list[tuple[str, str, str, int, int]]:
     return found
 
 
-def _lane(text: str, topics: list[str]) -> tuple[str, str | None]:
-    """Which lane, and the word that put it there."""
+def _lane(
+    text: str, topics: list[str], *, preferred: list[str] | None = None
+) -> tuple[str, str | None]:
+    """Which lane, and what put it there.
+
+    A confirmed topic wins: it is the owner's own classification, approved
+    at registration. Only a document without one falls through to the
+    keyword lanes.
+    """
+    if preferred:
+        for topic in topics:
+            for lane in preferred:
+                if topic.lower() == lane.lower():
+                    return lane, f"topic: {topic}"
+
     haystack = f"{text} {' '.join(topics)}".lower()
     for name, words in LANES:
         for word in words:
@@ -211,6 +234,7 @@ def extract_from_text(
     *,
     topics: list[str] | None = None,
     entities: dict | None = None,
+    lanes: list[str] | None = None,
 ) -> list[dict]:
     """Every dated statement in a passage, as plain dictionaries.
 
@@ -234,7 +258,7 @@ def extract_from_text(
         # separate event, which is what "from March to June" means.
         iso, precision, expression, _, _ = expressions[0]
         end = expressions[1][0] if len(expressions) > 1 and expressions[1][0] > iso else None
-        lane, basis = _lane(sentence, topics)
+        lane, basis = _lane(sentence, topics, preferred=lanes)
 
         mentioned = {
             field_name: [
@@ -263,7 +287,32 @@ def extract_from_text(
     return out
 
 
-def events_for_owner(db: Session, owner_id: uuid.UUID) -> tuple[list[Event], dict]:
+def lanes_for_owner(db: Session, owner_id: uuid.UUID, *, limit: int = 6) -> list[str]:
+    """The owner's most-used confirmed topics, which become their lanes.
+
+    Counted over registered artifacts only, because an unregistered one
+    carries topics nobody has approved yet. A library with no topics at all
+    gets the six named lanes instead, so the timeline is never empty of
+    structure.
+    """
+    rows = db.execute(
+        select(Artifact.artifact_metadata).where(
+            Artifact.owner_id == owner_id, Artifact.status == "registered"
+        )
+    ).all()
+
+    counts: Counter[str] = Counter()
+    for (meta,) in rows:
+        for topic in (meta or {}).get("topics") or []:
+            if isinstance(topic, str) and topic.strip():
+                counts[topic.strip()] += 1
+
+    return [topic for topic, _ in counts.most_common(limit)]
+
+
+def events_for_owner(
+    db: Session, owner_id: uuid.UUID, *, lanes: list[str] | None = None
+) -> tuple[list[Event], dict]:
     """Dated events from this owner's registered knowledge, plus what it cost.
 
     Only registered fragments are read, so nothing awaiting review can place
@@ -300,6 +349,7 @@ def events_for_owner(db: Session, owner_id: uuid.UUID) -> tuple[list[Event], dic
             content,
             topics=topics,
             entities={f: meta.get(f) or [] for f in ENTITY_FIELDS},
+            lanes=lanes,
         )
         for item in found:
             # Chunks overlap by design, so the same sentence is read twice.
