@@ -45,11 +45,13 @@ export function Sidebar({
       aria-label="Workspace"
       className={cn(
         "flex shrink-0 flex-col border-r border-line bg-surface-subtle transition-[width] duration-200",
-        // The rail only applies on desktop: the off-canvas panel is always
-        // full width, because a 56px drawer is not a navigation.
-        collapsed ? "w-60 lg:w-[4.25rem]" : "w-60",
-        // Off-canvas below lg, static above.
-        "fixed inset-y-0 left-0 z-40 pt-16 transition-transform duration-200 lg:static lg:z-auto lg:translate-x-0 lg:pt-0",
+        // 240px expanded, 64px as a rail. The rail applies from tablet up:
+        // below that the panel is off-canvas and always full width, because a
+        // 64px drawer is not a navigation.
+        collapsed ? "w-60 md:w-16" : "w-60 md:max-lg:w-16",
+        // Off-canvas below md, static above: a tablet gets the rail rather
+        // than a drawer, so navigation never covers the Galaxy.
+        "fixed inset-y-0 left-0 z-40 pt-16 transition-transform duration-200 md:static md:z-auto md:translate-x-0 md:pt-0",
         open ? "translate-x-0" : "-translate-x-full",
       )}
     >

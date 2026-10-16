@@ -38,8 +38,9 @@ export function NavigationItem({
   const classes = cn(
     "flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm",
     "transition-colors duration-150",
-    // The rail is desktop-only; the off-canvas panel keeps its labels.
-    collapsed && "lg:justify-center lg:px-0",
+    // The off-canvas panel below tablet keeps its labels; from tablet up the
+    // item centres its icon whenever it is a rail.
+    collapsed ? "md:justify-center md:px-0" : "md:max-lg:justify-center md:max-lg:px-0",
     nested && "pl-9",
     active
       ? "bg-accent-subtle font-medium text-accent"
@@ -54,11 +55,15 @@ export function NavigationItem({
         href={href}
         onClick={onClick}
         aria-current={active ? "page" : undefined}
-        title={collapsed ? label : undefined}
+        // The tooltip is what names a rail icon for a sighted user; the
+        // label itself stays in the accessible name either way.
+        title={label}
         className={classes}
       >
         {!nested && icon}
-        <span className={cn("truncate", collapsed && "lg:sr-only")}>{label}</span>
+        <span className={cn("truncate", collapsed ? "md:sr-only" : "md:max-lg:sr-only")}>
+          {label}
+        </span>
       </Link>
     );
   }
@@ -69,11 +74,13 @@ export function NavigationItem({
       onClick={onClick}
       aria-current={active ? "page" : undefined}
       aria-disabled={placeholder || undefined}
-      title={placeholder ? `${label} — coming soon` : collapsed ? label : undefined}
+      title={placeholder ? `${label} — coming soon` : label}
       className={classes}
     >
       {!nested && icon}
-      <span className={cn("truncate", collapsed && "lg:sr-only")}>{label}</span>
+      <span className={cn("truncate", collapsed ? "md:sr-only" : "md:max-lg:sr-only")}>
+        {label}
+      </span>
     </button>
   );
 }

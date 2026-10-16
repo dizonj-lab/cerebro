@@ -36,7 +36,7 @@ export function ConstructHeader({
         data-testid="sidebar-toggle"
         aria-expanded={sidebarOpen}
         aria-label={sidebarOpen ? "Close navigation" : "Open navigation"}
-        className="-ml-1 rounded-md p-2 text-ink-muted transition-colors hover:bg-surface-subtle lg:hidden"
+        className="-ml-1 rounded-md p-2 text-ink-muted transition-colors hover:bg-surface-subtle md:hidden"
       >
         <svg viewBox="0 0 20 20" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
           <path d="M3.5 6h13M3.5 10h13M3.5 14h13" />
@@ -49,7 +49,7 @@ export function ConstructHeader({
           onClick={onToggleRail}
           aria-expanded={!railCollapsed}
           aria-label={railCollapsed ? "Expand navigation" : "Collapse navigation"}
-          className="hidden rounded-md p-2 text-ink-muted transition-colors hover:bg-surface-subtle lg:block"
+          className="hidden rounded-md p-2 text-ink-muted transition-colors hover:bg-surface-subtle md:block"
         >
           <svg viewBox="0 0 20 20" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
             <rect x="2.75" y="3.75" width="14.5" height="12.5" rx="2" />

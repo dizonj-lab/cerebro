@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
 
 import { ConstructHeader } from "@/components/construct/ConstructHeader";
@@ -24,11 +24,20 @@ export function ConstructShell({ user, children }: ConstructShellProps) {
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const railCollapsed = useSyncExternalStore(
-    subscribeRail,
-    railSnapshot,
-    railServerSnapshot,
-  );
+  const pathname = usePathname();
+  const preference = useSyncExternalStore(subscribeRail, railSnapshot, railServerSnapshot);
+
+  /*
+    The Galaxy and its timeline want the whole screen, so they open railed —
+    but only until the user has expressed a width of their own, which is
+    stored and then wins on every route.
+
+    Derived during render rather than set from an effect: an effect would
+    collapse the sidebar a frame after the page appeared, and the
+    visualisation would resize twice on every visit.
+  */
+  const visualisation = pathname.startsWith("/construct/galaxy");
+  const railCollapsed = preference === null ? visualisation : preference === "collapsed";
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -73,7 +82,7 @@ export function ConstructShell({ user, children }: ConstructShellProps) {
           <div
             aria-hidden="true"
             onClick={() => setSidebarOpen(false)}
-            className="fixed inset-0 z-30 bg-ink/20 lg:hidden"
+            className="fixed inset-0 z-30 bg-ink/20 md:hidden"
           />
         )}
 

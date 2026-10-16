@@ -117,6 +117,20 @@ filters on all three, so vectors from two spaces are never compared.
 A fragment scoring zero or below is not returned. An unrelated passage
 offered as a weak match is an unrelated passage offered as evidence.
 
+### Navigation
+
+The sidebar has two widths: 240px with labels, and a 64px rail of icons that
+keep their accessible names and carry their label as a tooltip. The rail
+applies from tablet width up; below that the panel is off-canvas behind the
+hamburger, because a 64px drawer is not a navigation.
+
+The Galaxy and its timeline open railed, since they want the screen. That is a
+default, not an override: the moment the user picks a width it is stored and
+wins on every route, Galaxy included. Nothing about the visualisation is
+re-initialised when the width changes — the galaxy is one SVG `viewBox` and
+the timeline a flex row, so both reflow in CSS with zoom, node positions,
+selection and scroll position untouched.
+
 ### Search
 
 `/construct/search` searches the library and the registered knowledge in one

@@ -194,3 +194,66 @@ test("the sidebar collapses to icons and stays that way", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Expand navigation" })).toBeVisible();
   expect((await nav.boundingBox())!.width).toBeLessThan(wide);
 });
+
+test("the Galaxy opens with the navigation railed, and respects a manual width", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await signUp(page, makeAccount("rail-galaxy"));
+  await page.waitForURL(/\/construct$/);
+
+  const nav = page.locator("nav[aria-label='Workspace']");
+  const wide = (await nav.boundingBox())!.width;
+
+  // The visualisation wants the screen, so it defaults to the rail.
+  await page.goto("/construct/galaxy");
+  await expect(page.getByRole("button", { name: "Expand navigation" })).toBeVisible();
+  const railed = (await nav.boundingBox())!.width;
+  expect(railed).toBeLessThan(wide);
+  // 64px, and the icons are still links.
+  expect(railed).toBeLessThanOrEqual(64);
+  await expect(nav.getByRole("link", { name: "Library", exact: true })).toBeVisible();
+
+  // Having asked for labels here, the user keeps them: a stored choice wins
+  // on every route, and the Galaxy's default never takes it back.
+  await page.getByRole("button", { name: "Expand navigation" }).click();
+  expect((await nav.boundingBox())!.width).toBe(wide);
+  await page.goto("/construct/library");
+  await page.goto("/construct/galaxy");
+  expect((await nav.boundingBox())!.width).toBe(wide);
+});
+
+test("a railed icon is still named, by tooltip and to a screen reader", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await signUp(page, makeAccount("rail-names"));
+  await page.waitForURL(/\/construct$/);
+
+  await page.getByRole("button", { name: "Collapse navigation" }).click();
+  const library = page
+    .locator("nav[aria-label='Workspace']")
+    .getByRole("link", { name: "Library", exact: true });
+  await expect(library).toHaveAttribute("title", "Library");
+  await expect(library).toBeVisible();
+
+  // The active item is still marked as such with its label hidden.
+  await library.click();
+  await page.waitForURL(/\/construct\/library$/);
+  await expect(library).toHaveAttribute("aria-current", "page");
+});
+
+test("a tablet gets the icon rail rather than a drawer over the workspace", async ({ page }) => {
+  await page.setViewportSize({ width: 834, height: 1112 });
+  await signUp(page, makeAccount("rail-tablet"));
+  await page.waitForURL(/\/construct$/);
+
+  const nav = page.locator("nav[aria-label='Workspace']");
+  // Visible without a hamburger, and narrow enough to leave the workspace.
+  await expect(nav).toBeVisible();
+  expect((await nav.boundingBox())!.width).toBeLessThanOrEqual(64);
+  await expect(nav.getByRole("link", { name: "Galaxy", exact: true })).toBeVisible();
+
+  const overflows = await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+  );
+  expect(overflows).toBe(false);
+});
