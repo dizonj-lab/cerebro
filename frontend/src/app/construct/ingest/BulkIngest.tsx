@@ -12,7 +12,7 @@ import { ApiError, api } from "@/lib/api";
 import type { CerebroArtifact, CerebroArtifactMetadata } from "@/lib/api";
 import { cn } from "@/lib/cn";
 
-type RowState = "awaiting" | "registering" | "registered" | "failed";
+type RowState = "awaiting" | "enriching" | "registering" | "registered" | "failed";
 
 interface Row {
   artifact: CerebroArtifact;
@@ -21,6 +21,9 @@ interface Row {
   tags: string[];
   state: RowState;
   error?: string;
+  /** Set once a model has proposed for this row, so the label can say so. */
+  enrichedBy?: string | null;
+  note?: string;
 }
 
 /** Files the server refused, kept visible so nothing disappears silently. */
@@ -77,6 +80,63 @@ export function BulkIngest({ onDone }: { onDone?: () => void }) {
     setRows((current) => current.map((row) => (row.artifact.id === id ? { ...row, ...patch } : row)));
   }
 
+  /**
+   * Ask the local model to propose metadata for these rows.
+   *
+   * One row at a time: a model on a laptop takes tens of seconds each, and a
+   * burst of parallel requests would simply queue inside Ollama while making
+   * the progress impossible to follow. Each row updates as it returns.
+   */
+  async function enrich(ids: string[]) {
+    const pending = rows.filter(
+      (row) => ids.includes(row.artifact.id) && row.state === "awaiting",
+    );
+    if (!pending.length || busy) return;
+
+    setError(null);
+    setBusy(true);
+    setRows((current) =>
+      current.map((row) =>
+        ids.includes(row.artifact.id) && row.state === "awaiting"
+          ? { ...row, state: "enriching", error: undefined }
+          : row,
+      ),
+    );
+
+    for (const row of pending) {
+      try {
+        const result = await api.suggestArtifact(row.artifact.id);
+        setRows((current) =>
+          current.map((item) =>
+            item.artifact.id === row.artifact.id
+              ? {
+                  ...item,
+                  state: "awaiting",
+                  // Suggestions land in the row, where they can still be
+                  // edited. Nothing is saved until the row is registered.
+                  title: (result.suggestions.title as string) ?? item.title,
+                  topics: (result.suggestions.topics as string[]) ?? item.topics,
+                  tags: (result.suggestions.tags as string[]) ?? item.tags,
+                  enrichedBy: result.ai_used ? result.model ?? result.engine : null,
+                  note: result.ai_used ? undefined : result.notes[0],
+                }
+              : item,
+          ),
+        );
+      } catch (e) {
+        const message = e instanceof ApiError ? e.message : "Could not ask the local model.";
+        setRows((current) =>
+          current.map((item) =>
+            item.artifact.id === row.artifact.id
+              ? { ...item, state: "awaiting", error: message }
+              : item,
+          ),
+        );
+      }
+    }
+    setBusy(false);
+  }
+
   async function register(ids: string[]) {
     const pending = rows.filter((row) => ids.includes(row.artifact.id) && row.state !== "registered");
     if (!pending.length) return;
@@ -122,6 +182,7 @@ export function BulkIngest({ onDone }: { onDone?: () => void }) {
   }
 
   const awaiting = rows.filter((row) => row.state === "awaiting" || row.state === "failed");
+
 
   return (
     <div className="mt-6">
@@ -234,7 +295,12 @@ export function BulkIngest({ onDone }: { onDone?: () => void }) {
                         />
                       </td>
                       <td className="px-3 py-2.5">
-                        <RowStatus row={row} onRegister={() => void register([row.artifact.id])} />
+                        <RowStatus
+                          row={row}
+                          onRegister={() => void register([row.artifact.id])}
+                          onEnrich={() => void enrich([row.artifact.id])}
+                          busy={busy}
+                        />
                       </td>
                     </tr>
                   );
@@ -251,6 +317,14 @@ export function BulkIngest({ onDone }: { onDone?: () => void }) {
             >
               Confirm and register {awaiting.length || ""}
             </Button>
+            <Button
+              variant="secondary"
+              loading={busy}
+              disabled={awaiting.length === 0}
+              onClick={() => void enrich(awaiting.map((row) => row.artifact.id))}
+            >
+              Enrich all with local AI
+            </Button>
             <Link href="/construct/library">
               <Button variant="ghost">Library</Button>
             </Link>
@@ -265,7 +339,20 @@ export function BulkIngest({ onDone }: { onDone?: () => void }) {
   );
 }
 
-function RowStatus({ row, onRegister }: { row: Row; onRegister: () => void }) {
+function RowStatus({
+  row,
+  onRegister,
+  onEnrich,
+  busy,
+}: {
+  row: Row;
+  onRegister: () => void;
+  onEnrich: () => void;
+  busy: boolean;
+}) {
+  if (row.state === "enriching") {
+    return <span className="text-[0.6875rem] text-ink-subtle">Asking the model…</span>;
+  }
   if (row.state === "registered") {
     return (
       <span
@@ -281,13 +368,30 @@ function RowStatus({ row, onRegister }: { row: Row; onRegister: () => void }) {
   }
   return (
     <div className="space-y-1">
-      <button
-        type="button"
-        onClick={onRegister}
-        className="rounded-md border border-line px-2 py-1 text-[0.6875rem] font-medium text-ink-muted transition-colors hover:border-accent hover:text-accent"
-      >
-        Register
-      </button>
+      <div className="flex gap-1.5">
+        <button
+          type="button"
+          onClick={onRegister}
+          className="rounded-md border border-line px-2 py-1 text-[0.6875rem] font-medium text-ink-muted transition-colors hover:border-accent hover:text-accent"
+        >
+          Register
+        </button>
+        <button
+          type="button"
+          onClick={onEnrich}
+          disabled={busy}
+          title="Ask the local model to propose metadata for this row"
+          className="rounded-md border border-line px-2 py-1 text-[0.6875rem] font-medium text-ink-muted transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
+        >
+          Enrich
+        </button>
+      </div>
+      {row.enrichedBy && (
+        <p className="max-w-[12rem] text-[0.625rem] text-ink-subtle">
+          Suggested by {row.enrichedBy}. Check before confirming.
+        </p>
+      )}
+      {row.note && <p className="max-w-[12rem] text-[0.625rem] text-ink-subtle">{row.note}</p>}
       {row.error && <p className="max-w-[12rem] text-[0.625rem] text-danger">{row.error}</p>}
     </div>
   );

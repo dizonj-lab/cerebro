@@ -170,6 +170,28 @@ test("the timeline renders real events and says where each date came from", asyn
   await expect(page.getByText(/Dates are stated by the document/)).toBeVisible();
 });
 
+test("the timeline shows years, months and how many fall in each", async ({ page }) => {
+  await openGalaxy(page, "g-axis");
+
+  const year = String(new Date().getFullYear());
+  await expect(page.getByText(year, { exact: true })).toBeVisible();
+  // A month tick states its own count rather than leaving a bar to be read.
+  const month = page.getByRole("button", { name: /\d+ documents?$/i }).first();
+  await expect(month).toBeVisible();
+
+  // Focusing a month narrows the cards without hiding the axis.
+  await month.click();
+  await expect(page.getByRole("button", { name: "Show all" })).toBeVisible();
+});
+
+test("a timeline card previews the document itself", async ({ page }) => {
+  await openGalaxy(page, "g-preview");
+
+  // The preview is the document's own opening, quoted — so it can be checked
+  // against the source rather than being a generated blurb.
+  await expect(page.getByText(/is discussed at length here/i).first()).toBeVisible();
+});
+
 test("timeline and galaxy share one selection", async ({ page }) => {
   await openGalaxy(page, "g-sync");
 

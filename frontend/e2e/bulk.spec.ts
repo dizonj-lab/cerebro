@@ -113,3 +113,29 @@ test("the single-document form still works", async ({ page }) => {
   await page.locator('input[type="file"]').setInputFiles(textFile("only.txt", "Only one."));
   await expect(page.getByRole("heading", { name: "Review artifact" })).toBeVisible();
 });
+
+test("a row can be enriched on its own, and the whole table at once", async ({ page }) => {
+  await openBulk(page, "b-enrich");
+  await page.locator('input[type="file"]').setInputFiles([
+    textFile("one.txt", "First."),
+    textFile("two.txt", "Second."),
+  ]);
+
+  const calls: string[] = [];
+  page.on("request", (r) => {
+    if (r.url().includes("/suggest")) calls.push(r.url());
+  });
+
+  // Nothing is asked of the model until the user asks.
+  expect(calls).toEqual([]);
+
+  await page.getByRole("button", { name: "Enrich", exact: true }).first().click();
+  await expect(page.getByText(/no local model is configured/i).first()).toBeVisible({
+    timeout: 15000,
+  });
+  expect(calls).toHaveLength(1);
+
+  await page.getByRole("button", { name: /enrich all with local ai/i }).click();
+  // One request per row, run one at a time rather than in a burst.
+  await expect.poll(() => calls.length, { timeout: 20000 }).toBe(3);
+});

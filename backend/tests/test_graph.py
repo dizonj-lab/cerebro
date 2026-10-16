@@ -146,6 +146,16 @@ def test_the_timeline_says_where_each_date_came_from(client, signed_in):
     assert events["silent.txt"]["basis"] == "registered_at"
 
 
+def test_timeline_events_carry_a_preview_of_the_document(client, signed_in):
+    """A card should show what the document says, not just its name."""
+    register(client, upload(client), ["Atlas"])
+
+    event = client.get("/api/graph/timeline").json()["events"][0]
+    assert event["preview"]
+    # Verbatim from the document, so it can be checked against the source.
+    assert "Atlas migration" in event["preview"]
+
+
 def test_an_unknown_node_is_not_found(client, signed_in):
     assert client.get("/api/graph/node", params={"id": "topic:Nope"}).status_code == 404
     assert client.get("/api/graph/node", params={"id": "nonsense"}).status_code == 404

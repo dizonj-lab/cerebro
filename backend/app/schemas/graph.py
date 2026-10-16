@@ -94,6 +94,9 @@ class TimelineEvent(BaseModel):
     category: str
     topics: list[str] = Field(default_factory=list)
     description: str | None = None
+    # The opening of the document itself, quoted. Null when it has no
+    # fragments yet.
+    preview: str | None = None
     modality: str
 
 

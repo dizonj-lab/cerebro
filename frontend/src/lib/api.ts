@@ -302,6 +302,8 @@ export interface CerebroTimelineEvent {
   category: string;
   topics: string[];
   description: string | null;
+  /** The opening of the document itself, quoted. Null when it has no fragments. */
+  preview: string | null;
   modality: string;
 }
 

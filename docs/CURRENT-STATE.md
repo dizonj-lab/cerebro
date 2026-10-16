@@ -131,6 +131,11 @@ A batch is a set of independent files. One unreadable PDF costs the user that
 file and nothing else: the response reports every file, refusals are named in
 the same words a single upload uses, and the rest of the batch is accepted.
 
+Rows can be enriched by the local model, singly or all at once, from the
+same endpoint the single form uses. A batch runs **one row at a time**: a
+model on a laptop takes tens of seconds each, and parallel requests would
+only queue inside Ollama while making progress impossible to follow.
+
 **There is no bulk shortcut past review.** Registering a row — one at a time
 or the whole table — runs the identical approval path: checksum
 re-verification, then chunking and embedding, with `field_methods` marked
@@ -263,7 +268,15 @@ posing as certainty. People appear only where a human confirmed them; none are
 inferred.
 
 Timeline dates are the date the document states, or the date it was
-registered, and which one is always shown. No date is inferred.
+registered, and which one is always shown. No date is inferred. The axis has
+two levels — years as milestones, months beneath — and each month states how
+many artifacts fall in it rather than leaving a bar to be read. Cards preview
+the document's own opening, quoted, so a card can be checked against its
+source.
+
+Galaxy and Timeline share one column, so the Timeline is as wide as the
+Galaxy and both grow when the details panel collapses; the panel is a column
+beside them rather than above the Timeline.
 
 Rendered as SVG: the node count is capped server-side at a couple of dozen,
 which SVG handles comfortably while keeping nodes focusable and hoverable
@@ -287,7 +300,7 @@ sidebar still have no routes.
 | UI/UX       | APPROVED             |
 | Regression  | PASS                 |
 
-**Engineering** — Backend: 183 pytest tests green against a real PostgreSQL 16
+**Engineering** — Backend: 184 pytest tests green against a real PostgreSQL 16
 database. Frontend: `tsc --noEmit` clean, ESLint clean, production build clean.
 Kubernetes manifests parse as valid YAML.
 

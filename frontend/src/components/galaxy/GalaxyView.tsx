@@ -177,8 +177,15 @@ export function GalaxyView() {
 
       <ErrorMessage>{error}</ErrorMessage>
 
-      <div className="flex flex-col gap-4 xl:flex-row">
-        <div className="relative min-w-0 flex-1" style={{ height: galaxyHeight }}>
+      {/*
+        Galaxy and Timeline share one column, so the Timeline is as wide as
+        the Galaxy and both grow when the details panel is collapsed. Putting
+        the Timeline outside this row made opening the panel push it down
+        instead of narrowing it.
+      */}
+      <div className="flex min-h-0 flex-1 flex-col gap-4 xl:flex-row">
+        <div className="flex min-w-0 flex-1 flex-col gap-3">
+        <div className="relative min-w-0" style={{ height: galaxyHeight }}>
           <GalaxyCanvas
             graph={graph}
             selectedId={selectedId}
@@ -188,6 +195,28 @@ export function GalaxyView() {
           />
           {/* Anchored inside the workspace, over the lower right. */}
           <RecallChat topic={selectedTopic} />
+        </div>
+
+        {/* Drag to give either view more room. */}
+        <div
+          role="separator"
+          aria-label="Resize galaxy"
+          onPointerDown={startResize}
+          onPointerMove={onResize}
+          onPointerUp={() => {
+            resize.current = null;
+          }}
+          className="group mx-auto flex h-3 w-24 cursor-row-resize items-center justify-center rounded-full"
+        >
+          <span className="h-1 w-full rounded-full bg-line-strong transition-colors group-hover:bg-accent" />
+        </div>
+
+        <KnowledgeTimeline
+          events={events}
+          selectedTopic={selectedTopic}
+          selectedArtifactId={selectedArtifactId}
+          onSelect={onTimelineSelect}
+        />
         </div>
 
         {panelOpen ? (
@@ -252,26 +281,6 @@ export function GalaxyView() {
         )}
       </div>
 
-      {/* Drag to give either view more room. */}
-      <div
-        role="separator"
-        aria-label="Resize galaxy"
-        onPointerDown={startResize}
-        onPointerMove={onResize}
-        onPointerUp={() => {
-          resize.current = null;
-        }}
-        className="group mx-auto flex h-3 w-24 cursor-row-resize items-center justify-center rounded-full"
-      >
-        <span className="h-1 w-full rounded-full bg-line-strong transition-colors group-hover:bg-accent" />
-      </div>
-
-      <KnowledgeTimeline
-        events={events}
-        selectedTopic={selectedTopic}
-        selectedArtifactId={selectedArtifactId}
-        onSelect={onTimelineSelect}
-      />
     </div>
   );
 }

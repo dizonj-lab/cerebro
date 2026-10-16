@@ -399,7 +399,8 @@ function Legend({ graph }: { graph: CerebroGalaxy }) {
   const categories = [...new Set(graph.nodes.map((n) => n.category))].slice(0, 6);
   if (!categories.length) return null;
   return (
-    <div className="absolute bottom-4 left-4 flex flex-wrap gap-x-4 gap-y-1.5 rounded-lg border border-white/10 bg-[#101725]/80 px-3 py-2 backdrop-blur">
+    <div // Capped so it cannot run under the chat launcher in the opposite corner.
+      className="absolute bottom-4 left-4 flex max-w-[52%] flex-wrap gap-x-4 gap-y-1.5 rounded-lg border border-white/10 bg-[#101725]/80 px-3 py-2 backdrop-blur">
       {categories.map((category) => (
         <span key={category} className="flex items-center gap-1.5 text-[0.6875rem] text-white/70">
           <span className="size-2 rounded-full" style={{ background: colorFor(category) }} />

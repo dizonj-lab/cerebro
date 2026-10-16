@@ -398,6 +398,20 @@ def timeline(db: Session, owner_id: uuid.UUID) -> dict:
         .order_by(Artifact.registered_at)
     ).all()
 
+    # One query for the opening fragment of every artifact, so each card can
+    # show what the document actually says rather than only its name. The
+    # first chunk is the document's own opening — a quote, not a summary.
+    # DISTINCT ON takes the lowest ordinal per artifact. Chunk ordinals start
+    # at 1, not 0, so filtering on a fixed value silently found nothing.
+    previews = dict(
+        db.execute(
+            select(KnowledgeFragment.artifact_id, KnowledgeFragment.content)
+            .where(KnowledgeFragment.owner_id == owner_id)
+            .distinct(KnowledgeFragment.artifact_id)
+            .order_by(KnowledgeFragment.artifact_id, KnowledgeFragment.ordinal)
+        ).all()
+    )
+
     events = []
     for artifact_id, filename, modality, meta, registered_at in rows:
         meta = meta or {}
@@ -420,6 +434,9 @@ def timeline(db: Session, owner_id: uuid.UUID) -> dict:
                 "category": topics[0] if topics else "Knowledge",
                 "topics": topics,
                 "description": (meta.get("description") or "")[:160] or None,
+                # Verbatim from the document, so the card is a preview of the
+                # real thing rather than a generated blurb.
+                "preview": " ".join((previews.get(artifact_id) or "").split())[:280] or None,
                 "modality": modality,
             }
         )
