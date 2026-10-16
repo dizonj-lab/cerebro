@@ -5,6 +5,7 @@ import { useState, useSyncExternalStore } from "react";
 
 import { ConstructHeader } from "@/components/construct/ConstructHeader";
 import { Sidebar } from "@/components/construct/Sidebar";
+import { GodModeWindow } from "@/components/godmode/GodModeWindow";
 import { api } from "@/lib/api";
 import {
   railServerSnapshot,
@@ -88,6 +89,14 @@ export function ConstructShell({ user, children }: ConstructShellProps) {
 
         <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
       </div>
+
+      {/*
+        Mounted in the shell rather than on a page, so the window floats over
+        every module and survives navigation between them: a client-side
+        route change replaces `children` and leaves this alone, position,
+        size and telemetry intact.
+      */}
+      <GodModeWindow />
     </div>
   );
 }

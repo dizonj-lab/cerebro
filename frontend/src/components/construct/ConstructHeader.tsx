@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Logo } from "@/components/brand/Logo";
 import { IconBell, IconPlus, IconSettings } from "@/components/construct/icons";
 import { ThemeToggle } from "@/components/construct/ThemeToggle";
+import { GodModeLauncher } from "@/components/godmode/GodModeLauncher";
 import { UserMenu } from "@/components/construct/UserMenu";
 import { GlobalSearch } from "@/components/search/GlobalSearch";
 import type { CerebroUser } from "@/lib/api";
@@ -87,6 +88,8 @@ export function ConstructHeader({
           <span className="sr-only">Notifications (coming soon)</span>
           <span className="block size-5"><IconBell /></span>
         </button>
+
+        <GodModeLauncher />
 
         <ThemeToggle />
 

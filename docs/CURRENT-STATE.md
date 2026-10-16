@@ -117,6 +117,31 @@ filters on all three, so vectors from two spaces are never compared.
 A fragment scoring zero or below is not returned. An unrelated passage
 offered as a weak match is an unrelated passage offered as evidence.
 
+### GOD MODE
+
+A floating window, opened from the header, that reports on the library while
+the user works in any module. It drags by its title bar, resizes from every
+edge and corner down to a floor of 320x240, minimises to a pill, maximises on
+a double-click, and its opacity is adjustable from 50% to 100% (85% by
+default). Position, size, opacity and mode are stored, so closing and
+reopening it puts it back where it was, and a viewport change moves it back
+inside the screen rather than leaving it unreachable.
+
+It is mounted in the shell rather than on a page, so navigating between
+modules leaves it alone. Dragging writes to the element's transform directly
+and commits to storage once on release: a render per pointer move would
+re-render the telemetry sixty times a second in order to move a box. The
+window is only as large as itself, with no layer behind it, so the Galaxy
+underneath keeps every pointer event the window does not cover.
+
+What it shows is read from the user's own library through the existing
+endpoints — document, fragment and topic counts, bytes stored, the week's
+ingestion, the most recent artifact and its status, the configured engines —
+plus the round trip of its own request, which the browser can honestly
+measure. **CEREBRO keeps no server-side metrics**: there are no request
+rates, no CPU and no queue depths, so GOD MODE shows none. A dial reading a
+number nobody measured would be worse than an absent dial.
+
 ### Appearance
 
 Light and dark switch from the header, in place: the control used to live only
