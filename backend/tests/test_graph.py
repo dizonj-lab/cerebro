@@ -224,3 +224,97 @@ def test_an_entity_named_in_two_documents_joins_their_topics(client, signed_in):
     assert {e["target"] for e in named_in} == {"topic:Migration", "topic:Governance"}
     # Co-occurrence, stated as what they share — never an inferred meaning.
     assert all(e["relevance"] for e in named_in)
+
+
+def test_every_edge_explains_itself_and_names_its_evidence(client, signed_in):
+    """An edge that cannot be justified should not be drawn at all."""
+    a = upload(client, "one.txt", BODY)
+    register(client, a, ["Migration", "Databases"])
+    b = upload(client, "two.txt", BODY.replace(b"Atlas", b"Orion"))
+    register(client, b, ["Migration", "Databases"])
+
+    edges = client.get("/api/graph").json()["edges"]
+
+    assert edges
+    for edge in edges:
+        assert edge["explanation"]
+        # It resolves to the documents it rests on, by name.
+        assert edge["evidence"]
+        assert edge["evidence_count"] >= 1
+        # A count of documents, said as such — never a bare percentage.
+        assert "document" in edge["confidence"]
+        assert edge["status"] == "registered"
+        # The kind stays observational: co-occurrence is not "uses".
+        assert edge["kind"] in ("co_occurrence", "named_in", "contains")
+
+
+def test_an_edge_from_one_document_is_kept_but_not_strong(client, signed_in):
+    """Two topics landing in one file is the weakest claim the graph makes."""
+    a = upload(client, "single.txt", BODY)
+    register(client, a, ["Migration", "Databases"])
+
+    edge = client.get("/api/graph").json()["edges"][0]
+
+    assert edge["weight"] == 1
+    assert edge["strong"] is False
+    assert edge["evidence"] == ["Atlas Plan"]
+
+
+def test_a_recurring_edge_is_strong(client, signed_in):
+    for name in ("one.txt", "two.txt"):
+        artifact = upload(client, name, BODY.replace(b"Atlas", name.encode()))
+        register(client, artifact, ["Migration", "Databases"])
+
+    edge = client.get("/api/graph").json()["edges"][0]
+
+    assert edge["weight"] == 2
+    assert edge["strong"] is True
+
+
+def test_revalidation_reports_generic_topics_and_changes_nothing(client, signed_in):
+    """Confirmed data is not rewritten merely because it was inspected."""
+    artifact = upload(client)
+    register(client, artifact, ["Migration", "PDF", "HTTPS"])
+
+    body = client.post("/api/graph/revalidate").json()
+
+    assert body["applied"] is False
+    assert body["artifacts_affected"] == 1
+    assert set(body["findings"][0]["removals"]["topics"]) == {"PDF", "HTTPS"}
+    # Still there: reporting is not applying.
+    after = client.get(f"/api/artifacts/{artifact['id']}").json()
+    assert "PDF" in after["metadata"]["topics"]
+
+
+def test_revalidation_applies_only_when_asked_and_records_what_it_removed(
+    client, signed_in
+):
+    artifact = upload(client)
+    register(client, artifact, ["Migration", "PDF", "HTTPS"])
+    fragments_before = client.get(f"/api/artifacts/{artifact['id']}").json()
+
+    body = client.post("/api/graph/revalidate?apply=true").json()
+
+    assert body["applied"] is True
+    assert body["artifacts_changed"] == 1
+
+    after = client.get(f"/api/artifacts/{artifact['id']}").json()
+    assert after["metadata"]["topics"] == ["Migration"]
+    # The subject survives; only the furniture goes.
+    assert after["filename"] == fragments_before["filename"]
+    # And what went is recorded, so the change can be explained later.
+    history = after["provenance"]["revalidations"]
+    assert history[0]["rule"] == "significance_filter"
+    assert set(history[0]["removed"]["topics"]) == {"PDF", "HTTPS"}
+
+
+def test_revalidation_never_touches_fragments_or_the_document(client, signed_in):
+    """Filtering concepts must not cost source evidence."""
+    artifact = upload(client)
+    register(client, artifact, ["Migration", "PDF"])
+    before = client.get("/api/graph/timeline").json()["events"]
+
+    client.post("/api/graph/revalidate?apply=true")
+
+    assert len(client.get("/api/graph/timeline").json()["events"]) == len(before)
+    assert client.get(f"/api/artifacts/{artifact['id']}/content").status_code == 200

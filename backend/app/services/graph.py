@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import uuid
 from collections import Counter, defaultdict
+from datetime import datetime, timezone
 from dataclasses import dataclass
 
 from sqlalchemy import func, select
@@ -28,6 +29,8 @@ from sqlalchemy.orm import Session
 
 from app.models.artifact import Artifact
 from app.models.fragment import KnowledgeFragment
+from app.services.artifacts.enrichment import CONCEPT_FIELDS
+from app.services.artifacts.enrichment.significance import filter_concepts
 
 # Progressive disclosure: the Galaxy opens on the clusters, and fragments
 # arrive when a cluster is expanded. These caps are what keep an SVG scene
@@ -53,6 +56,63 @@ def _relevance(weight: int) -> str:
     if weight == 2:
         return RELEVANCE[1]
     return RELEVANCE[0]
+
+
+# An edge supported by a single document is the weakest claim the graph can
+# make: two topics happened to land in one file. It is kept — the evidence is
+# real — but not drawn until the user selects one of its endpoints, so the
+# opening view shows the links that recur.
+STRONG_EDGE_WEIGHT = 2
+# How many supporting documents an edge names before it says "and N more".
+MAX_EVIDENCE = 4
+
+
+def _titles(artifacts: list[_Registered], ids: set[uuid.UUID]) -> list[str]:
+    """The documents an edge rests on, named as the user would recognise them."""
+    found = [a.title or a.filename for a in artifacts if a.id in ids]
+    return sorted(found)[:MAX_EVIDENCE]
+
+
+def _edge(
+    *,
+    source: str,
+    target: str,
+    kind: str,
+    weight: int,
+    documents: set[uuid.UUID],
+    artifacts: list[_Registered],
+    explanation: str,
+) -> dict:
+    """One edge, with everything needed to justify drawing it.
+
+    `kind` says what was observed, never what it means. CEREBRO can see that
+    two topics appear in the same registered document, or that a confirmed
+    entity is named in a document carrying a topic; it cannot see that one
+    *uses* or *depends on* the other, and an edge labelled that way would be
+    a claim no evidence here supports. So the kinds stay observational and
+    the explanation says plainly what the observation was.
+
+    `confidence` is the count of documents behind the edge, not a score: a
+    percentage would imply a model weighed this, and none did.
+    """
+    return {
+        "id": f"{source}|{target}",
+        "source": source,
+        "target": target,
+        "kind": kind,
+        "weight": weight,
+        "relevance": _relevance(weight),
+        "explanation": explanation,
+        # Every edge resolves to the documents that support it.
+        "evidence": _titles(artifacts, documents),
+        "evidence_count": len(documents),
+        "confidence": f"{len(documents)} document{'' if len(documents) == 1 else 's'}",
+        # Only registered artifacts reach this code, so an edge drawn here
+        # rests on knowledge a human approved. Said explicitly rather than
+        # implied.
+        "status": "registered",
+        "strong": weight >= STRONG_EDGE_WEIGHT,
+    }
 
 
 @dataclass
@@ -117,11 +177,13 @@ def galaxy(db: Session, owner_id: uuid.UUID) -> dict:
                 per_topic_fragments[topic] += int(fragment_counts.get(artifact.id, 0))
 
     pairs: Counter = Counter()
+    pair_documents: dict[tuple[str, str], set[uuid.UUID]] = defaultdict(set)
     for artifact in artifacts:
         present = sorted({t for t in artifact.topics if t in keep_set})
         for i, a in enumerate(present):
             for b in present[i + 1 :]:
                 pairs[(a, b)] += 1
+                pair_documents[(a, b)].add(artifact.id)
 
     # Entities the documents name — people, organizations, projects and
     # technologies a human confirmed at registration. An entity that appears
@@ -149,14 +211,18 @@ def galaxy(db: Session, owner_id: uuid.UUID) -> dict:
     ]
 
     edges = [
-        {
-            "id": f"topic:{a}|topic:{b}",
-            "source": f"topic:{a}",
-            "target": f"topic:{b}",
-            "kind": "co_occurrence",
-            "weight": weight,
-            "relevance": _relevance(weight),
-        }
+        _edge(
+            source=f"topic:{a}",
+            target=f"topic:{b}",
+            kind="co_occurrence",
+            weight=weight,
+            documents=pair_documents[(a, b)],
+            artifacts=artifacts,
+            explanation=(
+                f"{weight} registered document{'' if weight == 1 else 's'} "
+                f"carry both “{a}” and “{b}”."
+            ),
+        )
         for (a, b), weight in pairs.most_common(MAX_EDGES)
     ]
 
@@ -179,6 +245,7 @@ def _entity_graph(
     """
     mentions: dict[tuple[str, str], set[uuid.UUID]] = defaultdict(set)
     links: Counter = Counter()
+    link_documents: dict[tuple[tuple[str, str], str], set[uuid.UUID]] = defaultdict(set)
 
     for artifact in artifacts:
         present = {t for t in artifact.topics if t in topics}
@@ -190,6 +257,7 @@ def _entity_graph(
                 mentions[key].add(artifact.id)
                 for topic in present:
                     links[(key, topic)] += 1
+                    link_documents[(key, topic)].add(artifact.id)
 
     shared = {
         key: documents for key, documents in mentions.items() if len(documents) > 1
@@ -212,14 +280,18 @@ def _entity_graph(
 
     keep_keys = {key for key, _ in ranked}
     edges = [
-        {
-            "id": f"{field}:{value}|topic:{topic}",
-            "source": f"{field}:{value}",
-            "target": f"topic:{topic}",
-            "kind": "named_in",
-            "weight": weight,
-            "relevance": _relevance(weight),
-        }
+        _edge(
+            source=f"{field}:{value}",
+            target=f"topic:{topic}",
+            kind="named_in",
+            weight=weight,
+            documents=link_documents[((field, value), topic)],
+            artifacts=artifacts,
+            explanation=(
+                f"“{value}” is named in {weight} registered "
+                f"document{'' if weight == 1 else 's'} about “{topic}”."
+            ),
+        )
         for ((field, value), topic), weight in links.most_common()
         if (field, value) in keep_keys
     ][:MAX_EDGES]
@@ -523,3 +595,84 @@ def _summarise(content: str) -> str:
         return text
     cut = text[:60].rsplit(" ", 1)[0]
     return f"{cut}…"
+
+
+def revalidate(db: Session, owner_id: uuid.UUID, *, apply: bool = False) -> dict:
+    """What the significance rule would change in already-confirmed knowledge.
+
+    The filter at enrichment only governs new proposals. A library built
+    before it exists still carries confirmed terms like "PDF" and "HTTPS",
+    and those are what put them in the Galaxy. This finds them.
+
+    It reports by default and changes nothing. Those terms were approved by a
+    human, and quietly deleting approved data to make a graph prettier is
+    exactly the kind of silent overwrite CEREBRO must not do — so applying is
+    a separate, explicit act, and even then it:
+
+    * touches only the concept fields of `artifact_metadata`;
+    * never deletes an artifact, a fragment, an extraction or source bytes;
+    * records what it removed in `provenance`, so the change is auditable and
+      the terms are recoverable from that record.
+
+    Nothing here infers meaning. A term is listed either because every word
+    in it names a medium or format, or because another confirmed term
+    canonicalises to the same concept.
+    """
+    artifacts = _registered_artifacts(db, owner_id)
+    findings: list[dict] = []
+    changed = 0
+
+    for artifact in artifacts:
+        metadata = artifact.metadata or {}
+        removals: dict[str, list[str]] = {}
+        for field in CONCEPT_FIELDS:
+            values = metadata.get(field)
+            if not isinstance(values, list) or not values:
+                continue
+            kept, rejected = filter_concepts(values)
+            if rejected:
+                removals[field] = rejected
+        if not removals:
+            continue
+
+        findings.append(
+            {
+                "artifact_id": str(artifact.id),
+                "title": artifact.title or artifact.filename,
+                "filename": artifact.filename,
+                "removals": removals,
+            }
+        )
+
+        if apply:
+            row = db.get(Artifact, artifact.id)
+            if row is None:
+                continue
+            updated = dict(row.artifact_metadata or {})
+            for field, rejected in removals.items():
+                kept, _ = filter_concepts(updated.get(field) or [])
+                updated[field] = kept
+            row.artifact_metadata = updated
+            # The audit trail: what was removed, and by what rule. Without
+            # this the change would be unexplainable a week later.
+            history = list((row.provenance or {}).get("revalidations") or [])
+            history.append(
+                {
+                    "at": datetime.now(timezone.utc).isoformat(),
+                    "rule": "significance_filter",
+                    "removed": removals,
+                }
+            )
+            row.provenance = {**(row.provenance or {}), "revalidations": history}
+            changed += 1
+
+    if apply:
+        db.flush()
+
+    return {
+        "applied": apply,
+        "artifacts_scanned": len(artifacts),
+        "artifacts_affected": len(findings),
+        "artifacts_changed": changed,
+        "findings": findings,
+    }

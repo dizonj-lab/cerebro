@@ -5,7 +5,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { layout, VIEWBOX } from "@/components/galaxy/layout";
 import { colorFor, hueFor } from "@/components/galaxy/palette";
 import { api } from "@/lib/api";
-import type { CerebroGalaxy, GraphNode } from "@/lib/api";
+import type { CerebroGalaxy, GraphEdge, GraphNode } from "@/lib/api";
 import { cn } from "@/lib/cn";
 
 interface GalaxyCanvasProps {
@@ -55,6 +55,7 @@ export function GalaxyCanvas({
 }: GalaxyCanvasProps) {
   const [view, setView] = useState({ scale: 1, x: 0, y: 0, angle: 0 });
   const [hovered, setHovered] = useState<string | null>(null);
+  const [hoveredEdge, setHoveredEdge] = useState<GraphEdge | null>(null);
   const drag = useRef<{
     mode: "pan" | "rotate";
     x: number;
@@ -87,6 +88,13 @@ export function GalaxyCanvas({
   // What is "in focus" decides what stays bright and what dims. Hover is a
   // preview; selection persists.
   const focus = hovered ?? selectedId;
+  // Whether hiding the weakest edges would leave anything to look at. An
+  // edge resting on one document is the weakest claim the graph makes, but
+  // in a young library it is also the only claim available — hiding it
+  // unconditionally drew an empty map and called that restraint. So the
+  // threshold is relative: weak edges step aside when stronger ones exist,
+  // and stand in for them when none do.
+  const hasStrongEdges = useMemo(() => graph.edges.some((edge) => edge.strong), [graph.edges]);
   const connected = useMemo(() => {
     // A mapped answer takes over the dimming: the map is the point, and
     // hovering should not wash it away.
@@ -232,21 +240,44 @@ export function GalaxyCanvas({
             const a = positions.get(edge.source);
             const b = positions.get(edge.target);
             if (!a || !b) return null;
+            const touches = focus === edge.source || focus === edge.target;
+            // Progressive disclosure, but only where there is something to
+            // disclose progressively: a weak edge is hidden when stronger
+            // ones exist, and shown anyway when they do not. Either way it
+            // reappears when one of its endpoints is in focus, which is when
+            // the user is asking about that node specifically.
+            if (!edge.strong && hasStrongEdges && !touches) return null;
             const lit = !connected || connected.has(edge.source) || connected.has(edge.target);
             // A gentle curve reads better than a straight chord on a radial
             // layout, and separates edges that share endpoints.
             const mx = (a.x + b.x) / 2;
             const my = (a.y + b.y) / 2 - Math.abs(a.x - b.x) * 0.07;
+            const path = `M${a.x},${a.y} Q${mx},${my} ${b.x},${b.y}`;
             return (
-              <path
-                key={edge.id}
-                d={`M${a.x},${a.y} Q${mx},${my} ${b.x},${b.y}`}
-                fill="none"
-                stroke={`url(#${gradientId(edge.id)})`}
-                strokeWidth={0.6 + Math.min(edge.weight, 4) * 0.45}
-                opacity={lit ? 0.55 : 0.08}
-                className="transition-opacity duration-200"
-              />
+              <g key={edge.id}>
+                <path
+                  d={path}
+                  fill="none"
+                  stroke={`url(#${gradientId(edge.id)})`}
+                  strokeWidth={0.6 + Math.min(edge.weight, 4) * 0.45}
+                  opacity={lit ? (edge.strong ? 0.55 : 0.3) : 0.08}
+                  strokeDasharray={edge.strong ? undefined : "4 3"}
+                  className="transition-opacity duration-200"
+                />
+                {/* A wide invisible companion: a 1px curve is far too thin
+                    to hit with a pointer, and an edge nobody can hover is an
+                    edge that cannot explain itself. */}
+                <path
+                  d={path}
+                  fill="none"
+                  stroke="transparent"
+                  strokeWidth={6}
+                  data-testid="galaxy-edge"
+                  className="cursor-help"
+                  onPointerEnter={() => setHoveredEdge(edge)}
+                  onPointerLeave={() => setHoveredEdge(null)}
+                />
+              </g>
             );
           })}
 
@@ -368,6 +399,8 @@ export function GalaxyCanvas({
           })}
         </g>
       </svg>
+
+      {hoveredEdge && <EdgeCard edge={hoveredEdge} graph={graph} />}
 
       {hoveredNode && hoveredPoint && (
         <HoverCard
@@ -567,4 +600,61 @@ function ViewButton({
 /** SVG ids must be valid and unique; node ids contain colons and spaces. */
 function gradientId(id: string): string {
   return `g-${id.replace(/[^a-zA-Z0-9]/g, "-")}`;
+}
+
+/**
+ * Why two nodes are connected.
+ *
+ * Every field here is something CEREBRO observed, and the wording is chosen
+ * so none of it reads as more than that. The relationship is named for what
+ * was seen — two topics in the same registered document, or a confirmed
+ * entity named in one — never for what it might mean: co-occurrence cannot
+ * establish that one thing *uses* or *depends on* another, and an edge
+ * labelled that way would be a claim with no evidence behind it.
+ *
+ * Confidence is a count of supporting documents, written as a count. An
+ * unexplained percentage would imply a model weighed this; none did.
+ */
+function EdgeCard({ edge, graph }: { edge: GraphEdge; graph: CerebroGalaxy }) {
+  const label = (id: string) => graph.nodes.find((n) => n.id === id)?.label ?? id;
+  return (
+    <div
+      role="tooltip"
+      data-testid="edge-card"
+      className="pointer-events-none absolute left-4 top-4 z-30 max-w-xs rounded-lg border border-white/15 bg-[#0e1522]/97 p-3 text-xs shadow-2xl"
+    >
+      <Field label="Relationship">{RELATIONSHIP[edge.kind] ?? edge.kind}</Field>
+      <Field label="Source">{label(edge.source)}</Field>
+      <Field label="Target">{label(edge.target)}</Field>
+      <p className="mt-2 border-t border-white/10 pt-2 text-white/70">{edge.explanation}</p>
+      {edge.evidence.length > 0 && (
+        <p className="mt-1.5 text-[0.6875rem] text-white/45">
+          From {edge.evidence.join(", ")}
+          {edge.evidence_count > edge.evidence.length
+            ? ` and ${edge.evidence_count - edge.evidence.length} more`
+            : ""}
+        </p>
+      )}
+      <div className="mt-2 flex items-center justify-between border-t border-white/10 pt-2 text-[0.6875rem] text-white/45">
+        <span>{edge.confidence}</span>
+        <span>{edge.status === "registered" ? "Approved knowledge" : edge.status}</span>
+      </div>
+    </div>
+  );
+}
+
+/** Observational names. Nothing here asserts what a relationship means. */
+const RELATIONSHIP: Record<string, string> = {
+  co_occurrence: "Appears in the same document",
+  named_in: "Named in documents about",
+  contains: "Fragment of",
+};
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <span className="text-[0.6875rem] text-white/40">{label}</span>
+      <span className="text-right text-[0.75rem] text-white/85">{children}</span>
+    </div>
+  );
 }

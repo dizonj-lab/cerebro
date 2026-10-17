@@ -498,6 +498,40 @@ and the panel says exactly that for every relationship. Relevance is words
 posing as certainty. People appear only where a human confirmed them; none are
 inferred.
 
+Every edge carries what is needed to justify drawing it: an explanation in a
+sentence, the documents it rests on by name, a confidence stated as a count
+of those documents, and its approval status. Hovering an edge shows all of
+it. The kind names what was *observed* — two topics in one registered
+document, or a confirmed entity named in a document about a topic — and
+never what it might mean. CEREBRO cannot see that one thing *uses* or
+*depends on* another, so no edge says so.
+
+An edge resting on a single document is the weakest claim the graph makes.
+It is kept, because the evidence is real, but drawn dashed and held back
+until one of its endpoints is in focus — **unless no stronger edge exists**,
+in which case it is drawn anyway. A young library's only evidence is still
+its evidence, and hiding all of it drew an empty map and called that
+restraint.
+
+Nodes are confirmed topics and confirmed entities, and a **significance
+rule** decides what may be proposed as either. A term naming the medium
+rather than the subject — "PDF", "HTTPS", "document", "Models" — is set
+aside when it stands alone, and kept the moment the document puts it in a
+phrase that says something: "PDF Document Parsing Pipeline" survives, "PDF"
+does not. Nothing is banned outright, so a library genuinely about file
+formats keeps its subject. Spellings of one concept collapse to one node,
+preferring the phrasing with more words; a missed merge leaves two nodes
+meaning one thing, while a wrong merge invents a concept nobody wrote, and
+the rule errs toward the cheaper mistake.
+
+The rule governs *proposals*, so a library built before it still carries
+terms a human confirmed. `POST /api/graph/revalidate` finds them. It reports
+and changes nothing by default: those terms were approved by a person, and
+deleting approved data to make a graph prettier is the kind of silent
+overwrite CEREBRO must not do. `?apply=true` performs it, touching only the
+concept fields, recording what it removed in the artifact's provenance, and
+never deleting an artifact, a fragment, an extraction or source bytes.
+
 Timeline dates are the date the document states, or the date it was
 registered, and which one is always shown. No date is inferred. The axis has
 two levels — years as milestones, months beneath — and each month states how

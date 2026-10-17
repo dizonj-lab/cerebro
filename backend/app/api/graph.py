@@ -43,3 +43,22 @@ def node(
 @router.get("/timeline", response_model=TimelineResponse)
 def timeline(current_user: CurrentUser, db: DbSession) -> TimelineResponse:
     return TimelineResponse(**graph.timeline(db, current_user.id))
+
+
+@router.post("/revalidate")
+def revalidate(current_user: CurrentUser, db: DbSession, apply: bool = False) -> dict:
+    """Re-run the significance rule over knowledge already confirmed.
+
+    Reports by default and changes nothing: the terms it finds were approved
+    by a human, so removing them is an explicit act rather than a side effect
+    of asking what is there. `?apply=true` performs it, touching only the
+    concept fields and recording what it removed in the artifact's
+    provenance. Artifacts, fragments, extractions and source bytes are never
+    deleted.
+    """
+    result = graph.revalidate(db, current_user.id, apply=apply)
+    # The route commits, as every other write route here does; the service
+    # only flushes. A report commits nothing because it changed nothing.
+    if apply:
+        db.commit()
+    return result

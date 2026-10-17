@@ -34,6 +34,17 @@ class GraphEdge(BaseModel):
     # Words, not a percentage: a number would read as a confidence the data
     # does not support.
     relevance: str
+    # Why the edge is drawn, in a sentence, and the documents it rests on.
+    # An edge that cannot say either of these should not be displayed.
+    explanation: str = ""
+    evidence: list[str] = Field(default_factory=list)
+    evidence_count: int = 0
+    # A count of supporting documents, stated as such. Not a score.
+    confidence: str = ""
+    status: str = "registered"
+    # False for an edge resting on a single document: real, but shown only
+    # when one of its endpoints is selected.
+    strong: bool = True
 
 
 class GalaxyResponse(BaseModel):

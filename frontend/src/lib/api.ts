@@ -265,6 +265,16 @@ export interface GraphEdge {
   kind: string;
   weight: number;
   relevance: string;
+  /** Why this edge is drawn, in a sentence. */
+  explanation: string;
+  /** The documents it rests on, by name. */
+  evidence: string[];
+  evidence_count: number;
+  /** A count of supporting documents, stated as such — not a score. */
+  confidence: string;
+  status: string;
+  /** False for an edge resting on one document: shown only on selection. */
+  strong: boolean;
 }
 
 export interface CerebroGalaxy {

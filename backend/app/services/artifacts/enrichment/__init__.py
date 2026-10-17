@@ -23,6 +23,12 @@ from app.core.config import get_settings
 from app.services.artifacts.enrichment.base import Enrichment, EnrichmentEngine
 from app.services.artifacts.enrichment.deterministic import DeterministicEnricher
 from app.services.artifacts.enrichment.llm import OllamaEnricher
+from app.services.artifacts.enrichment.significance import filter_concepts
+
+# Concept-shaped fields, where a term naming the medium is noise. Names are
+# deliberately absent: a person called Page or a company called Data is not
+# furniture, and only the owner can judge that.
+CONCEPT_FIELDS = ("topics", "tags", "concepts", "technologies")
 
 
 def _llm_engine() -> EnrichmentEngine | None:
@@ -95,9 +101,42 @@ def enrich(
                 engine.enrich(text=text, properties=properties, filename=filename)
             )
 
-    return result.merge(
+    merged = result.merge(
         deterministic.from_statistics(text=text, properties=properties, filename=filename)
     )
+    return _significant(merged)
+
+
+def _significant(result: Enrichment) -> Enrichment:
+    """Drop proposals that name the medium, and merge ones that say the same thing.
+
+    Applied once, here, so both engines are covered by one rule and neither
+    has to repeat it. It runs on suggestions only: nothing a human confirmed
+    is touched, and the document's text, fragments and extraction are not
+    involved at all.
+
+    What it removes is written into the notes rather than silently dropped,
+    because a filter nobody can see is a filter nobody can correct.
+    """
+    for field in CONCEPT_FIELDS:
+        values = result.suggestions.get(field)
+        if not isinstance(values, list) or not values:
+            continue
+        kept, rejected = filter_concepts(values)
+        if kept:
+            result.suggestions[field] = kept
+        else:
+            # An empty list is a claim too: better to carry no suggestion for
+            # this field than one the filter emptied.
+            result.suggestions.pop(field, None)
+            result.methods.pop(field, None)
+        if rejected:
+            result.notes.append(
+                f"Set aside {len(rejected)} {field} naming the format or already "
+                f"covered: {', '.join(rejected[:6])}"
+                + ("…" if len(rejected) > 6 else "")
+            )
+    return result
 
 
 __all__ = [

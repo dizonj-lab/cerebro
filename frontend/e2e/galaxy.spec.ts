@@ -380,3 +380,49 @@ test("the galaxy turns without relaying itself", async ({ page }) => {
   await page.getByRole("button", { name: "Reset view" }).click();
   await expect(group).toHaveAttribute("data-angle", "0");
 });
+
+test("an edge explains itself and names the documents it rests on", async ({ page }) => {
+  await openGalaxy(page, "g-edge");
+
+  // Forced because a vertical edge has a zero-width bounding box, which
+  // Playwright reads as invisible. A real pointer still hits the 6px stroke;
+  // the check being bypassed is the harness's, not the browser's.
+  await page.getByTestId("galaxy-edge").first().hover({ force: true });
+
+  const card = page.getByTestId("edge-card");
+  await expect(card).toBeVisible();
+  // What was observed, never what it means: no "uses", no "depends on".
+  await expect(card).toContainText("Appears in the same document");
+  await expect(card).toContainText("Relationship");
+  await expect(card).toContainText("From ");
+  // A count of documents, stated as a count. Never a bare percentage.
+  await expect(card).toContainText(/\d+ documents?/);
+  await expect(card).toContainText("Approved knowledge");
+  await expect(card).not.toContainText("%");
+});
+
+test("a generic term never becomes a knowledge node", async ({ page }) => {
+  await signUp(page, makeAccount("g-generic"));
+  await page.waitForURL(/\/construct$/);
+
+  // A document that mentions its own format repeatedly, as documents do.
+  const created = await page.request.post("/api/artifacts", {
+    multipart: {
+      file: {
+        name: "formats.pdf",
+        mimeType: "application/pdf",
+        buffer: makePdf([
+          "This PDF explains vector search. The PDF is served over HTTPS.",
+          "Vector search ranks results. HTTPS protects the PDF in transit.",
+        ]),
+      },
+    },
+  });
+  const artifact = await created.json();
+
+  // The suggestions a human is asked to confirm carry the subject, not the
+  // format — the filter runs before review, so "PDF" is never offered.
+  const suggested = (artifact.metadata.topics ?? []).concat(artifact.metadata.tags ?? []);
+  expect(suggested.map((t: string) => t.toLowerCase())).not.toContain("pdf");
+  expect(suggested.map((t: string) => t.toLowerCase())).not.toContain("https");
+});
