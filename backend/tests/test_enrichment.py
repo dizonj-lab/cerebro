@@ -300,3 +300,62 @@ def test_statistics_never_name_people_or_organizations(client, signed_in):
     assert body["metadata"]["people"] == []
     assert body["metadata"]["organizations"] == []
     assert body["metadata"]["projects"] == []
+
+
+# --- the time budget --------------------------------------------------------
+
+def test_a_slow_model_yields_partial_suggestions_rather_than_a_dead_request(monkeypatch):
+    """Ten windows at the per-call timeout outlasts any client's patience.
+
+    The browser's proxy gives up around five minutes and reports the API as
+    unreachable, which is wrong — the API is working and the model is slow.
+    So the windows share a budget and enrichment returns what it read.
+    """
+    from app.services.artifacts.enrichment import llm
+
+    monkeypatch.setattr(llm, "ENRICHMENT_BUDGET_SECONDS", 100)
+    monkeypatch.setattr(llm, "ENRICHMENT_TIMEOUT_SECONDS", 60)
+
+    long_document = (REVENUE + " Maria Santos chaired the review. ") * 400
+    asked = []
+    clock = iter([0.0] + [50.0] * 20)
+
+    monkeypatch.setattr(llm.time, "monotonic", lambda: next(clock))
+
+    enricher = llm.OllamaEnricher()
+
+    def slow(text):
+        asked.append(text)
+        return {"topics": ["enterprise subscriptions"], "people": ["Maria Santos"]}
+
+    enricher._ask = slow  # noqa: SLF001 - exercising the window loop
+
+    result = enricher.enrich(text=long_document, properties={}, filename="a.pdf")
+
+    # 50s spent plus a 60s call would exceed the 100s budget, so it stops.
+    assert len(asked) == 1
+    # What it did read is still offered, and the shortfall is stated rather
+    # than passed off as a complete reading.
+    assert result.suggestions.get("people") == ["Maria Santos"]
+    assert any("not read" in note for note in result.notes)
+
+
+def test_the_budget_does_not_cut_a_document_that_fits(monkeypatch):
+    """A fast model must still read the whole document."""
+    from app.services.artifacts.enrichment import llm
+
+    monkeypatch.setattr(llm, "ENRICHMENT_BUDGET_SECONDS", 150)
+    monkeypatch.setattr(llm, "ENRICHMENT_TIMEOUT_SECONDS", 60)
+    monkeypatch.setattr(llm.time, "monotonic", lambda: 0.0)
+
+    long_document = (REVENUE + " Maria Santos chaired the review. ") * 400
+    windows = llm._windows(long_document)  # noqa: SLF001 - the unit under test
+    asked = []
+
+    enricher = llm.OllamaEnricher()
+    enricher._ask = lambda text: asked.append(text) or {"tags": ["revenue"]}  # noqa: SLF001
+
+    result = enricher.enrich(text=long_document, properties={}, filename="a.pdf")
+
+    assert len(asked) == len(windows) > 1
+    assert not any("not read" in note for note in result.notes)

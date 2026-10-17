@@ -30,8 +30,10 @@ from __future__ import annotations
 
 import json
 import re
+import time
 
 from app.services import ollama
+from app.services.ollama import ENRICHMENT_TIMEOUT_SECONDS
 from app.services.artifacts.enrichment.base import Enrichment
 
 _TIMEOUT_SECONDS = 120
@@ -86,9 +88,33 @@ class OllamaEnricher:
         # people and projects in a 29-page deck are mostly not in its first
         # six thousand characters. Each window is a separate, bounded call —
         # nothing is sent that exceeds the model's context — and the results
-        # are merged. Windows are capped so a book cannot cost an hour.
+        # are merged.
+        #
+        # The windows share one **time budget**. Capping their number was not
+        # enough: ten windows at the per-call timeout is half an hour inside a
+        # single HTTP request, which no client waits for. The browser's proxy
+        # gives up around five minutes and reports the API as unreachable —
+        # which is both wrong and unhelpful, since the API is working and the
+        # model is merely slow.
+        #
+        # So the budget is spent rather than the clock run out: whatever has
+        # been read when it runs low is what gets merged, and the shortfall is
+        # recorded in the notes. Partial suggestions a human reviews are worth
+        # more than a request that dies.
+        started = time.monotonic()
         windows = _windows(text)
-        bodies = [body for body in (self._ask(w) for w in windows) if body is not None]
+        bodies: list[dict] = []
+        unread = 0
+        for index, window in enumerate(windows):
+            spent = time.monotonic() - started
+            # Stop before starting a call that could outlast the budget,
+            # rather than after one has already blown it.
+            if index and spent + ENRICHMENT_TIMEOUT_SECONDS > ENRICHMENT_BUDGET_SECONDS:
+                unread = len(windows) - index
+                break
+            found = self._ask(window)
+            if found is not None:
+                bodies.append(found)
         body = _merge(bodies) if bodies else None
         # Grounding is checked against exactly what was read, so a name
         # "found" in a part the model never saw would be coincidence, not
@@ -110,6 +136,15 @@ class OllamaEnricher:
         notes: list[str] = []
         evidence: dict = {}
         haystack = text
+
+        if unread:
+            # Said plainly: these suggestions describe part of the document,
+            # and the user can ask again for the rest.
+            notes.append(
+                f"Read {len(bodies)} of {len(windows)} sections before the time "
+                f"budget ran out; {unread} were not read. The suggestions below "
+                "cover only what was read."
+            )
 
         title = _clean_text(body.get("title"))
         if title:
@@ -176,6 +211,7 @@ class OllamaEnricher:
                 _INSTRUCTION + text,
                 operation="enrichment.suggest",
                 fmt="json",
+                timeout=ENRICHMENT_TIMEOUT_SECONDS,
             )
         except ollama.OllamaUnavailable:
             # The caller reports that only deterministic enrichment ran. It
@@ -280,6 +316,10 @@ def _grounded(
 # can cost. Ten windows of 6000 characters covers roughly sixty pages, after
 # which the remainder is not read rather than read badly.
 MAX_WINDOWS = 10
+# The whole of one enrichment, across every window. A local model on a laptop
+# is slow, and a request nobody waits for is worth nothing however complete it
+# would have been. Sized to stay well inside the browser proxy's own patience.
+ENRICHMENT_BUDGET_SECONDS = 150
 
 
 def _windows(text: str) -> list[str]:

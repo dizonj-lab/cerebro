@@ -532,6 +532,16 @@ overwrite CEREBRO must not do. `?apply=true` performs it, touching only the
 concept fields, recording what it removed in the artifact's provenance, and
 never deleting an artifact, a fragment, an extraction or source bytes.
 
+Local enrichment runs under a **time budget**, not just a per-call timeout.
+A long document is read in windows, and ten windows at the per-call timeout
+is half an hour inside one HTTP request — which no browser waits for. The
+proxy gave up first and reported the API as unreachable, which was both
+wrong and unhelpful: the API was working and the model was slow. The windows
+now share a budget, whatever was read when it runs low is what gets merged,
+and the shortfall is stated in the notes. The proxy sets its own timeout
+above that worst case and says "took too long" rather than "unreachable",
+because the two need different actions.
+
 A person's CV is the one document that says what they *did*, in order, and
 it anchors the timeline. It goes through the ordinary artifact pipeline —
 same validation, extraction, storage and ownership checks — and the profile

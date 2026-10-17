@@ -45,6 +45,17 @@ const HOP_BY_HOP = new Set([
   "expect",
 ]);
 
+/**
+ * How long to wait for the API before giving up.
+ *
+ * Set explicitly rather than left to the runtime's default, because the
+ * slowest thing behind this proxy is a local model proposing metadata, and
+ * its own budget is the number this has to clear. Enrichment spends at most
+ * ~210s (a 150s budget plus one 60s call already in flight), so this leaves
+ * room without letting a genuinely stuck request hang a tab forever.
+ */
+const UPSTREAM_TIMEOUT_MS = 300_000;
+
 async function proxy(request: NextRequest, path: string[]): Promise<Response> {
   const search = request.nextUrl.search;
   const target = `${apiBaseUrl()}/api/${path.map(encodeURIComponent).join("/")}${search}`;
@@ -58,6 +69,7 @@ async function proxy(request: NextRequest, path: string[]): Promise<Response> {
   const hasBody = method !== "GET" && method !== "HEAD";
 
   let upstream: Response;
+  const deadline = AbortSignal.timeout(UPSTREAM_TIMEOUT_MS);
   try {
     upstream = await fetch(target, {
       method,
@@ -65,15 +77,26 @@ async function proxy(request: NextRequest, path: string[]): Promise<Response> {
       body: hasBody ? await request.arrayBuffer() : undefined,
       redirect: "manual",
       cache: "no-store",
+      signal: deadline,
     });
   } catch (cause) {
     // Logged with its cause: this message is the last word the user gets, and
     // without the underlying error a proxy fault is indistinguishable from a
     // stopped API. One of these cost a debugging session already.
     console.error(`Proxy ${method} ${target} failed:`, cause);
+    // A request that ran out of time is not a missing API, and saying so sent
+    // people looking for a stopped container when a local model was merely
+    // thinking. The two need different words because they need different
+    // actions.
+    const timedOut =
+      deadline.aborted || (cause instanceof Error && cause.name === "TimeoutError");
     return NextResponse.json(
-      { detail: "The CEREBRO API is unreachable. Please try again." },
-      { status: 502 },
+      {
+        detail: timedOut
+          ? "CEREBRO took too long to answer. A local model can be slow on a large document — the work may still finish in the background, so try again in a moment."
+          : "The CEREBRO API is unreachable. Please try again.",
+      },
+      { status: timedOut ? 504 : 502 },
     );
   }
 

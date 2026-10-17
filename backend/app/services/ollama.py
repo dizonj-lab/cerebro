@@ -38,6 +38,11 @@ from app.services.telemetry import record
 DISCOVERY_TTL_SECONDS = 30
 DISCOVERY_TIMEOUT_SECONDS = 2
 GENERATE_TIMEOUT_SECONDS = 180
+# Enrichment proposes a small JSON object about one window of a document.
+# That is a short generation, and a call still running after a minute is
+# stuck rather than thorough — so it is abandoned, and the windows that
+# remain are read with the time it would have wasted.
+ENRICHMENT_TIMEOUT_SECONDS = 60
 EMBED_TIMEOUT_SECONDS = 60
 
 # Preference order for answering. Small and instruction-following first: this
@@ -263,6 +268,7 @@ def generate_stream(
     *,
     operation: str = "ollama.generate",
     fmt: str | None = None,
+    timeout: float = GENERATE_TIMEOUT_SECONDS,
 ) -> Iterator[str | Generation]:
     """Stream a generation: each text piece as it arrives, then a summary.
 
@@ -309,7 +315,7 @@ def generate_stream(
     completion_tokens: int | None = None
 
     try:
-        with urllib.request.urlopen(request, timeout=GENERATE_TIMEOUT_SECONDS) as response:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
             for line in response:
                 if not line.strip():
                     continue
@@ -377,10 +383,19 @@ def generate(
     *,
     operation: str = "ollama.generate",
     fmt: str | None = None,
+    timeout: float = GENERATE_TIMEOUT_SECONDS,
 ) -> Generation:
-    """The whole generation at once, for callers that cannot stream."""
+    """The whole generation at once, for callers that cannot stream.
+
+    `timeout` is per call. A caller making several in one request — enrichment
+    reads a long document in windows — should pass something well under its
+    own budget, because the default here is a long-tail guard for a single
+    answer rather than a sensible share of a multi-call request.
+    """
     final: Generation | None = None
-    for item in generate_stream(base_url, model, prompt, operation=operation, fmt=fmt):
+    for item in generate_stream(
+        base_url, model, prompt, operation=operation, fmt=fmt, timeout=timeout
+    ):
         if isinstance(item, Generation):
             final = item
     if final is None:
