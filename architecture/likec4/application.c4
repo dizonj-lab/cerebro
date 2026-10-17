@@ -20,7 +20,10 @@ model {
 
       construct = component 'The Construct' {
         technology 'App Router, server components'
-        description 'Dashboard, Library, Ingest, Search, Galaxy, Timeline, Settings.'
+        description '
+          Dashboard, Library, Ingest, Search, Galaxy, Timeline, Profile,
+          Performance, Settings.
+        '
       }
       api_proxy = component 'API proxy route' {
         technology 'Route handler, /api/[...path]'
@@ -74,6 +77,19 @@ model {
         '
       }
 
+      significance = component 'Significance filter' {
+        #integrity
+        technology 'Deterministic, pre-model'
+        description '
+          Decides which proposed concepts are knowledge and which name the
+          medium. A generic word is set aside when it stands alone and kept
+          inside a phrase that says something: "PDF" goes, "PDF Document
+          Parsing Pipeline" stays. Spellings of one concept collapse to one.
+          Filters proposals only; confirmed knowledge is revalidated by an
+          explicit, separate act.
+        '
+      }
+
       chunking = component 'Chunking' {
         technology 'Structure-aware sentence packing, ~500 tokens'
         description 'Chunks never cross a block, so every fragment keeps its page or slide.'
@@ -123,6 +139,36 @@ model {
         '
       }
 
+      cv = component 'CV reader' {
+        technology 'Deterministic section and date-range parsing'
+        description '
+          Reads the chronology a CV states about its author. A line with no
+          date is not an event; "Present" is a null end date and never
+          today; a year-only range keeps year precision.
+        '
+      }
+
+      anchors = component 'Timeline anchors' {
+        #integrity
+        technology 'app/services/anchors.py'
+        description '
+          The career and education a person asserts, as suggestions until
+          approved. Identified by fingerprint, so re-uploading a CV updates a
+          career rather than duplicating it, and a corrected anchor is never
+          overwritten by a reprocess.
+        '
+      }
+
+      metrics = component 'Operation metrics' {
+        technology 'app/services/metrics.py, persistent rows'
+        description '
+          What every AI/ML operation cost, and what survived review. Never a
+          prompt and never a passage: a metrics table must not become a
+          second place where knowledge lives. A failed write is swallowed —
+          a lost row costs a measurement, a propagated one costs an upload.
+        '
+      }
+
       ollama_client = component 'Ollama client' {
         #local-only
         technology 'Discovery, streaming, think-tag filtering'
@@ -133,8 +179,12 @@ model {
       }
 
       telemetry = component 'Telemetry' {
-        technology 'In-memory ring buffer'
-        description "What ran, how long it took, and the daemon's own token counts."
+        technology 'In-memory ring buffer, 50 entries'
+        description "
+          What is running right now, and the daemon's own token counts.
+          Deliberately not durable — a report reads the metrics table, and
+          neither can do the other's job.
+        "
       }
     }
 
@@ -194,6 +244,17 @@ model {
   cerebro.api.embeddings -> cerebro.api.ollama_client 'asks for vectors'
   cerebro.api.graph -> cerebro.postgres 'topics and fragments'
   cerebro.api.temporal -> cerebro.postgres 'registered fragments'
+  cerebro.api.enrichment -> cerebro.api.significance 'proposals are filtered before review'
+  cerebro.api.cv -> cerebro.api.artifacts 'the CV is an ordinary artifact'
+  cerebro.api.cv -> cerebro.api.anchors 'states a chronology'
+  cerebro.api.anchors -> cerebro.postgres 'anchor rows, suggested until approved'
+  cerebro.api.temporal -> cerebro.api.anchors 'anchors are a backdrop, never a date'
+  cerebro.api.graph -> cerebro.api.significance 'revalidates confirmed knowledge, on request'
+  cerebro.api.artifacts -> cerebro.api.metrics 'ingestion and enrichment cost'
+  cerebro.api.search -> cerebro.api.metrics 'retrieval cost, per mode'
+  cerebro.api.recall -> cerebro.api.metrics 'response cost, citations, abstentions'
+  cerebro.api.metrics -> cerebro.postgres 'measurement rows'
+  cerebro.api.metrics -> cerebro.api.artifacts 'reads suggestion snapshots for accuracy'
   cerebro.api.ollama_client -> ollama 'HTTP, local daemon'
   cerebro.api.ollama_client -> cerebro.api.telemetry 'records model, duration, tokens'
   cerebro.api.retrieval -> cerebro.api.telemetry 'records algorithm and scores'

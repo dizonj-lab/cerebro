@@ -109,11 +109,14 @@ views {
     cerebro.api.artifacts -> cerebro.objects 'store bytes and extraction'
     cerebro.api.artifacts -> cerebro.api.enrichment 'propose metadata'
     cerebro.api.enrichment -> cerebro.api.ollama_client 'local model, grounded in the text'
-    cerebro.api.ollama_client -> ollama 'generate'
+    cerebro.api.ollama_client -> ollama 'generate, under a shared time budget'
+    cerebro.api.enrichment -> cerebro.api.significance 'drop what names the medium'
     cerebro.api.artifacts -> cerebro.postgres 'row, status inspected'
+    cerebro.api.artifacts -> cerebro.api.metrics 'what the ingestion cost'
 
     reviewer -> cerebro.web.construct 'reviews and approves'
     cerebro.web.construct -> cerebro.api.artifacts 'PATCH, approve: true'
+    cerebro.api.artifacts -> cerebro.postgres 'snapshot what was proposed, before confirming'
     cerebro.api.artifacts -> cerebro.api.chunking 'chunk the registered document'
     cerebro.api.chunking -> cerebro.api.embeddings 'embed, in one batch'
     cerebro.api.embeddings -> ollama 'embed'
@@ -137,6 +140,47 @@ views {
     cerebro.api.ollama_client -> ollama 'generate, streamed'
     cerebro.api.ollama_client -> cerebro.api.telemetry 'model, duration, tokens'
     cerebro.api.recall -> cerebro.web.construct 'words as they arrive, then citations'
+    cerebro.api.recall -> cerebro.api.metrics 'response time, citations, or an abstention'
+  }
+
+  dynamic view cv_anchor {
+    title 'Flow — a CV anchors the timeline'
+    description '
+      The CV takes the ordinary artifact path, so there is no second
+      ingestion route and no CV-shaped hole in the security model. What it
+      states about a life reaches the timeline only once a human approves it.
+    '
+
+    owner -> cerebro.web.construct 'uploads a CV in Profile'
+    cerebro.web.construct -> cerebro.api.cv 'POST /api/cv'
+    cerebro.api.cv -> cerebro.api.artifacts 'validate, store, extract — as any document'
+    cerebro.api.artifacts -> cerebro.objects 'original bytes, verbatim'
+    cerebro.api.cv -> cerebro.api.anchors 'dated entries, matched by fingerprint'
+    cerebro.api.anchors -> cerebro.postgres 'suggested; a correction is never overwritten'
+
+    reviewer -> cerebro.web.construct 'corrects and approves'
+    cerebro.web.construct -> cerebro.api.anchors 'PATCH, then POST /api/cv/approve'
+    cerebro.api.anchors -> cerebro.api.temporal 'approved anchors become the backdrop'
+    cerebro.api.temporal -> cerebro.web.construct 'periods behind the lanes'
+  }
+
+  dynamic view measurement {
+    title 'Flow — measuring the models'
+    description '
+      Accuracy comes from the review loop, which produces a labelled set as a
+      by-product of normal use — but only because what was proposed is kept
+      beside what was confirmed.
+    '
+
+    cerebro.api.artifacts -> cerebro.api.metrics 'ingestion: bytes, pages, duration'
+    cerebro.api.search -> cerebro.api.metrics 'retrieval: mode, algorithm, hits'
+    cerebro.api.recall -> cerebro.api.metrics 'questions: time, citations, abstentions'
+    cerebro.api.metrics -> cerebro.postgres 'rows — never a prompt, never a passage'
+
+    owner -> cerebro.web.construct 'opens Performance'
+    cerebro.web.construct -> cerebro.api.metrics 'GET /api/performance'
+    cerebro.api.metrics -> cerebro.api.artifacts 'suggested, beside confirmed'
+    cerebro.api.metrics -> cerebro.web.construct 'cost, latency, precision and recall'
   }
 
   dynamic view search_flow {
@@ -156,6 +200,22 @@ views {
     title 'Architecture — integrity controls'
     description 'Everything tagged as enforcing approval, provenance or grounding.'
     include element.tag = #integrity
+  }
+
+  view measurement_surface {
+    title 'Architecture — what is measured'
+    description '
+      Every component that records what it cost, and the one place those
+      records are read back from.
+    '
+    include
+      cerebro.api.metrics,
+      cerebro.api.telemetry,
+      cerebro.api.artifacts,
+      cerebro.api.search,
+      cerebro.api.recall,
+      cerebro.api.ollama_client,
+      cerebro.postgres
   }
 
   view local_processing {

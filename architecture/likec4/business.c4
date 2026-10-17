@@ -57,6 +57,12 @@ model {
     register = process 'Register' {
       description 'Approval. Checksum re-verified, then chunked and embedded.'
     }
+    anchor = process 'Anchor' {
+      description '
+        A CV states the periods a life happened in. Suggestions until a human
+        approves them, and a backdrop afterwards — never a date for a document.
+      '
+    }
     retrieve = process 'Retrieve' {
       description 'Keyword, semantic and hybrid search over registered knowledge.'
     }
@@ -69,6 +75,7 @@ model {
     enrich -> review 'suggestions with evidence'
     review -> register 'approval'
     register -> retrieve 'trusted fragments'
+    review -> anchor 'approved chronology'
     retrieve -> answer 'passages'
   }
 
@@ -100,6 +107,27 @@ model {
     '
   }
 
+  significance_rule = policy 'Subject, not medium' {
+    #integrity
+    description '
+      A term naming the format, protocol or furniture of a document is not
+      knowledge when it stands alone — but is kept the moment the document
+      puts it in a phrase that says something. Nothing is banned outright,
+      so a library about file formats keeps its subject.
+    '
+  }
+
+  measurement_rule = policy 'Measured, not claimed' {
+    #integrity
+    description '
+      What a model proposed is kept beside what a human confirmed, so
+      accuracy can be computed rather than asserted. No number is printed
+      where there is no measurement, an abstention is counted and never
+      graded, and documents registered before snapshots existed are excluded
+      rather than assumed correct.
+    '
+  }
+
   grounding_rule = policy 'Grounded or silent' {
     #integrity
     description '
@@ -122,4 +150,8 @@ model {
   provenance_rule -> value_chain.enrich 'constrains'
   local_only_rule -> value_chain.enrich 'constrains'
   grounding_rule -> value_chain.answer 'constrains'
+  significance_rule -> value_chain.enrich 'constrains'
+  measurement_rule -> value_chain.review 'records'
+  provenance_rule -> value_chain.anchor 'constrains'
+  owner -> value_chain.anchor 'uploads a CV'
 }
