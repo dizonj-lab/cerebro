@@ -6,9 +6,10 @@ import { useSearchParams } from "next/navigation";
 
 import { EventPanel } from "@/components/timeline/EventPanel";
 import { Navigator } from "@/components/timeline/Navigator";
+import { describeRange } from "@/app/construct/profile/CvPanel";
 import { colorForLane, formatEventDate, fractionOf } from "@/components/timeline/lanes";
 import { api, ApiError } from "@/lib/api";
-import type { CerebroTimeline, CerebroTimelineEventDetail } from "@/lib/api";
+import type { CerebroAnchor, CerebroTimeline, CerebroTimelineEventDetail } from "@/lib/api";
 import { cn } from "@/lib/cn";
 
 const YEAR = 365.25 * 24 * 60 * 60 * 1000;
@@ -46,6 +47,7 @@ export function TimelineView() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<CerebroTimelineEventDetail | null>(null);
   const [hovered, setHovered] = useState<CerebroTimelineEventDetail | null>(null);
+  const [selectedAnchor, setSelectedAnchor] = useState<CerebroAnchor | null>(null);
   const [panelOpen, setPanelOpen] = useState(true);
   const [window_, setWindow] = useState<Window | null>(null);
 
@@ -184,6 +186,43 @@ export function TimelineView() {
     (category: string) => lanes.find((lane) => lane.name === category)?.color ?? "#64748b",
     [lanes],
   );
+
+  /**
+   * Anchor periods, packed onto rows so none hides another.
+   *
+   * Careers overlap — a role begins before a course ends — and a single row
+   * drew the later band on top of the earlier one, which did not just look
+   * wrong: the covered band stopped being clickable. Rows are assigned
+   * greedily in start order, the same way the event cards are packed.
+   */
+  const placedAnchors = useMemo(() => {
+    if (!data?.anchors?.length || !window_) return [];
+    const ends: number[] = [];
+    const placed: { anchor: CerebroAnchor; left: number; width: number; row: number }[] = [];
+
+    for (const anchor of data.anchors) {
+      if (!anchor.start_date) continue;
+      const from = fractionOf(anchor.start_date, window_.from, window_.to) * 100;
+      // No end date means it has not ended, so the band runs to the edge of
+      // the window rather than to a date nobody stated.
+      const to = anchor.end_date
+        ? fractionOf(anchor.end_date, window_.from, window_.to) * 100
+        : 100;
+      if (to < 0 || from > 100) continue;
+      const left = Math.max(0, from);
+      const width = Math.max(1.5, Math.min(100, to) - left);
+      let row = ends.findIndex((end) => end <= left);
+      if (row === -1) {
+        row = ends.length;
+        ends.push(0);
+      }
+      ends[row] = left + width;
+      placed.push({ anchor, left, width, row });
+    }
+    return placed;
+  }, [data, window_]);
+
+  const anchorRows = Math.max(1, ...placedAnchors.map((p) => p.row + 1));
 
   const visible = useMemo(() => {
     if (!data || !window_) return new Map<string, Placed[]>();
@@ -423,6 +462,34 @@ export function TimelineView() {
                 ))}
               </div>
 
+              {/* The chronology the user states about themselves, behind the
+                  chronology their documents state. It is a backdrop: an
+                  artifact never takes its date from the period it falls in,
+                  and no document is attached to an employer merely for
+                  overlapping it in time. */}
+              {placedAnchors.length > 0 && (
+                <div
+                  data-testid="anchor-band"
+                  style={{ height: `${anchorRows * 20 + 8}px` }}
+                  className="relative shrink-0 border-b border-white/10 bg-white/[0.02]"
+                >
+                  {placedAnchors.map(({ anchor, left, width, row }) => (
+                    <button
+                      key={anchor.id}
+                      type="button"
+                      data-testid="anchor-period"
+                      title={`${anchor.title}${anchor.organization ? ` · ${anchor.organization}` : ""} — ${describeRange(anchor)}`}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={() => setSelectedAnchor(anchor)}
+                      style={{ left: `${left}%`, width: `${width}%`, top: `${row * 20 + 4}px` }}
+                      className="absolute h-4 overflow-hidden rounded border border-white/20 bg-white/10 px-1.5 text-left text-[0.65rem] leading-[0.9rem] text-white/80 hover:bg-white/20"
+                    >
+                      <span className="truncate">{anchor.organization ?? anchor.title}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <div
                 ref={canvas}
                 onPointerDown={beginPan}
@@ -561,6 +628,44 @@ export function TimelineView() {
                 </span>
               </div>
             </>
+          )}
+
+          {/* An anchor, with the CV line that produced it. Related artifacts
+              are deliberately absent: CEREBRO has no evidence tying a
+              document to a period beyond their dates overlapping, and
+              overlapping dates are not a relationship. */}
+          {selectedAnchor && (
+            <div
+              data-testid="anchor-details"
+              className="absolute bottom-24 right-4 z-30 max-w-sm rounded-lg border border-white/15 bg-[#0e1522]/97 p-3 text-xs shadow-2xl"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <p className="font-medium text-white">{selectedAnchor.title}</p>
+                <button
+                  type="button"
+                  aria-label="Close anchor details"
+                  onClick={() => setSelectedAnchor(null)}
+                  className="rounded p-0.5 text-white/50 hover:text-white"
+                >
+                  ✕
+                </button>
+              </div>
+              <p className="mt-0.5 text-white/55">
+                {describeRange(selectedAnchor)}
+                {selectedAnchor.organization ? ` · ${selectedAnchor.organization}` : ""}
+              </p>
+              <p className="mt-1 text-[0.65rem] text-white/40">
+                {selectedAnchor.event_type.replace(/_/g, " ")} ·{" "}
+                {selectedAnchor.provenance_type === "user_entered"
+                  ? "you added this"
+                  : "from your CV"}
+              </p>
+              {selectedAnchor.evidence_text && (
+                <p className="mt-2 border-t border-white/10 pt-2 italic text-white/45">
+                  “{selectedAnchor.evidence_text}”
+                </p>
+              )}
+            </div>
           )}
 
           {/* Hover preview: no request, nothing selected, just what it says. */}

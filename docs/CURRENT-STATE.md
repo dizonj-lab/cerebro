@@ -532,6 +532,32 @@ overwrite CEREBRO must not do. `?apply=true` performs it, touching only the
 concept fields, recording what it removed in the artifact's provenance, and
 never deleting an artifact, a fragment, an extraction or source bytes.
 
+A person's CV is the one document that says what they *did*, in order, and
+it anchors the timeline. It goes through the ordinary artifact pipeline —
+same validation, extraction, storage and ownership checks — and the profile
+points at it, so there is no second ingestion path and no CV-shaped hole in
+the security model. Reading it is deterministic: a line under a recognised
+heading carrying a date range, or a short line carrying one date. A line
+with no date is not an event, because deciding whether it is a
+responsibility or a page footer would be a guess.
+
+Anchors arrive as **suggestions** and reach the Timeline only once a human
+approves them; `cv_status` drives a "Setup incomplete" state that
+personalises the timeline and nothing else — no other part of CEREBRO is
+blocked without a CV. Each anchor keeps the CV's own line as evidence, and
+`extracted` keeps what the document said beside whatever the user corrected
+it to, so a correction never destroys the record of the source. "Present"
+stores a **null** end date rather than today, and a year-only range keeps
+`year` precision so it is never displayed as more exact than the CV was.
+
+Re-uploading or replacing a CV matches anchors by fingerprint: a career is
+updated rather than duplicated, an anchor nobody edited is refreshed, and
+one somebody corrected is left as they left it.
+
+Anchors are a **backdrop**. An artifact never takes its date from the period
+it falls inside, and no document is attached to an employer for overlapping
+it in time — overlapping dates are not a relationship.
+
 Timeline dates are the date the document states, or the date it was
 registered, and which one is always shown. No date is inferred. The axis has
 two levels — years as milestones, months beneath — and each month states how

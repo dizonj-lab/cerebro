@@ -11,6 +11,7 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Query
 
 from app.api.deps import CurrentUser, DbSession
+from app.services import anchors as anchor_service
 from app.services import telemetry, temporal
 
 router = APIRouter(prefix="/api/timeline", tags=["timeline"])
@@ -145,6 +146,15 @@ def read(
         ),
         "entity_values": {field: sorted(values) for field, values in entity_values.items()},
         "lane_source": "confirmed topics" if owner_lanes else "keyword fallback",
+        # The chronology the user states about themselves, from their CV.
+        # Approved only: a suggestion is not a fact about someone's life, and
+        # the timeline is personalised only once they have said so. These are
+        # a backdrop, never a date: an artifact that states no date of its own
+        # does not borrow one from the job it happens to fall inside.
+        "anchors": [
+            anchor_service.as_dict(a)
+            for a in anchor_service.for_owner(db, current_user.id, approved_only=True)
+        ],
         "extraction": {
             "method": temporal.EXTRACTION_METHOD,
             "version": temporal.EXTRACTION_VERSION,

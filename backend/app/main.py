@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from app.api.artifacts import router as artifacts_router
+from app.api.cv import router as cv_router
 from app.api.auth import router as auth_router
 from app.api.dashboard import router as dashboard_router
 from app.api.graph import router as graph_router
@@ -71,6 +72,7 @@ async def unhandled(request: Request, exc: Exception) -> JSONResponse:
 app.include_router(auth_router)
 app.include_router(profile_router)
 app.include_router(artifacts_router)
+app.include_router(cv_router)
 app.include_router(dashboard_router)
 app.include_router(graph_router)
 app.include_router(ml_router)

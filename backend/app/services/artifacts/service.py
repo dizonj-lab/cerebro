@@ -4,6 +4,7 @@ Sequences the ported PoC capabilities and persists the result. Owns no
 inspection or registration logic of its own — those stay in their modules
 so the contract the PoC validated is the one the application enforces.
 """
+import hashlib
 import json
 import logging
 import uuid
@@ -509,3 +510,20 @@ def suggest_with_model(db: Session, artifact: Artifact, *, ai_suggestions: bool)
         "local": result.local,
         "notes": result.notes,
     }
+
+
+def find_by_checksum(db: Session, *, owner_id: uuid.UUID, content: bytes) -> Artifact | None:
+    """The artifact already holding these bytes, for this owner, or None.
+
+    Re-uploading an identical file is normally a duplicate and refused. A CV
+    is the exception: replacing it with the same file is a reasonable thing
+    to do, and the sensible answer is to point at the copy already stored
+    rather than to store it twice or reject the request.
+
+    Scoped to the owner, like every other artifact query — a checksum match
+    belonging to someone else is not a match.
+    """
+    digest = hashlib.sha256(content).hexdigest()
+    return db.scalar(
+        select(Artifact).where(Artifact.owner_id == owner_id, Artifact.sha256 == digest)
+    )

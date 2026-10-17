@@ -1,3 +1,4 @@
+from app.models.anchor import TimelineAnchor
 from app.models.artifact import Artifact
 from app.models.fragment import FragmentEmbedding, KnowledgeFragment
 from app.models.profile import UserPreferences, UserProfile
@@ -10,4 +11,5 @@ __all__ = [
     "Artifact",
     "KnowledgeFragment",
     "FragmentEmbedding",
+    "TimelineAnchor",
 ]

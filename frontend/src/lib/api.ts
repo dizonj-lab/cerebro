@@ -533,6 +533,51 @@ export interface CerebroDocumentFacts {
   registered_basis: string | null;
 }
 
+/**
+ * One dated entry a CV states about its author.
+ *
+ * `extracted` keeps what the CV actually said, beside whatever the user
+ * corrected it to, so a correction never destroys the record of the source.
+ * A null date means the CV stated none — never "today".
+ */
+export interface CerebroAnchor {
+  id: string;
+  event_type: string;
+  title: string;
+  organization: string | null;
+  description: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  /** day | month | year | unknown — never widened by guessing. */
+  date_precision: string;
+  source_artifact_id: string | null;
+  source_location: Record<string, number | string>;
+  evidence_text: string | null;
+  extracted: Partial<CerebroAnchor>;
+  /** "cv_extraction" or "user_entered". */
+  provenance_type: string;
+  approval_status: string;
+  user_edited: boolean;
+}
+
+export interface CvExtraction {
+  found: number;
+  added: number;
+  refreshed: number;
+  preserved_user_edits: number;
+}
+
+export interface CerebroCv {
+  /** none | processing | needs_review | approved. */
+  status: string;
+  filename: string | null;
+  uploaded_at: string | null;
+  artifact_id: string | null;
+  anchors: CerebroAnchor[];
+  suggested: number;
+  approved: number;
+}
+
 export interface CerebroTimeline {
   events: CerebroTimelineEventDetail[];
   lanes: { name: string; count: number }[];
@@ -548,6 +593,8 @@ export interface CerebroTimeline {
   range: { earliest: string | null; latest: string | null };
   sources: [string, string][];
   entity_values: Record<string, string[]>;
+  /** Approved CV anchors: a backdrop for the lanes, never a date source. */
+  anchors: CerebroAnchor[];
   extraction: {
     method: string;
     version: number;
@@ -726,6 +773,33 @@ export const api = {
   /** Ask for an artifact still waiting to be read to be read now. */
   processArtifact: (id: string) =>
     request<CerebroArtifact>(`/api/artifacts/${id}/process`, { method: "POST" }),
+
+  /** The CV's state and its anchors — always and only this user's. */
+  cv: () => request<CerebroCv>("/api/cv"),
+
+  uploadCv: (file: File) => {
+    const body = new FormData();
+    body.append("file", file);
+    return request<CerebroCv & { extraction: CvExtraction }>("/api/cv", {
+      method: "POST",
+      body,
+      rawBody: true,
+    });
+  },
+
+  correctAnchor: (id: string, changes: Partial<CerebroAnchor>) =>
+    request<CerebroAnchor>(`/api/cv/anchors/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(changes),
+    }),
+
+  addAnchor: (values: Partial<CerebroAnchor>) =>
+    request<CerebroAnchor>("/api/cv/anchors", {
+      method: "POST",
+      body: JSON.stringify(values),
+    }),
+
+  approveAnchors: () => request<CerebroCv>("/api/cv/approve", { method: "POST" }),
 
   uploadArtifact: (file: File) => {
     const body = new FormData();

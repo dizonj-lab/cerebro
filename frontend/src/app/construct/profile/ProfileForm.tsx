@@ -10,6 +10,8 @@ import { FormField } from "@/components/ui/FormField";
 import { Input } from "@/components/ui/Input";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { TagInput } from "@/components/ui/TagInput";
+
+import { CvPanel } from "./CvPanel";
 import { Textarea } from "@/components/ui/Textarea";
 import { ApiError, api } from "@/lib/api";
 import type { CerebroProfile } from "@/lib/api";
@@ -103,6 +105,10 @@ export function ProfileForm() {
 
       <form onSubmit={handleSubmit} noValidate className="mt-8 flex flex-col gap-10">
         <ErrorMessage>{error}</ErrorMessage>
+
+        {/* First, because it is what personalises the timeline and the
+            rest of the form is optional detail beside it. */}
+        <CvPanel />
 
         <Section title="Personal">
           <FormField htmlFor="full_name" label="Full name">

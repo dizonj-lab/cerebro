@@ -50,6 +50,18 @@ class UserProfile(Base):
     learning_goals: Mapped[str | None] = mapped_column(Text)
     career_goals: Mapped[str | None] = mapped_column(Text)
 
+    # The CV that anchors this person's timeline. Stored as an ordinary
+    # artifact — same validation, extraction, storage and ownership checks as
+    # any other document — and pointed at from here, so there is one
+    # ingestion pipeline rather than a second one for CVs.
+    cv_artifact_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("artifacts.id", ondelete="SET NULL")
+    )
+    # "none" | "processing" | "needs_review" | "approved". Drives the
+    # "Setup Incomplete" state: the timeline is personalised only at
+    # "approved", and nothing else in the application is blocked.
+    cv_status: Mapped[str] = mapped_column(String(20), nullable=False, default="none")
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
