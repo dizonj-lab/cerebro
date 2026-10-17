@@ -232,14 +232,43 @@ panel. Anything unmatched goes to "Other" rather than being pushed into a
 lane a model guessed at. Events from overlapping chunks are deduplicated by
 document, date and sentence.
 
+A card leads with the document — its confirmed title, or the filename where
+nothing was confirmed — then the date, then the sentence the event came
+from. It used to lead with the sentence, which never said which document it
+was, so a lane of cards read as unrelated noise.
+
+Hovering a card gives the document's own facts, and the three dates there do
+not mean the same thing, so each says where it came from. **Created** and
+**Modified** are claims the file itself makes, read from PDF `/Info` or
+Office core properties; a format that states neither leaves both unknown,
+and the upload time is deliberately never used as a stand-in. **Registered**
+is the one date CEREBRO itself knows.
+
 The window is a pair of timestamps: zoom, pan, fit and the navigator all move
-the same two numbers, and only events inside them are rendered. Cards that
-would overlap are packed onto further rows, so nothing is hidden behind
-anything. The navigator's histogram counts the whole library, so filtering
-the lanes does not change the shape of the knowledge behind it.
+the same two numbers, and only events inside them are rendered. Dragging the
+canvas moves time horizontally and scrolls the lanes vertically, from
+anywhere that is not a card. Cards that would overlap are packed onto
+further rows, so nothing is hidden behind anything.
+
+The navigator's bars are **volume**, not a count of dates: their height is
+pages of document, stacked and coloured by category in the lanes' own
+colours. A month holding one eighty-page thesis and a month holding one
+two-page memo are not the same amount of knowledge, and a bar that counted
+events claimed they were. Each document counts once per month however many
+dates it names, so a date-dense document cannot inflate its own size; where
+a format reports no page count the floor is one page, which is presence
+rather than a guess at length. The histogram covers the whole library, so
+filtering the lanes does not change the shape of the knowledge behind it.
 
 Related events say what they share — an entity, a document, a lane — and
 never assert a semantic relationship, which CEREBRO has no way to establish.
+
+Dragging the Galaxy moves it; holding shift turns it, following the pointer
+around the centre. Rotation earns its place on a radial layout: turning the
+map brings a cluster hidden behind a label round to the front. It is a
+change of viewpoint and never of data — the layout stays the source of truth
+for every relationship drawn, and labels counter-rotate so text stays
+horizontal at any angle.
 
 The Galaxy and the Timeline share a focus through the URL. Opening an event
 in the Galaxy selects its subject there; a cluster offers to show itself over

@@ -155,6 +155,9 @@ test("the navigator shows density and moves the window", async ({ page }) => {
 test("filters narrow the lanes and reset restores them", async ({ page }) => {
   await openTimeline(page, "tl-filter");
   const events = page.getByTestId("timeline-event");
+  // Counted only once a card exists. Reading the count the moment the page
+  // settles raced the first render and recorded zero.
+  await expect(events.first()).toBeVisible();
   const before = await events.count();
 
   // Filtering to the library's own lane keeps everything in it.
@@ -195,4 +198,68 @@ test("the timeline fills the workspace with the rail collapsed", async ({ page }
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
   );
   expect(overflow).toBe(false);
+});
+
+test("a card says which document it came from", async ({ page }) => {
+  await openTimeline(page, "tl-card-title");
+
+  // The confirmed title, on every card. It used to be a sentence lifted out
+  // of the middle of the document, so a lane read as unrelated noise.
+  const cards = page.getByTestId("timeline-event");
+  await expect(cards.first()).toContainText("Atlas Memo");
+  await expect(cards.filter({ hasText: "Atlas Memo" })).toHaveCount(await cards.count());
+});
+
+test("hovering a card shows the document's dates and where each came from", async ({ page }) => {
+  await openTimeline(page, "tl-hover");
+
+  await page.getByTestId("timeline-event").first().hover();
+
+  const card = page.getByTestId("timeline-hover");
+  await expect(card).toBeVisible();
+  await expect(card).toContainText("Atlas Memo");
+  await expect(card).toContainText("atlas.txt");
+  // A plain text file asserts no dates of its own, and that is said plainly
+  // rather than being filled in with the upload time.
+  await expect(card).toContainText("Created");
+  await expect(card).toContainText("Modified");
+  await expect(card).toContainText("not stated by the document");
+  // The one date CEREBRO itself knows.
+  await expect(card).toContainText("Registered");
+});
+
+test("the navigator shows volume in pages, coloured by category", async ({ page }) => {
+  await openTimeline(page, "tl-volume");
+
+  const bars = page.getByTestId("timeline-navigator").locator("[data-pages]");
+  await expect(bars.first()).toBeVisible();
+
+  // Height is pages of document, not a count of dates, and it is stated.
+  await expect(page.getByTestId("timeline-navigator")).toContainText("Height is pages");
+  const pages = await bars.first().getAttribute("data-pages");
+  expect(Number(pages)).toBeGreaterThan(0);
+
+  // Segments carry the lane's own colour rather than one flat blue.
+  const segment = bars.first().locator("span").first();
+  const colour = await segment.evaluate((el) => getComputedStyle(el).backgroundColor);
+  expect(colour).not.toBe("rgba(0, 0, 0, 0)");
+});
+
+test("the timeline drags from anywhere that is not a card", async ({ page }) => {
+  await openTimeline(page, "tl-drag");
+
+  const canvas = page.getByTestId("timeline-canvas");
+  const lane = page.getByTestId("lane-Migration");
+  const before = await page.getByTestId("timeline-event").first().evaluate((el) => el.getBoundingClientRect().x);
+
+  // A press over a lane — most of the surface — used to do nothing.
+  const box = (await lane.boundingBox())!;
+  await page.mouse.move(box.x + box.width * 0.7, box.y + box.height - 4);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.4, box.y + box.height - 4, { steps: 8 });
+  await page.mouse.up();
+
+  await expect(canvas).toBeVisible();
+  const after = await page.getByTestId("timeline-event").first().evaluate((el) => el.getBoundingClientRect().x);
+  expect(Math.abs(after - before)).toBeGreaterThan(4);
 });

@@ -357,3 +357,26 @@ test("Show me lights the part of the map an answer came from", async ({ page }) 
   await page.getByTestId("reset-map").click();
   await expect(map).toHaveCount(0);
 });
+
+test("the galaxy turns without relaying itself", async ({ page }) => {
+  await openGalaxy(page, "g-rotate");
+
+  const group = page.getByTestId("galaxy-transform");
+  await expect(group).toHaveAttribute("data-angle", "0");
+
+  // The control turns the viewpoint. The layout is untouched: a node sits at
+  // the same place in the group, which is what keeps every drawn
+  // relationship true at any angle.
+  const node = page.locator("g[role='button']").first();
+  const before = await node.getAttribute("transform");
+  await page.getByRole("button", { name: "Rotate clockwise" }).click();
+
+  await expect(group).toHaveAttribute("data-angle", "15");
+  await expect(node).not.toHaveAttribute("transform", before ?? "");
+  // Labels counter-rotate, so the text stays horizontal.
+  expect(await node.getAttribute("transform")).toContain("rotate(-15)");
+
+  // Reset returns the viewpoint, dragging still moves rather than turns.
+  await page.getByRole("button", { name: "Reset view" }).click();
+  await expect(group).toHaveAttribute("data-angle", "0");
+});

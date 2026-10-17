@@ -99,10 +99,12 @@ export const IconLogout = () => (
   </Icon>
 );
 
+// A toothed gear, not a circle with spokes. The spoked version read as a
+// sun at 18px, which collided with the appearance control beside it.
 export const IconSettings = () => (
   <Icon>
-    <circle cx="10" cy="10" r="2.5" />
-    <path d="M10 2.75v1.6M10 15.65v1.6M17.25 10h-1.6M4.35 10h-1.6M15.13 4.87l-1.13 1.13M6 14l-1.13 1.13M15.13 15.13 14 14M6 6 4.87 4.87" />
+    <circle cx="10" cy="10" r="2.6" />
+    <path d="M10 1.9l1.2 1.5a7 7 0 0 1 1.6.66l1.86-.4.95 1.64-1.26 1.42a7 7 0 0 1 .33 1.72l1.76.86v1.9l-1.76.86a7 7 0 0 1-.33 1.72l1.26 1.42-.95 1.64-1.86-.4a7 7 0 0 1-1.6.66L10 18.1l-1.2-1.5a7 7 0 0 1-1.6-.66l-1.86.4-.95-1.64 1.26-1.42a7 7 0 0 1-.33-1.72L3.56 10.7V8.8l1.76-.86a7 7 0 0 1 .33-1.72L4.39 4.8l.95-1.64 1.86.4a7 7 0 0 1 1.6-.66z" />
   </Icon>
 );
 

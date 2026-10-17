@@ -16,6 +16,9 @@ const MIN_SPAN = YEAR / 4;
 const MAX_SPAN = YEAR * 60;
 /** Cards narrower than this collide, so they are packed onto another row. */
 const CARD_WIDTH_PX = 170;
+// A card is three lines now — document, date, statement — so rows sit
+// further apart than they did at two.
+const ROW_HEIGHT_PX = 58;
 
 interface Window {
   from: number;
@@ -60,7 +63,7 @@ export function TimelineView() {
   const [end, setEnd] = useState<string>("");
 
   const canvas = useRef<HTMLDivElement>(null);
-  const drag = useRef<{ x: number; window: Window } | null>(null);
+  const drag = useRef<{ x: number; y: number; top: number; window: Window } | null>(null);
 
   // Written as a promise chain rather than an awaited call so that nothing
   // sets state synchronously inside the effect below: that would re-render
@@ -115,9 +118,19 @@ export function TimelineView() {
   }
 
   function beginPan(event: React.PointerEvent) {
-    // Only the empty canvas pans; a press on a card is that card's.
-    if (event.target !== event.currentTarget || !window_) return;
-    drag.current = { x: event.clientX, window: window_ };
+    if (!window_) return;
+    // Anywhere on the canvas drags it, lane backgrounds included. It used to
+    // require the press to land on the canvas element itself, so a drag
+    // started over a lane — which is most of the surface — did nothing at
+    // all, and the timeline felt fixed. Cards stop the event themselves, so
+    // a press on one is still that card's.
+    if ((event.target as Element).closest?.("button")) return;
+    drag.current = {
+      x: event.clientX,
+      y: event.clientY,
+      top: canvas.current?.scrollTop ?? 0,
+      window: window_,
+    };
     const move = (e: PointerEvent) => {
       const state = drag.current;
       const width = canvas.current?.clientWidth ?? 1;
@@ -125,6 +138,10 @@ export function TimelineView() {
       const span = state.window.to - state.window.from;
       const shift = ((e.clientX - state.x) / width) * span;
       setWindow({ from: state.window.from - shift, to: state.window.to - shift });
+      // Vertically it is a scroll, not a change of window: the lanes are a
+      // list, and dragging up should reach the lane below rather than move
+      // time.
+      if (canvas.current) canvas.current.scrollTop = state.top - (e.clientY - state.y);
     };
     const end_ = () => {
       drag.current = null;
@@ -159,6 +176,13 @@ export function TimelineView() {
         color: colorForLane(lane.name, index),
       })),
     [data],
+  );
+
+  // One source of colour for the lanes and for the navigator's bars, so a
+  // category reads the same in both.
+  const laneColor = useCallback(
+    (category: string) => lanes.find((lane) => lane.name === category)?.color ?? "#64748b",
+    [lanes],
   );
 
   const visible = useMemo(() => {
@@ -428,7 +452,7 @@ export function TimelineView() {
                     <div
                       key={lane.name}
                       data-testid={`lane-${lane.name}`}
-                      style={{ minHeight: `${rows * 46 + 26}px` }}
+                      style={{ minHeight: `${rows * ROW_HEIGHT_PX + 26}px` }}
                       className="relative border-b border-white/5"
                     >
                       <div className="pointer-events-none absolute left-0 top-2 z-10 pl-3">
@@ -449,7 +473,7 @@ export function TimelineView() {
                           <button
                             key={event.id}
                             type="button"
-                            style={{ left: `${left}%`, top: `${row * 46 + 8}px` }}
+                            style={{ left: `${left}%`, top: `${row * ROW_HEIGHT_PX + 8}px` }}
                             onPointerDown={(e) => e.stopPropagation()}
                             onClick={() => setSelected(event)}
                             onDoubleClick={() =>
@@ -481,11 +505,23 @@ export function TimelineView() {
                               className="absolute -left-[1px] top-5 h-6 w-px"
                               style={{ background: `${lane.color}66` }}
                             />
+                            {/* Document, moment, then what was said. The card
+                                used to lead with a sentence lifted out of the
+                                middle of the document, which never named the
+                                document — so a lane of cards read as noise.
+                                The sentence still earns its place, because
+                                without it two cards from one document are
+                                indistinguishable; it is just no longer the
+                                headline. */}
                             <span className="block truncate text-[0.7rem] font-medium text-white">
-                              {event.title}
+                              {event.document?.title ?? event.filename}
                             </span>
                             <span className="block text-[0.65rem] text-white/45">
                               {formatEventDate(event)}
+                              {event.document?.pages ? ` · ${event.document.pages}p` : ""}
+                            </span>
+                            <span className="mt-0.5 block truncate text-[0.6rem] text-white/35">
+                              {event.title}
                             </span>
                           </button>
                         );
@@ -499,6 +535,7 @@ export function TimelineView() {
                 histogram={data.histogram}
                 window={window_}
                 range={data.range}
+                laneColor={laneColor}
                 onChange={setWindow}
               />
 
@@ -528,12 +565,34 @@ export function TimelineView() {
 
           {/* Hover preview: no request, nothing selected, just what it says. */}
           {hovered && hovered.id !== selected?.id && (
-            <div className="pointer-events-none absolute bottom-24 left-4 z-30 max-w-sm rounded-lg border border-white/15 bg-[#0e1522]/95 p-3 text-xs shadow-2xl">
-              <p className="font-medium text-white">{hovered.title}</p>
-              <p className="mt-1 text-white/55">
-                {formatEventDate(hovered)} · {hovered.event_type} · {hovered.filename}
+            <div
+              data-testid="timeline-hover"
+              className="pointer-events-none absolute bottom-24 left-4 z-30 max-w-sm rounded-lg border border-white/15 bg-[#0e1522]/95 p-3 text-xs shadow-2xl"
+            >
+              <p className="font-medium text-white">
+                {hovered.document?.title ?? hovered.filename}
               </p>
-              <p className="mt-1.5 line-clamp-3 text-white/45">{hovered.evidence}</p>
+              <p className="mt-0.5 text-[0.65rem] text-white/40">
+                {hovered.filename}
+                {hovered.document?.pages
+                  ? ` · ${hovered.document.pages} page${hovered.document.pages === 1 ? "" : "s"}`
+                  : ""}
+              </p>
+
+              {/* Three dates that do not mean the same thing, so each one
+                  says where it came from. A date the file does not assert is
+                  shown as unknown rather than filled in with the upload
+                  time. */}
+              <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 border-t border-white/10 pt-2">
+                <DocumentDate label="Created" value={hovered.document?.created ?? null} />
+                <DocumentDate label="Modified" value={hovered.document?.modified ?? null} />
+                <DocumentDate label="Registered" value={hovered.document?.registered ?? null} />
+              </dl>
+
+              <p className="mt-2 border-t border-white/10 pt-2 text-white/55">
+                {formatEventDate(hovered)} · {hovered.event_type}
+              </p>
+              <p className="mt-1 line-clamp-3 text-white/45">{hovered.evidence}</p>
             </div>
           )}
         </section>
@@ -557,5 +616,33 @@ export function TimelineView() {
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * One of the document's dates, with its origin.
+ *
+ * Created and modified are claims the file itself makes; CEREBRO cannot
+ * establish either by reading the content, so a format that does not carry
+ * them leaves them unknown. Saying "unknown" is the honest answer and is
+ * deliberately not replaced by the upload time, which records when CEREBRO
+ * received the file rather than when anyone wrote it.
+ */
+function DocumentDate({ label, value }: { label: string; value: string | null }) {
+  return (
+    <>
+      <dt className="text-[0.65rem] text-white/40">{label}</dt>
+      <dd className={cn("text-[0.65rem]", value ? "text-white/70" : "text-white/30")}>
+        {value
+          ? new Date(`${value}T00:00:00`).toLocaleDateString(undefined, {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            })
+          : label === "Registered"
+            ? "—"
+            : "not stated by the document"}
+      </dd>
+    </>
   );
 }

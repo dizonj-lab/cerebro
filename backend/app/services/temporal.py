@@ -124,6 +124,11 @@ class Event:
     source_location: dict
     filename: str
     author: str | None
+    # What the document itself says about its own size and dates, plus where
+    # each value came from. Never inferred: a date the file does not assert
+    # stays null rather than being filled in with the upload time, which
+    # records when CEREBRO received the file and not when anyone wrote it.
+    document: dict = field(default_factory=dict)
     entities: dict = field(default_factory=dict)
     extraction_method: str = f"{EXTRACTION_METHOD} v{EXTRACTION_VERSION}"
     approval_status: str = "registered"
@@ -310,6 +315,40 @@ def lanes_for_owner(db: Session, owner_id: uuid.UUID, *, limit: int = 6) -> list
     return [topic for topic, _ in counts.most_common(limit)]
 
 
+def _document_facts(extraction: dict | None, registered: object, meta: dict) -> dict:
+    """Size and dates as the document asserts them, plus CEREBRO's own record.
+
+    `title` is what a human confirmed at review, or the filename when they
+    confirmed nothing — the card leads with it because a sentence lifted out
+    of the middle of a document does not say which document it is.
+
+    `pages` is a count extraction made, not a claim read out of the text.
+    `created` and `modified` come only from the file's own metadata — PDF
+    /Info, Office core properties — so both are frequently null, and null is
+    the honest answer. `registered` is the one date CEREBRO itself knows.
+    """
+    extraction = extraction or {}
+    structure = extraction.get("structure") or {}
+    properties = extraction.get("properties") or {}
+
+    title = meta.get("title") if isinstance(meta.get("title"), str) else None
+    pages = structure.get("pages") or structure.get("slides")
+    return {
+        "title": (title or "").strip() or None,
+        "title_basis": "confirmed metadata" if (title or "").strip() else None,
+        "pages": pages if isinstance(pages, int) and pages > 0 else None,
+        "blocks": extraction.get("block_count"),
+        "characters": extraction.get("character_count"),
+        "created": properties.get("created_date"),
+        "modified": properties.get("modified_date"),
+        "registered": registered.isoformat() if hasattr(registered, "isoformat") else None,
+        # Said plainly, because the three dates do not mean the same thing.
+        "created_basis": "document metadata" if properties.get("created_date") else None,
+        "modified_basis": "document metadata" if properties.get("modified_date") else None,
+        "registered_basis": "CEREBRO record",
+    }
+
+
 def events_for_owner(
     db: Session, owner_id: uuid.UUID, *, lanes: list[str] | None = None
 ) -> tuple[list[Event], dict]:
@@ -327,6 +366,9 @@ def events_for_owner(
             KnowledgeFragment.source_location,
             Artifact.filename,
             Artifact.artifact_metadata,
+            Artifact.extraction,
+            Artifact.registered_at,
+            Artifact.created_at,
         )
         .join(Artifact, Artifact.id == KnowledgeFragment.artifact_id)
         .where(
@@ -341,9 +383,20 @@ def events_for_owner(
     duplicates = 0
     scanned = 0
 
-    for fragment_id, artifact_id, content, location, filename, meta in rows:
+    for (
+        fragment_id,
+        artifact_id,
+        content,
+        location,
+        filename,
+        meta,
+        extraction,
+        registered_at,
+        uploaded_at,
+    ) in rows:
         scanned += 1
         meta = meta or {}
+        facts = _document_facts(extraction, registered_at or uploaded_at, meta)
         topics = [t for t in (meta.get("topics") or []) if isinstance(t, str)]
         found = extract_from_text(
             content,
@@ -369,6 +422,7 @@ def events_for_owner(
                     source_location=location or {},
                     filename=filename,
                     author=meta.get("author"),
+                    document=facts,
                     **item,
                 )
             )

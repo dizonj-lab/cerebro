@@ -19,6 +19,47 @@ MAX_EVENTS = 1500
 MAX_RELATED = 8
 
 
+# A month in which no document reported a page count. Kept distinct from a
+# month of zero pages: the bar falls back to counting documents there, rather
+# than claiming the knowledge has no volume.
+_EMPTY_VOLUME = {"pages": 0, "documents": 0, "by_category": {}, "basis": "document count"}
+
+
+def _volume_by_month(events: list[temporal.Event]) -> dict[str, dict]:
+    """How much document there is per month, and in which categories.
+
+    Volume is pages, because a month holding one 80-page thesis and a month
+    holding one two-page memo are not the same amount of knowledge, and a
+    bar that counts events says they are. Each document is counted once per
+    month however many events it produced — otherwise a document that
+    mentions many dates would inflate its own size.
+    """
+    pages: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    seen: set[tuple[str, str]] = set()
+    counted: dict[str, int] = Counter()
+
+    for event in events:
+        month = event.date[:7]
+        key = (month, event.artifact_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        counted[month] += 1
+        # A document with no page count still has presence; one page is the
+        # floor, not a guess at its real length.
+        pages[month][event.category] += event.document.get("pages") or 1
+
+    return {
+        month: {
+            "pages": sum(by_category.values()),
+            "documents": counted[month],
+            "by_category": dict(by_category),
+            "basis": "page count where the document reports one",
+        }
+        for month, by_category in pages.items()
+    }
+
+
 def _within(event: temporal.Event, start: str | None, end: str | None) -> bool:
     if start and event.date < start:
         return False
@@ -45,6 +86,7 @@ def read(
     # The histogram is built from everything, so the navigator keeps showing
     # the whole range while the lanes show a filtered slice of it.
     months = Counter(event.date[:7] for event in events)
+    volume = _volume_by_month(events)
 
     selected = [
         event
@@ -89,7 +131,10 @@ def read(
     return {
         "events": [event.as_dict() for event in selected[:MAX_EVENTS]],
         "lanes": lanes,
-        "histogram": [{"month": month, "count": count} for month, count in sorted(months.items())],
+        "histogram": [
+            {"month": month, "count": count, **volume.get(month, _EMPTY_VOLUME)}
+            for month, count in sorted(months.items())
+        ],
         "range": {
             "earliest": events[0].date if events else None,
             "latest": events[-1].date if events else None,

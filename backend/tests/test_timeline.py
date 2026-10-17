@@ -253,3 +253,43 @@ def test_one_user_never_sees_anothers_events(client, registered, valid_signup):
     client.post("/api/auth/signup", json=dict(valid_signup, email="other@example.com"))
 
     assert client.get("/api/timeline").json()["events"] == []
+
+
+def test_an_event_carries_its_document_size_and_dates(client, registered):
+    """The hover card's three dates, each with where it came from."""
+    body = client.get("/api/timeline").json()
+
+    document = body["events"][0]["document"]
+    # A plain text file asserts no dates of its own, and absent stays absent
+    # rather than borrowing the upload time.
+    assert document["created"] is None
+    assert document["modified"] is None
+    assert document["created_basis"] is None
+    # The one date CEREBRO itself knows.
+    assert document["registered"]
+    assert document["registered_basis"] == "CEREBRO record"
+    assert document["characters"] > 0
+
+
+def test_the_histogram_reports_volume_in_pages_by_category(client, registered):
+    """Bar height is how much document there is, not how many dates it names."""
+    body = client.get("/api/timeline").json()
+
+    bars = [bucket for bucket in body["histogram"] if bucket["count"]]
+    assert bars
+    for bucket in bars:
+        # A document with no page count still has presence, never zero.
+        assert bucket["pages"] >= bucket["documents"] >= 1
+        assert bucket["pages"] == sum(bucket["by_category"].values())
+        # Categories are the lanes, so the bar can be coloured by them.
+        assert set(bucket["by_category"]) <= {lane["name"] for lane in body["lanes"]}
+
+
+def test_one_document_is_counted_once_however_many_dates_it_names(client, registered):
+    """Otherwise a date-dense document inflates its own apparent size."""
+    body = client.get("/api/timeline").json()
+
+    for bucket in body["histogram"]:
+        in_month = {e["artifact_id"] for e in body["events"] if e["date"][:7] == bucket["month"]}
+        if in_month:
+            assert bucket["documents"] == len(in_month)

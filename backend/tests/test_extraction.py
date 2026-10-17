@@ -146,3 +146,30 @@ def test_chunking_is_deterministic():
 def test_invalid_chunk_settings_rejected(kwargs):
     with pytest.raises(ValueError):
         chunk_blocks([], **kwargs)
+
+
+def test_a_pdf_modification_date_is_read_from_its_own_metadata():
+    """/ModDate is the only acceptable source; nothing infers it."""
+    from app.services.artifacts.extraction import properties
+
+    class Reader:
+        metadata = {
+            "/Title": "Week 3 Lecture",
+            "/CreationDate": "D:20240115103000+00'00'",
+            "/ModDate": "D:20240220141500+00'00'",
+        }
+
+    found = properties.from_pdf(Reader())
+
+    assert found["created_date"] == "2024-01-15"
+    assert found["modified_date"] == "2024-02-20"
+
+
+def test_a_pdf_without_a_modification_date_reports_none():
+    """Absent stays absent — never backfilled from the upload time."""
+    from app.services.artifacts.extraction import properties
+
+    class Reader:
+        metadata = {"/Title": "Undated"}
+
+    assert "modified_date" not in properties.from_pdf(Reader())

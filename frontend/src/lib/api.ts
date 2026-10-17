@@ -496,12 +496,45 @@ export interface CerebroTimelineEventDetail {
   extraction_method: string;
   approval_status: string;
   relationship?: string;
+  /** What the document says about its own size and dates. */
+  document: CerebroDocumentFacts;
+}
+
+/**
+ * The document's own facts, each with where it came from.
+ *
+ * `created` and `modified` are the file's own metadata and are frequently
+ * null — a document that does not state when it was written does not get a
+ * date invented for it, and the upload time is deliberately not used as a
+ * stand-in. `registered` is the one date CEREBRO itself knows.
+ */
+export interface CerebroDocumentFacts {
+  /** The document's own title, as confirmed at review. Null if none was. */
+  title: string | null;
+  title_basis: string | null;
+  pages: number | null;
+  blocks: number | null;
+  characters: number | null;
+  created: string | null;
+  modified: string | null;
+  registered: string | null;
+  created_basis: string | null;
+  modified_basis: string | null;
+  registered_basis: string | null;
 }
 
 export interface CerebroTimeline {
   events: CerebroTimelineEventDetail[];
   lanes: { name: string; count: number }[];
-  histogram: { month: string; count: number }[];
+  histogram: {
+    month: string;
+    count: number;
+    /** Volume: pages where documents report them, one per document otherwise. */
+    pages: number;
+    documents: number;
+    by_category: Record<string, number>;
+    basis: string;
+  }[];
   range: { earliest: string | null; latest: string | null };
   sources: [string, string][];
   entity_values: Record<string, string[]>;

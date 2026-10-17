@@ -51,24 +51,30 @@ export function ThemeToggle() {
       title={`Switch to ${next} appearance`}
       className="hidden rounded-md p-2 text-ink-muted transition-colors hover:bg-surface-subtle hover:text-ink sm:block"
     >
-      <span className="block size-5">{appearance === "dark" ? <Sun /> : <Moon />}</span>
+      <span className="block size-5">
+        <Contrast dark={appearance === "dark"} />
+      </span>
     </button>
   );
 }
 
-function Sun() {
+/**
+ * One mark for both states: a circle, half filled.
+ *
+ * The rayed sun read as a settings gear at this size, and the pair of them
+ * sat next to each other in the header. A contrast disc says "appearance"
+ * without competing, and which half is filled says which way the switch
+ * will go. The label carries the meaning for anyone who cannot see it.
+ */
+function Contrast({ dark }: { dark: boolean }) {
   return (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
-      <circle cx="10" cy="10" r="3.75" />
-      <path d="M10 2.5v1.75M10 15.75v1.75M2.5 10h1.75M15.75 10h1.75M4.7 4.7l1.25 1.25M14.05 14.05l1.25 1.25M15.3 4.7l-1.25 1.25M5.95 14.05L4.7 15.3" />
-    </svg>
-  );
-}
-
-function Moon() {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M16.25 12.4A6.75 6.75 0 0 1 7.6 3.75a6.75 6.75 0 1 0 8.65 8.65Z" />
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+      <circle cx="10" cy="10" r="6.75" />
+      <path
+        d={dark ? "M10 3.25a6.75 6.75 0 0 0 0 13.5z" : "M10 3.25a6.75 6.75 0 0 1 0 13.5z"}
+        fill="currentColor"
+        stroke="none"
+      />
     </svg>
   );
 }

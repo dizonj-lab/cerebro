@@ -35,7 +35,15 @@ interface GalaxyCanvasProps {
  * nodes this is the piece to replace, and the layout module is already
  * separate from the rendering for that reason.
  *
- * Zoom and pan are a transform on one group, so neither re-renders React.
+ * Zoom, pan and rotation are a transform on one group, so none of them
+ * re-renders React.
+ *
+ * Rotation earns its place on a radial layout: turning the galaxy brings a
+ * cluster hidden behind a label round to the front without disturbing the
+ * layout, which is the source of truth for every relationship drawn. It is
+ * a change of viewpoint, never of data. Labels counter-rotate so text stays
+ * horizontal at any angle — a knowledge map you have to tilt your head to
+ * read is a worse map.
  */
 export function GalaxyCanvas({
   graph,
@@ -45,9 +53,17 @@ export function GalaxyCanvas({
   onSelect,
   onExpand,
 }: GalaxyCanvasProps) {
-  const [view, setView] = useState({ scale: 1, x: 0, y: 0 });
+  const [view, setView] = useState({ scale: 1, x: 0, y: 0, angle: 0 });
   const [hovered, setHovered] = useState<string | null>(null);
-  const drag = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
+  const drag = useRef<{
+    mode: "pan" | "rotate";
+    x: number;
+    y: number;
+    ox: number;
+    oy: number;
+    angle: number;
+    from: number;
+  } | null>(null);
   // Mirrored in state only so the cursor can change; the ref carries the
   // actual drag maths, because a ref must not be read during render.
   const [dragging, setDragging] = useState(false);
@@ -85,9 +101,13 @@ export function GalaxyCanvas({
   }, [focus, graph.edges, answerMap]);
 
   const reset = useCallback(() => {
-    setView({ scale: 1, x: 0, y: 0 });
+    setView({ scale: 1, x: 0, y: 0, angle: 0 });
     setMoved({});
   }, []);
+  const rotate = useCallback(
+    (degrees: number) => setView((v) => ({ ...v, angle: (v.angle + degrees) % 360 })),
+    [],
+  );
   const zoom = useCallback(
     (factor: number) =>
       setView((v) => ({ ...v, scale: Math.min(3, Math.max(0.5, v.scale * factor)) })),
@@ -96,22 +116,47 @@ export function GalaxyCanvas({
 
   function onPointerDown(event: React.PointerEvent<SVGSVGElement>) {
     if (event.button !== 0) return;
-    // Only the empty canvas starts a pan. Capturing the pointer whenever it
-    // went down anywhere meant a press on a node was retargeted to the svg
+    // Only the empty canvas starts a gesture. Capturing the pointer whenever
+    // it went down anywhere meant a press on a node was retargeted to the svg
     // and never produced a click, so nodes could not be selected at all.
     if (event.target !== event.currentTarget) return;
-    drag.current = { x: event.clientX, y: event.clientY, ox: view.x, oy: view.y };
+    // Dragging still moves the galaxy, which is what the hand expects.
+    // Holding shift turns it instead, so one gesture does not have to mean
+    // two things and neither has to be given up.
+    const mode = event.shiftKey ? "rotate" : "pan";
+    drag.current = {
+      mode,
+      x: event.clientX,
+      y: event.clientY,
+      ox: view.x,
+      oy: view.y,
+      angle: view.angle,
+      from: angleFromCentre(event),
+    };
     setDragging(true);
     event.currentTarget.setPointerCapture(event.pointerId);
   }
   function onPointerMove(event: React.PointerEvent<SVGSVGElement>) {
     const start = drag.current;
     if (!start) return;
-    setView((v) => ({
-      ...v,
-      x: start.ox + (event.clientX - start.x) / v.scale,
-      y: start.oy + (event.clientY - start.y) / v.scale,
-    }));
+    if (start.mode === "rotate") {
+      // The galaxy follows the pointer round its centre, so the turn tracks
+      // the hand rather than an arbitrary pixels-per-degree rate.
+      const turned = angleFromCentre(event) - start.from;
+      setView((v) => ({ ...v, angle: start.angle + turned }));
+      return;
+    }
+    setView((v) => {
+      // The pan is applied before the rotation, so a screen-space drag has
+      // to be turned back into layout space or the galaxy slides sideways
+      // when it is turned.
+      const [dx, dy] = unrotate(
+        (event.clientX - start.x) / v.scale,
+        (event.clientY - start.y) / v.scale,
+        v.angle,
+      );
+      return { ...v, x: start.ox + dx, y: start.oy + dy };
+    });
   }
   function endDrag() {
     drag.current = null;
@@ -178,7 +223,11 @@ export function GalaxyCanvas({
           })}
         </defs>
 
-        <g transform={`translate(${VIEWBOX.width / 2} ${VIEWBOX.height / 2}) scale(${view.scale}) translate(${-VIEWBOX.width / 2 + view.x} ${-VIEWBOX.height / 2 + view.y})`}>
+        <g
+          data-testid="galaxy-transform"
+          data-angle={Math.round(view.angle)}
+          transform={`translate(${VIEWBOX.width / 2} ${VIEWBOX.height / 2}) scale(${view.scale}) rotate(${view.angle}) translate(${-VIEWBOX.width / 2 + view.x} ${-VIEWBOX.height / 2 + view.y})`}
+        >
           {graph.edges.map((edge) => {
             const a = positions.get(edge.source);
             const b = positions.get(edge.target);
@@ -213,7 +262,7 @@ export function GalaxyCanvas({
             return (
               <g
                 key={node.id}
-                transform={`translate(${x} ${y})`}
+                transform={`translate(${x} ${y}) rotate(${-view.angle})`}
                 opacity={mappedOpacity ?? (lit ? 1 : 0.25)}
                 onPointerEnter={() => setHovered(node.id)}
                 onPointerDown={(event) => {
@@ -236,12 +285,16 @@ export function GalaxyCanvas({
                   if (!start || start.id !== node.id) return;
                   const svg = event.currentTarget.ownerSVGElement;
                   const scaleX = (svg?.clientWidth ?? VIEWBOX.width) / VIEWBOX.width;
+                  // Same correction as the pan: the pointer moves in screen
+                  // space, the node lives in layout space.
+                  const [dx, dy] = unrotate(
+                    (event.clientX - start.x) / (scaleX * view.scale),
+                    (event.clientY - start.y) / (scaleX * view.scale),
+                    view.angle,
+                  );
                   setMoved((current) => ({
                     ...current,
-                    [node.id]: {
-                      x: start.ox + (event.clientX - start.x) / (scaleX * view.scale),
-                      y: start.oy + (event.clientY - start.y) / (scaleX * view.scale),
-                    },
+                    [node.id]: { x: start.ox + dx, y: start.oy + dy },
                   }));
                 }}
                 onPointerUp={(event) => {
@@ -328,9 +381,24 @@ export function GalaxyCanvas({
         />
       )}
 
-      <div className="absolute bottom-4 right-4 flex flex-col gap-1.5">
+      {/* Clear of the Ask CEREBRO launcher, which sits in the same corner at
+          a higher stacking level and silently swallowed clicks on the lowest
+          button here. */}
+      <div className="absolute bottom-[4.25rem] right-4 flex flex-col gap-1.5">
         <ViewButton label="Zoom in" onClick={() => zoom(1.25)}>+</ViewButton>
         <ViewButton label="Zoom out" onClick={() => zoom(0.8)}>−</ViewButton>
+        <ViewButton label="Rotate anticlockwise" onClick={() => rotate(-15)}>
+          <svg viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+            <path d="M4 10a6 6 0 1 0 2.2-4.65" strokeLinecap="round" />
+            <path d="M3.5 3.5v3h3" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </ViewButton>
+        <ViewButton label="Rotate clockwise" onClick={() => rotate(15)}>
+          <svg viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+            <path d="M16 10a6 6 0 1 1-2.2-4.65" strokeLinecap="round" />
+            <path d="M16.5 3.5v3h-3" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </ViewButton>
         <ViewButton label="Reset view" onClick={reset}>
           <svg viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
             <path d="M4 7.5V4h3.5M16 12.5V16h-3.5M16 7.5V4h-3.5M4 12.5V16h3.5" strokeLinecap="round" />
@@ -340,6 +408,24 @@ export function GalaxyCanvas({
 
       <Legend graph={graph} />
     </div>
+  );
+}
+
+/** Screen-space delta turned back into layout space. */
+function unrotate(dx: number, dy: number, degrees: number): [number, number] {
+  const radians = (-degrees * Math.PI) / 180;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  return [dx * cos - dy * sin, dx * sin + dy * cos];
+}
+
+/** Where the pointer sits around the canvas centre, in degrees. */
+function angleFromCentre(event: React.PointerEvent<SVGSVGElement>): number {
+  const box = event.currentTarget.getBoundingClientRect();
+  return (
+    (Math.atan2(event.clientY - (box.top + box.height / 2), event.clientX - (box.left + box.width / 2)) *
+      180) /
+    Math.PI
   );
 }
 
@@ -361,13 +447,21 @@ function HoverCard({
   node: GraphNode;
   x: number;
   y: number;
-  view: { scale: number; x: number; y: number };
+  view: { scale: number; x: number; y: number; angle: number };
   onOpen: () => void;
   onKeepOpen: () => void;
   onDismiss: () => void;
 }) {
-  const left = ((x + view.x - VIEWBOX.width / 2) * view.scale + VIEWBOX.width / 2) / VIEWBOX.width;
-  const top = ((y + view.y - VIEWBOX.height / 2) * view.scale + VIEWBOX.height / 2) / VIEWBOX.height;
+  // The same transform the canvas group applies, in reverse order of
+  // reading: offset by the pan, turned by the angle, scaled about the
+  // centre. The card has to follow its node when the galaxy is rotated.
+  const radians = (view.angle * Math.PI) / 180;
+  const ox = x + view.x - VIEWBOX.width / 2;
+  const oy = y + view.y - VIEWBOX.height / 2;
+  const rx = ox * Math.cos(radians) - oy * Math.sin(radians);
+  const ry = ox * Math.sin(radians) + oy * Math.cos(radians);
+  const left = (rx * view.scale + VIEWBOX.width / 2) / VIEWBOX.width;
+  const top = (ry * view.scale + VIEWBOX.height / 2) / VIEWBOX.height;
 
   return (
     <div
@@ -440,6 +534,11 @@ function Legend({ graph }: { graph: CerebroGalaxy }) {
           {category}
         </span>
       ))}
+      {/* Rotation is not discoverable by itself, so it is said once here
+          rather than hidden behind a tooltip on a button. */}
+      <span className="w-full text-[0.625rem] text-white/35">
+        Drag to move · shift-drag to rotate
+      </span>
     </div>
   );
 }

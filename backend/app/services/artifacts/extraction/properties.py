@@ -2,9 +2,11 @@
 
 What the file itself asserts — PDF `/Info`, Office core properties — as
 opposed to anything inferred from its text. This is the only acceptable
-source for author and creation date: both are claims about the world that no
-amount of reading the content can establish, so a value absent here stays
-absent rather than being guessed.
+source for author, creation date and modification date: all three are claims
+about the world that no amount of reading the content can establish, so a
+value absent here stays absent rather than being guessed. In particular a
+missing modification date is never filled in with the upload time — that
+records when CEREBRO received the file, not when anyone last changed it.
 
 Blank and whitespace-only values are dropped. An empty string in a PDF's
 /Author field means the field was never filled in, not that the author is "".
@@ -14,7 +16,7 @@ from __future__ import annotations
 from datetime import datetime
 
 # Keys other code may rely on. Anything else a format offers is ignored.
-KNOWN = ("title", "author", "subject", "keywords", "created_date")
+KNOWN = ("title", "author", "subject", "keywords", "created_date", "modified_date")
 
 
 def _clean(value: object) -> str | None:
@@ -54,6 +56,7 @@ def from_pdf(reader) -> dict:
         "subject": _clean(info.get("/Subject")),
         "keywords": _clean(info.get("/Keywords")),
         "created_date": _pdf_date(info.get("/CreationDate")),
+        "modified_date": _pdf_date(info.get("/ModDate")),
     }
     return {k: v for k, v in found.items() if v is not None}
 
@@ -63,11 +66,13 @@ def from_office(core) -> dict:
     if core is None:
         return {}
     created = getattr(core, "created", None)
+    modified = getattr(core, "modified", None)
     found = {
         "title": _clean(getattr(core, "title", None)),
         "author": _clean(getattr(core, "author", None)),
         "subject": _clean(getattr(core, "subject", None)),
         "keywords": _clean(getattr(core, "keywords", None)),
         "created_date": created.date().isoformat() if isinstance(created, datetime) else None,
+        "modified_date": modified.date().isoformat() if isinstance(modified, datetime) else None,
     }
     return {k: v for k, v in found.items() if v is not None}
