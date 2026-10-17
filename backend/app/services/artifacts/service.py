@@ -374,6 +374,23 @@ def review(db: Session, artifact: Artifact, *, metadata: dict, approve: bool) ->
     if artifact.status == "registered":
         raise ArtifactRejected("This artifact is already registered.")
 
+    # What was proposed, kept before confirmation overwrites it.
+    #
+    # Registration used to mark every confirmed field "human_confirmed" and
+    # nothing else, which destroyed the only record of what the model had
+    # suggested — so afterwards there was no way to ask whether it had been
+    # right. Accuracy is not measurable without the before-state, and the
+    # review screen is the one place it exists. Written once, at the first
+    # review, so a later edit cannot rewrite history.
+    if not (artifact.provenance or {}).get("suggested_snapshot"):
+        artifact.provenance = {
+            **(artifact.provenance or {}),
+            "suggested_snapshot": {
+                "metadata": dict(artifact.artifact_metadata or {}),
+                "methods": dict(artifact.field_methods or {}),
+            },
+        }
+
     artifact.artifact_metadata = metadata
     # Build a new dict rather than mutating in place. A JSONB column is not
     # change-tracked, and mutating before reassigning makes SQLAlchemy compare

@@ -302,6 +302,11 @@ def ask(
             "grounded": False,
             "model": None,
             "note": "The question could not be matched against your library.",
+            # Nothing was answered. Said explicitly, because the streaming
+            # path says it and a caller comparing the two found them
+            # disagreeing about whether a refusal had occurred.
+            "abstained": True,
+            "cited": [],
             "telemetry": None,
         }
 
@@ -314,6 +319,8 @@ def ask(
             "grounded": False,
             "model": None,
             "note": "Only documents you have reviewed and registered are searched.",
+            "abstained": True,
+            "cited": [],
             "telemetry": None,
         }
 
@@ -343,6 +350,7 @@ def ask(
             "grounded": True,
             "model": None,
             "note": f"{exc} The matching passages are shown instead.",
+            "abstained": False,
             "telemetry": None,
         }
 

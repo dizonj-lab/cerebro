@@ -540,6 +540,86 @@ export interface CerebroDocumentFacts {
  * corrected it to, so a correction never destroys the record of the source.
  * A null date means the CV stated none — never "today".
  */
+/** A summary shared by every stage and model row in the report. */
+export interface PerfSummary {
+  runs: number;
+  failures: number;
+  failure_rate: number | null;
+  median_ms: number | null;
+  p95_ms: number | null;
+  slowest_ms: number | null;
+  total_ms: number;
+  prompt_tokens: number | null;
+  completion_tokens: number | null;
+}
+
+export interface PerfOperation {
+  at: string;
+  kind: string;
+  operation: string;
+  model: string | null;
+  algorithm: string | null;
+  duration_ms: number;
+  prompt_tokens: number | null;
+  completion_tokens: number | null;
+  status: string;
+  units: Record<string, string | number | boolean | null>;
+}
+
+export interface PerfAccuracyField {
+  field: string;
+  suggested: number;
+  kept: number;
+  final: number;
+  added_by_user: number;
+  dropped_by_user: number;
+  precision: number | null;
+  recall: number | null;
+  f1: number | null;
+}
+
+export interface CerebroPerformance {
+  window_days: number;
+  generated_at: string;
+  totals: {
+    operations: number;
+    model_calls: number;
+    deterministic_calls: number;
+    total_seconds: number;
+    prompt_tokens: number | null;
+    completion_tokens: number | null;
+  };
+  stages: (PerfSummary & { kind: string })[];
+  models: (PerfSummary & { model: string })[];
+  ingestion: PerfSummary & {
+    documents: number;
+    pages: number;
+    bytes: number;
+    ms_per_page: number | null;
+    fragments: number;
+    vectors: number;
+    unvectorised: number;
+  };
+  recall: PerfSummary & {
+    questions: number;
+    answered: number;
+    abstained: number;
+    abstention_rate: number | null;
+    citations: number;
+    citations_per_answer: number | null;
+  };
+  search: PerfSummary;
+  accuracy: {
+    scored_documents: number;
+    unscored_documents: number;
+    fields: PerfAccuracyField[];
+    precision: number | null;
+    basis: string;
+  };
+  operations: PerfOperation[];
+  truncated: boolean;
+}
+
 export interface CerebroAnchor {
   id: string;
   event_type: string;
@@ -773,6 +853,10 @@ export const api = {
   /** Ask for an artifact still waiting to be read to be read now. */
   processArtifact: (id: string) =>
     request<CerebroArtifact>(`/api/artifacts/${id}/process`, { method: "POST" }),
+
+  /** Measured cost and accuracy of this user's own AI/ML operations. */
+  performance: (days = 30) =>
+    request<CerebroPerformance>(`/api/performance?days=${days}`),
 
   /** The CV's state and its anchors — always and only this user's. */
   cv: () => request<CerebroCv>("/api/cv"),

@@ -130,6 +130,7 @@ const PRIMARY = [
   { label: "Search", icon: <IconSearch />, href: "/construct/search" },
   { label: "Galaxy", icon: <IconGalaxy />, href: "/construct/galaxy" },
   { label: "Timeline", icon: <IconTimeline />, href: "/construct/timeline" },
+  { label: "Performance", icon: <IconTelemetry />, href: "/construct/performance" },
   { label: "Assisted Recollection", icon: <IconRecall /> },
   { label: "Collections", icon: <IconCollections /> },
   { label: "Tags", icon: <IconTags /> },

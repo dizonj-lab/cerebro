@@ -7,6 +7,8 @@ comes from the session, never from the request.
 """
 from fastapi import APIRouter, Query
 
+import time
+
 from app.api.deps import CurrentUser, DbSession
 from app.schemas.search import (
     SearchMatch,
@@ -15,6 +17,7 @@ from app.schemas.search import (
     SuggestionsResponse,
 )
 from app.services import search as search_service
+from app.services import metrics
 from app.services.embeddings import get_embedding_provider
 
 router = APIRouter(prefix="/api/search", tags=["search"])
@@ -22,6 +25,7 @@ router = APIRouter(prefix="/api/search", tags=["search"])
 
 @router.post("", response_model=SearchResponse)
 def search(payload: SearchRequest, current_user: CurrentUser, db: DbSession) -> SearchResponse:
+    started = time.perf_counter()
     result = search_service.search(
         db,
         current_user.id,
@@ -31,6 +35,24 @@ def search(payload: SearchRequest, current_user: CurrentUser, db: DbSession) -> 
         filters=search_service.Filters(**payload.filters.model_dump()),
         limit=payload.limit,
     )
+
+    # Retrieval cost per mode, so keyword, semantic and hybrid can be
+    # compared on the same library rather than argued about.
+    metrics.record(
+        db,
+        owner_id=current_user.id,
+        kind="search",
+        operation=f"search.{payload.mode}",
+        duration_ms=(time.perf_counter() - started) * 1000,
+        model=None,
+        algorithm={
+            "keyword": "postgresql full-text (ts_rank)",
+            "semantic": "cosine over stored vectors",
+            "hybrid": "reciprocal rank fusion (k=60)",
+        }.get(payload.mode, payload.mode),
+        units={"mode": payload.mode, "hits": len(result.get("matches", []))},
+    )
+    db.commit()
 
     # The provider is reported even for a keyword-only query, so a caller can
     # always tell which space any scores it does receive came from.

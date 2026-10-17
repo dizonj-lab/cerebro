@@ -13,6 +13,7 @@ from app.api.auth import router as auth_router
 from app.api.dashboard import router as dashboard_router
 from app.api.graph import router as graph_router
 from app.api.ml import router as ml_router
+from app.api.performance import router as performance_router
 from app.api.profile import router as profile_router
 from app.api.recall import router as recall_router
 from app.api.search import router as search_router
@@ -76,6 +77,7 @@ app.include_router(cv_router)
 app.include_router(dashboard_router)
 app.include_router(graph_router)
 app.include_router(ml_router)
+app.include_router(performance_router)
 app.include_router(recall_router)
 app.include_router(search_router)
 app.include_router(timeline_router)

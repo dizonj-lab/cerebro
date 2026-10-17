@@ -4,6 +4,7 @@ Ownership always comes from the session. No route accepts an owner id, and
 every lookup is scoped to the authenticated user, so a guessed artifact id
 finds nothing rather than someone else's document.
 """
+import time
 import uuid
 from typing import Annotated
 
@@ -34,7 +35,7 @@ from app.schemas.artifact import (
     BulkUploadResponse,
     EnrichmentSuggestion,
 )
-from app.services import profiles
+from app.services import metrics, profiles
 from app.services.artifacts import service, serving
 from app.services.artifacts.fragments import FragmentsUnavailable
 from app.services.artifacts.registration import RegistrationRejected
@@ -85,6 +86,7 @@ async def upload(
     outright, in this request, if its bytes contradict its extension or it
     duplicates something already in the library.
     """
+    started = time.perf_counter()
     content = await file.read()
     # Enrichment honours the user's own setting. Deterministic enrichment —
     # the document's own metadata and statistics over its text — always runs;
@@ -129,6 +131,25 @@ async def upload(
         db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from None
 
+    # Ingestion cost, with the units that make the duration mean something:
+    # a slow read of an eighty-page scan is not the same problem as a slow
+    # read of a memo.
+    metrics.record(
+        db,
+        owner_id=current_user.id,
+        kind="ingestion",
+        operation="artifact.upload" + (" (deferred)" if deferred else ""),
+        duration_ms=(time.perf_counter() - started) * 1000,
+        model=None,
+        algorithm="deterministic extraction",
+        artifact_id=artifact.id,
+        units={
+            "bytes": len(content),
+            "pages": ((artifact.extraction or {}).get("structure") or {}).get("pages"),
+            "characters": (artifact.extraction or {}).get("character_count"),
+            "deferred": deferred,
+        },
+    )
     db.commit()
     db.refresh(artifact)
     if deferred:
@@ -362,6 +383,7 @@ def suggest(
         raise NOT_FOUND
 
     preferences = profiles.get_preferences(db, current_user.id)
+    started = time.perf_counter()
     try:
         result = service.suggest_with_model(
             db, artifact, ai_suggestions=preferences.ai_suggestions
@@ -369,6 +391,29 @@ def suggest(
     except service.ArtifactRejected as exc:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from None
+
+    metrics.record(
+        db,
+        owner_id=current_user.id,
+        kind="enrichment",
+        operation="enrichment.suggest",
+        duration_ms=(time.perf_counter() - started) * 1000,
+        model=getattr(result, "model", None),
+        algorithm="local model proposes, human confirms",
+        artifact_id=artifact.id,
+        status="ok" if getattr(result, "ai_used", False) else "fallback",
+        units={
+            "suggested": sum(
+                len(v) if isinstance(v, list) else 1
+                for v in (getattr(result, "suggestions", {}) or {}).values()
+            ),
+            # The grounding guard's own verdict: suggestions the document did
+            # not contain, dropped. The clearest single signal of whether a
+            # model can be trusted on this corpus.
+            "notes": len(getattr(result, "notes", []) or []),
+            "ai_used": bool(getattr(result, "ai_used", False)),
+        },
+    )
 
     db.commit()
     return EnrichmentSuggestion(**result)

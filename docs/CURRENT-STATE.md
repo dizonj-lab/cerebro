@@ -542,6 +542,36 @@ and the shortfall is stated in the notes. The proxy sets its own timeout
 above that worst case and says "took too long" rather than "unreachable",
 because the two need different actions.
 
+## Performance Report
+
+What the models and algorithms actually cost, measured rather than claimed.
+`services/telemetry.py` stays a 50-entry in-memory ring for what is running
+now; `operation_metrics` is the persistent row per operation that a report
+needs, carrying what ran, how long it took and what it produced — never a
+prompt, never a passage. Ingestion, enrichment, search and every Ask CEREBRO
+question are instrumented, and a metrics write that fails is swallowed: a
+lost row costs a measurement, a propagated one costs the user's upload.
+
+**Accuracy comes from the review loop.** Every suggestion is confirmed,
+edited or dropped by a human as a matter of course, which is a labelled set
+produced for free — but registration used to overwrite `field_methods` with
+`human_confirmed` and destroy the record of what the model proposed, so the
+before-state no longer existed. A `suggested_snapshot` is now kept in
+provenance at the first review, and precision, recall and F1 are computed
+per field from it. Documents registered before snapshots existed are
+**excluded rather than assumed correct**, and the page says how many.
+
+Three things the report refuses to do. It prints no number where there is no
+measurement, because a zero that looks like data is worse than an absence
+that looks like one. It counts an Ask CEREBRO refusal and never grades it:
+abstaining is correct behaviour when the library lacks the answer, and only
+a human can say whether each one was right. And it labels precision as
+"suggestions kept at human review" rather than correctness, since a user who
+approves everything would otherwise score a model perfect.
+
+Counts are shown beside every rate. Over a library of thirty documents a
+percentage implies a population that is not there.
+
 A person's CV is the one document that says what they *did*, in order, and
 it anchors the timeline. It goes through the ordinary artifact pipeline —
 same validation, extraction, storage and ownership checks — and the profile
