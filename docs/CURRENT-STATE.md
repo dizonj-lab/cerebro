@@ -573,6 +573,16 @@ Everything else waits visibly, with its place in the line, because "waiting"
 without a number is indistinguishable from stuck. Claiming uses
 `FOR UPDATE SKIP LOCKED`, so no two workers can take the same artifact.
 
+Every filled field on the review screen carries a **badge beside its label**
+saying where its value came from — "AI suggested", "From the file", "From
+the page", "From the text", "You confirmed". The hint underneath already
+said it in a sentence, but a reviewer scanning twelve fields reads labels,
+and the one thing they need at a glance is which boxes a model filled,
+because those are the ones to check. An empty field carries no badge:
+provenance describes a value, and there is no value to describe. The five
+entity fields — people, organizations, projects, technologies, concepts —
+had carried no provenance at all until now.
+
 Suggestions are **stored** when a job finishes, as unconfirmed proposals.
 They used to exist only in the browser tab that asked for them. Storing them
 changes nothing about trust: `field_methods` still records them as

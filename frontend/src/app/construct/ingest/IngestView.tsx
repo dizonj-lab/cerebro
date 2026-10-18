@@ -243,9 +243,42 @@ function IngestInner() {
 
   // Live methods: a field the model has just proposed reports as such before
   // anything is saved, so the hint matches what is in the box.
+  function rawMethodOf(field: string): string | undefined {
+    return suggestion?.field_methods?.[field] ?? artifact?.field_methods?.[field];
+  }
+
   function methodOf(field: string): string | undefined {
-    const method = suggestion?.field_methods?.[field] ?? artifact?.field_methods?.[field];
+    const method = rawMethodOf(field);
     return method ? METHOD_HINTS[method] || undefined : undefined;
+  }
+
+  /**
+   * A word beside the label for where the value came from.
+   *
+   * The hint underneath already says it in a sentence, but a reviewer
+   * scanning twelve fields reads labels, not hints — and the one thing they
+   * need at a glance is which boxes a model filled, because those are the
+   * ones to check. An empty field is not marked: provenance describes a
+   * value, and there is no value to describe.
+   */
+  function originOf(field: keyof CerebroArtifactMetadata) {
+    const value = draft[field];
+    const empty =
+      value === undefined || value === null || value === "" ||
+      (Array.isArray(value) && value.length === 0);
+    if (empty) return undefined;
+    const method = rawMethodOf(field);
+    if (!method || method === "not_established") return undefined;
+    if (method === "ai_suggested") return { label: "AI suggested", tone: "ai" as const };
+    if (method === "human_confirmed") return { label: "You confirmed", tone: "confirmed" as const };
+    if (method === "extracted_byline") {
+      return { label: "From the page", tone: "document" as const };
+    }
+    if (method.startsWith("document_metadata")) {
+      return { label: "From the file", tone: "document" as const };
+    }
+    if (method === "filename_stem") return { label: "From the filename", tone: "document" as const };
+    return { label: "From the text", tone: "document" as const };
   }
 
   function set<K extends keyof CerebroArtifactMetadata>(k: K, v: CerebroArtifactMetadata[K]) {
@@ -465,30 +498,30 @@ function IngestInner() {
             <div className="grid gap-5 sm:grid-cols-2">
               <FormField
                 htmlFor="title" label="Title" className="sm:col-span-2"
-                hint={methodOf("title")}
+                hint={methodOf("title")} origin={originOf("title")}
               >
                 <Input id="title" value={draft.title ?? ""} disabled={registered || busy}
                   onChange={(e) => set("title", e.target.value)} />
               </FormField>
 
-              <FormField hint={methodOf("description")} htmlFor="description" label="Description" className="sm:col-span-2">
+              <FormField hint={methodOf("description")} origin={originOf("description")} htmlFor="description" label="Description" className="sm:col-span-2">
                 <Textarea id="description" rows={3} value={draft.description ?? ""}
                   disabled={registered || busy}
                   onChange={(e) => set("description", e.target.value)} />
               </FormField>
 
-              <FormField hint={methodOf("author")} htmlFor="author" label="Author">
+              <FormField hint={methodOf("author")} origin={originOf("author")} htmlFor="author" label="Author">
                 <Input id="author" value={draft.author ?? ""} disabled={registered || busy}
                   onChange={(e) => set("author", e.target.value)} />
               </FormField>
 
-              <FormField hint={methodOf("language")} htmlFor="language" label="Language">
+              <FormField hint={methodOf("language")} origin={originOf("language")} htmlFor="language" label="Language">
                 <Input id="language" value={draft.language ?? ""} disabled={registered || busy}
                   onChange={(e) => set("language", e.target.value)} />
               </FormField>
 
               <FormField
-                hint={methodOf("created_date")}
+                hint={methodOf("created_date")} origin={originOf("created_date")}
                 htmlFor="created_date"
                 label="Created date"
                 className="sm:col-span-2"
@@ -498,40 +531,40 @@ function IngestInner() {
                   onChange={(e) => set("created_date", e.target.value)} />
               </FormField>
 
-              <FormField hint={methodOf("topics")} htmlFor="topics" label="Topics" className="sm:col-span-2">
+              <FormField hint={methodOf("topics")} origin={originOf("topics")} htmlFor="topics" label="Topics" className="sm:col-span-2">
                 <TagInput id="topics" value={draft.topics} disabled={registered || busy}
                   onChange={(v) => set("topics", v)} placeholder="Add a topic and press Enter" />
               </FormField>
 
-              <FormField hint={methodOf("tags")} htmlFor="tags" label="Tags" className="sm:col-span-2">
+              <FormField hint={methodOf("tags")} origin={originOf("tags")} htmlFor="tags" label="Tags" className="sm:col-span-2">
                 <TagInput id="tags" value={draft.tags} disabled={registered || busy}
                   onChange={(v) => set("tags", v)} placeholder="Add a tag and press Enter" />
               </FormField>
 
-              <FormField htmlFor="people" label="People" className="sm:col-span-2">
+              <FormField hint={methodOf("people")} origin={originOf("people")} htmlFor="people" label="People" className="sm:col-span-2">
                 <TagInput id="people" value={draft.people} disabled={registered || busy}
                   onChange={(v) => set("people", v)} placeholder="Add a person and press Enter" />
               </FormField>
 
-              <FormField htmlFor="organizations" label="Organizations" className="sm:col-span-2">
+              <FormField hint={methodOf("organizations")} origin={originOf("organizations")} htmlFor="organizations" label="Organizations" className="sm:col-span-2">
                 <TagInput id="organizations" value={draft.organizations}
                   disabled={registered || busy}
                   onChange={(v) => set("organizations", v)}
                   placeholder="Add an organization and press Enter" />
               </FormField>
 
-              <FormField htmlFor="projects" label="Projects" className="sm:col-span-2">
+              <FormField hint={methodOf("projects")} origin={originOf("projects")} htmlFor="projects" label="Projects" className="sm:col-span-2">
                 <TagInput id="projects" value={draft.projects} disabled={registered || busy}
                   onChange={(v) => set("projects", v)} placeholder="Add a project and press Enter" />
               </FormField>
 
-              <FormField htmlFor="technologies" label="Technologies">
+              <FormField hint={methodOf("technologies")} origin={originOf("technologies")} htmlFor="technologies" label="Technologies">
                 <TagInput id="technologies" value={draft.technologies}
                   disabled={registered || busy} onChange={(v) => set("technologies", v)}
                   placeholder="Add a technology and press Enter" />
               </FormField>
 
-              <FormField htmlFor="concepts" label="Key concepts">
+              <FormField hint={methodOf("concepts")} origin={originOf("concepts")} htmlFor="concepts" label="Key concepts">
                 <TagInput id="concepts" value={draft.concepts} disabled={registered || busy}
                   onChange={(v) => set("concepts", v)} placeholder="Add a concept and press Enter" />
               </FormField>

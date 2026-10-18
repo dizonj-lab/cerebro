@@ -170,6 +170,13 @@ def _run_one(db: Session, artifact: Artifact) -> None:
             artifact,
             ai_suggestions=bool(job.get("ai_suggestions", True)),
             on_progress=progress,
+            # Without this the job computed suggestions and discarded them.
+            # The request that used to carry them back no longer exists, so
+            # storing is the only way they reach the review screen at all —
+            # and the symptom was exact: fields deterministic enrichment had
+            # already filled at upload looked fine, while the ones only a
+            # model proposes stayed empty for ever.
+            store=True,
         )
         # `suggest_with_model` returns a dict. Reading it with getattr
         # silently produced empty notes and a null model, which is how "No

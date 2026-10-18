@@ -118,3 +118,101 @@ def test_the_ceiling_is_two_whatever_the_backlog(client, signed_in, db, monkeypa
     monkeypatch.setattr(queue, "_last_durations", [1.0])
 
     assert queue._desired_workers(db) <= 2  # noqa: SLF001
+
+
+def test_a_finished_job_leaves_its_suggestions_on_the_artifact(client, signed_in, monkeypatch):
+    """The job used to compute suggestions and throw them away.
+
+    The request that once carried them back to the browser no longer exists,
+    so storing them is the only way they reach the review screen. The
+    symptom was precise: fields deterministic enrichment had already filled
+    at upload looked fine, and the ones only a model proposes — people,
+    technologies, concepts — stayed empty for ever.
+    """
+    from app.services.artifacts import service
+
+    artifact = upload(client)
+
+    def fake(*, text, properties, filename, ai_suggestions=True, use_llm=False, on_progress=None):
+        from app.services.artifacts.enrichment.base import Enrichment
+
+        return Enrichment(
+            suggestions={
+                "people": ["Maria Santos"],
+                "technologies": ["PostgreSQL"],
+                "concepts": ["ledger cutover"],
+            },
+            methods={
+                "people": "ai_suggested",
+                "technologies": "ai_suggested",
+                "concepts": "ai_suggested",
+            },
+            engine="ollama",
+            model="llama3.2:3b",
+            ai_used=True,
+            local=True,
+        )
+
+    monkeypatch.setattr(service, "enrich", fake)
+
+    from app.db.session import SessionLocal
+    from app.models.artifact import Artifact
+    import uuid as _uuid
+
+    with SessionLocal() as db:
+        row = db.get(Artifact, _uuid.UUID(artifact["id"]))
+        service.suggest_with_model(db, row, ai_suggestions=True, store=True)
+        db.commit()
+
+    fresh = client.get(f"/api/artifacts/{artifact['id']}").json()
+    assert fresh["metadata"]["people"] == ["Maria Santos"]
+    assert fresh["metadata"]["technologies"] == ["PostgreSQL"]
+    assert fresh["metadata"]["concepts"] == ["ledger cutover"]
+    # Still proposals: only approval makes them confirmed.
+    assert fresh["field_methods"]["people"] == "ai_suggested"
+
+
+def test_the_queue_asks_for_its_suggestions_to_be_stored():
+    """A guard on the one argument whose absence made the feature a no-op."""
+    import inspect
+
+    from app.services import enrichment_queue
+
+    source = inspect.getsource(enrichment_queue._run_one)  # noqa: SLF001
+    assert "store=True" in source
+
+
+def test_a_value_the_user_typed_is_never_overwritten(client, signed_in, monkeypatch):
+    from app.services.artifacts import service
+
+    artifact = upload(client)
+    client.patch(
+        f"/api/artifacts/{artifact['id']}",
+        json={"metadata": {"title": "My Own Title", "people": ["Someone I Added"]}},
+    )
+
+    def fake(*, text, properties, filename, ai_suggestions=True, use_llm=False, on_progress=None):
+        from app.services.artifacts.enrichment.base import Enrichment
+
+        return Enrichment(
+            suggestions={"people": ["A Model's Idea"]},
+            methods={"people": "ai_suggested"},
+            engine="ollama",
+            model="m",
+            ai_used=True,
+            local=True,
+        )
+
+    monkeypatch.setattr(service, "enrich", fake)
+
+    from app.db.session import SessionLocal
+    from app.models.artifact import Artifact
+    import uuid as _uuid
+
+    with SessionLocal() as db:
+        row = db.get(Artifact, _uuid.UUID(artifact["id"]))
+        service.suggest_with_model(db, row, ai_suggestions=True, store=True)
+        db.commit()
+
+    fresh = client.get(f"/api/artifacts/{artifact['id']}").json()
+    assert fresh["metadata"]["people"] == ["Someone I Added"]

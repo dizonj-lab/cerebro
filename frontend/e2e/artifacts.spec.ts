@@ -340,3 +340,27 @@ test("the author printed on the first page is read, with its evidence", async ({
   // Said to be read from the page, not proposed by a model.
   await expect(page.getByText(/printed on the document's first page/i)).toBeVisible();
 });
+
+test("every filled field says where its value came from", async ({ page }) => {
+  await signedIn(page, "a-origin");
+  await page.goto("/construct/ingest");
+
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "deck.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from(
+      "LECTURE NOTES\nDr Zhu Fangming\nThe deck covers radial basis function networks.\n",
+    ),
+  });
+
+  // Read from the page itself, not proposed by a model — and the badge says
+  // which, because a reviewer scanning a dozen fields reads labels.
+  const author = page.getByTestId("origin-author");
+  await expect(author).toBeVisible();
+  await expect(author).toHaveAttribute("data-origin", "document");
+  await expect(author).toContainText("From the page");
+
+  // An empty field carries no badge: provenance describes a value, and
+  // there is no value to describe.
+  await expect(page.getByTestId("origin-people")).toHaveCount(0);
+});
