@@ -583,6 +583,13 @@ hold refuses rather than truncates. A refused group is retried one text at a
 time, so one chunk the daemon will not take costs that chunk and not the
 document, and a blank chunk is named rather than sent.
 
+Both paths use `/api/embed`, the endpoint Ollama maintains, which takes a
+single string as happily as a list. `/api/embeddings` is the deprecated one
+and current daemons answer **500** to it for some embedding models — which
+turned a retry meant to isolate one awkward chunk into a registration that
+failed on every chunk it tried. It remains only for a daemon old enough to
+answer 404 to `/api/embed`.
+
 A dropped suggestion is **named, not counted**. An empty People box looks
 identical whether the model proposed nobody or proposed people the grounding
 guard then removed, and those need opposite fixes — so the notes now say

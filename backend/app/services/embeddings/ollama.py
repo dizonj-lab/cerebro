@@ -43,6 +43,15 @@ class _BatchUnsupported(Exception):
     """This daemon has no /api/embed. Fall back to one call per text."""
 
 
+class _Refused(Exception):
+    """The daemon answered with an HTTP status rather than an embedding."""
+
+    def __init__(self, code: int, endpoint: str) -> None:
+        super().__init__(f"{code} from {endpoint}")
+        self.code = code
+        self.endpoint = endpoint
+
+
 class OllamaEmbedder:
     name = "ollama"
     # Ollama is a local daemon. Content stays in the CEREBRO environment.
@@ -92,25 +101,24 @@ class OllamaEmbedder:
                 vectors.extend(self._one(text) for text in group)
         return vectors
 
-    def _batch(self, texts: list[str]) -> list[list[float]]:
-        payload = json.dumps({"model": self.model, "input": texts}).encode("utf-8")
+    def _post(self, endpoint: str, payload: dict, timeout: float) -> dict:
+        """One request to the daemon, with its failures told apart.
+
+        HTTPError is checked before URLError, which it subclasses. Without
+        that a daemon answering 400 was reported as a daemon that could not
+        be reached, and the remedy offered — start Ollama, pull the model —
+        addressed a problem the user did not have.
+        """
         request = urllib.request.Request(  # noqa: S310 - fixed http scheme, local daemon
-            f"{self.base_url}/api/embed",
-            data=payload,
+            f"{self.base_url}{endpoint}",
+            data=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
         try:
-            with urllib.request.urlopen(request, timeout=_BATCH_TIMEOUT_SECONDS) as response:
-                body = json.loads(response.read().decode("utf-8"))
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                return json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
-            # 404 means this daemon predates /api/embed. Anything else is a
-            # real failure and must not be silently retried one by one.
-            if exc.code == 404:
-                raise _BatchUnsupported from None
-            raise EmbeddingFailed(
-                f"Ollama returned {exc.code} embedding with '{self.model}'. "
-                f"The batch of {len(texts)} was refused."
-            ) from None
+            raise _Refused(exc.code, endpoint) from None
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             raise EmbeddingFailed(
                 f"Could not reach Ollama at {self.base_url}. Is it running, and has "
@@ -118,6 +126,23 @@ class OllamaEmbedder:
             ) from exc
         except json.JSONDecodeError as exc:
             raise EmbeddingFailed("Ollama returned a response that was not JSON.") from exc
+
+    def _batch(self, texts: list[str]) -> list[list[float]]:
+        try:
+            body = self._post(
+                "/api/embed",
+                {"model": self.model, "input": texts},
+                _BATCH_TIMEOUT_SECONDS,
+            )
+        except _Refused as exc:
+            # 404 means this daemon predates /api/embed. Anything else is a
+            # real failure and must not be silently retried one by one.
+            if exc.code == 404:
+                raise _BatchUnsupported from None
+            raise EmbeddingFailed(
+                f"Ollama returned {exc.code} embedding a batch of {len(texts)} "
+                f"with '{self.model}'."
+            ) from None
 
         vectors = body.get("embeddings")
         if not isinstance(vectors, list) or len(vectors) != len(texts):
@@ -132,34 +157,41 @@ class OllamaEmbedder:
         return self._one(text, check_width=False)
 
     def _one(self, text: str, *, check_width: bool = True) -> list[float]:
-        payload = json.dumps({"model": self.model, "prompt": text}).encode("utf-8")
-        request = urllib.request.Request(  # noqa: S310 - fixed http scheme, local daemon
-            f"{self.base_url}/api/embeddings",
-            data=payload,
-            headers={"Content-Type": "application/json"},
-        )
-        try:
-            with urllib.request.urlopen(request, timeout=_TIMEOUT_SECONDS) as response:
-                body = json.loads(response.read().decode("utf-8"))
-        except urllib.error.HTTPError as exc:
-            # Checked before URLError, which it subclasses. Without this a
-            # daemon answering 400 was reported as a daemon that could not
-            # be reached, and the suggested fix — start Ollama, pull the
-            # model — addressed a problem the user did not have.
-            raise EmbeddingFailed(
-                f"Ollama refused a {len(text)}-character chunk with "
-                f"'{self.model}' ({exc.code}). The chunk may be longer than the "
-                "model's context."
-            ) from None
-        except (urllib.error.URLError, TimeoutError, OSError) as exc:
-            raise EmbeddingFailed(
-                f"Could not reach Ollama at {self.base_url}. Is it running, and has "
-                f"'{self.model}' been pulled?"
-            ) from exc
-        except json.JSONDecodeError as exc:
-            raise EmbeddingFailed("Ollama returned a response that was not JSON.") from exc
+        """One text, through the modern endpoint, falling back to the old one.
 
-        return self._normalise(body.get("embedding"), check_width=check_width)
+        `/api/embed` takes a single string as happily as a list, and it is
+        the endpoint Ollama maintains. `/api/embeddings` is the deprecated
+        one, and current daemons answer 500 to it for some embedding models
+        — which is what turned a retry meant to isolate one awkward chunk
+        into a registration that failed on every chunk it tried.
+        """
+        try:
+            body = self._post(
+                "/api/embed", {"model": self.model, "input": text}, _TIMEOUT_SECONDS
+            )
+        except _Refused as modern:
+            if modern.code != 404:
+                raise EmbeddingFailed(
+                    f"Ollama returned {modern.code} embedding a "
+                    f"{len(text)}-character chunk with '{self.model}'."
+                ) from None
+            # Genuinely old daemon: no /api/embed at all.
+            try:
+                legacy = self._post(
+                    "/api/embeddings",
+                    {"model": self.model, "prompt": text},
+                    _TIMEOUT_SECONDS,
+                )
+            except _Refused as old:
+                raise EmbeddingFailed(
+                    f"Ollama returned {old.code} embedding a "
+                    f"{len(text)}-character chunk with '{self.model}'."
+                ) from None
+            return self._normalise(legacy.get("embedding"), check_width=check_width)
+
+        vectors = body.get("embeddings")
+        vector = vectors[0] if isinstance(vectors, list) and vectors else body.get("embedding")
+        return self._normalise(vector, check_width=check_width)
 
     def _normalise(self, vector: object, *, check_width: bool = True) -> list[float]:
         if not isinstance(vector, list) or not vector:

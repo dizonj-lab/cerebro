@@ -559,8 +559,13 @@ function Legend({ graph }: { graph: CerebroGalaxy }) {
   const categories = [...new Set(graph.nodes.map((n) => n.category))].slice(0, 6);
   if (!categories.length) return null;
   return (
-    <div // Capped so it cannot run under the chat launcher in the opposite corner.
-      className="absolute bottom-4 left-4 flex max-w-[52%] flex-wrap gap-x-4 gap-y-1.5 rounded-lg border border-white/10 bg-[#101725]/80 px-3 py-2 backdrop-blur">
+    <div
+      // Capped so it cannot run under the chat launcher in the opposite
+      // corner, and inert: it reads, it is never clicked. Adding the
+      // rotation hint made it taller, and a taller legend began swallowing
+      // clicks on the nodes beneath it — a caption that steals a gesture
+      // from the thing it is captioning.
+      className="pointer-events-none absolute bottom-4 left-4 flex max-w-[52%] flex-wrap gap-x-4 gap-y-1.5 rounded-lg border border-white/10 bg-[#101725]/80 px-3 py-2 backdrop-blur">
       {categories.map((category) => (
         <span key={category} className="flex items-center gap-1.5 text-[0.6875rem] text-white/70">
           <span className="size-2 rounded-full" style={{ background: colorFor(category) }} />

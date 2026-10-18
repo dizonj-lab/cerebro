@@ -384,12 +384,26 @@ test("the galaxy turns without relaying itself", async ({ page }) => {
 test("an edge explains itself and names the documents it rests on", async ({ page }) => {
   await openGalaxy(page, "g-edge");
 
-  // Forced because a vertical edge has a zero-width bounding box, which
-  // Playwright reads as invisible. A real pointer still hits the 6px stroke;
-  // the check being bypassed is the harness's, not the browser's.
-  await page.getByTestId("galaxy-edge").first().hover({ force: true });
-
+  // Hovering is forced because an edge drawn as a vertical curve has a
+  // zero-width bounding box, which Playwright reads as invisible — a real
+  // pointer still hits the 6px stroke, so the check being bypassed is the
+  // harness's rather than the browser's.
+  //
+  // Which edge is hovered is not the point, and depending on the first one
+  // made the test depend on layout: a forced hover is dispatched at the
+  // element's centre, and for some curves that point is not on the painted
+  // stroke. So it tries each in turn and asserts that an edge explains
+  // itself — which is the actual claim.
+  const edges = page.getByTestId("galaxy-edge");
   const card = page.getByTestId("edge-card");
+  const total = await edges.count();
+  expect(total).toBeGreaterThan(0);
+
+  for (let index = 0; index < total; index += 1) {
+    await edges.nth(index).hover({ force: true });
+    if (await card.isVisible()) break;
+  }
+
   await expect(card).toBeVisible();
   // What was observed, never what it means: no "uses", no "depends on".
   await expect(card).toContainText("Appears in the same document");

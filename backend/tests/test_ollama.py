@@ -73,11 +73,22 @@ class Handler(BaseHTTPRequestHandler):
             STATE["batch_calls"] = STATE.get("batch_calls", 0) + 1
             texts = request.get("input", [])
             STATE.setdefault("batch_sizes", []).append(len(texts))
-            if STATE.get("refuse_batches"):
-                # A daemon answering 400 to a batch it will not take.
+            if isinstance(texts, str):
+                # /api/embed takes a single string as happily as a list.
+                texts = [texts]
+            refuse_over = STATE.get("refuse_batches_over")
+            if refuse_over is not None and len(texts) > refuse_over:
+                # The real failure: a daemon refusing a batch larger than it
+                # will accept, while taking the same texts one at a time.
                 self._json(400, {"error": "too many input tokens"})
                 return
-            if STATE.get("short_batch"):
+            if STATE.get("refuse_everything"):
+                self._json(500, {"error": "model runner failed"})
+                return
+            if STATE.get("short_batch") and len(texts) > 1:
+                # Only a real batch comes back short. Truncating a
+                # single-text request would model a daemon returning
+                # nothing at all, which is a different failure.
                 texts = texts[:-1]
             width = STATE.get("dimensions", 768)
             self._json(
@@ -330,19 +341,50 @@ def test_a_long_document_is_embedded_in_batches_a_daemon_will_take(daemon):
     assert len(STATE["batch_sizes"]) == 3
 
 
-def test_a_refused_batch_costs_that_batch_and_not_the_document(daemon):
-    """One chunk the daemon will not take must not stop a registration."""
+def test_a_batch_a_daemon_will_not_take_is_retried_one_at_a_time(daemon):
+    """One group the daemon refuses must not stop a registration."""
     from app.services.embeddings.ollama import OllamaEmbedder
 
     STATE["dimensions"] = 8
-    STATE["refuse_batches"] = True
+    # Refuses more than one at a time, and accepts them singly.
+    STATE["refuse_batches_over"] = 1
     embedder = OllamaEmbedder(base_url=daemon, model="mxbai-embed-large", dimensions=8)
 
-    # /api/embed refuses; the retry goes one at a time through /api/embeddings.
     vectors = embedder.embed(["one", "two", "three"])
 
     assert len(vectors) == 3
     assert all(len(v) == 8 for v in vectors)
+
+
+def test_a_daemon_that_refuses_one_chunk_says_so_with_its_status(daemon):
+    """And does not claim the chunk was too long, which it may not be."""
+    from app.services.embeddings.base import EmbeddingFailed
+    from app.services.embeddings.ollama import OllamaEmbedder
+
+    STATE["dimensions"] = 8
+    STATE["refuse_everything"] = True
+    embedder = OllamaEmbedder(base_url=daemon, model="mxbai-embed-large", dimensions=8)
+
+    with pytest.raises(EmbeddingFailed) as caught:
+        embedder.embed(["a chunk well inside any context"])
+
+    assert "500" in str(caught.value)
+    assert "context" not in str(caught.value)
+
+
+def test_single_texts_use_the_endpoint_ollama_maintains(daemon):
+    """The deprecated one answers 500 for some models, which broke the retry."""
+    from app.services.embeddings.ollama import OllamaEmbedder
+
+    STATE["dimensions"] = 8
+    STATE["single_calls"] = 0
+    STATE["refuse_batches_over"] = 1
+    embedder = OllamaEmbedder(base_url=daemon, model="mxbai-embed-large", dimensions=8)
+
+    embedder.embed(["one", "two"])
+
+    # Nothing reached /api/embeddings: the modern endpoint served both.
+    assert STATE.get("single_calls", 0) == 0
 
 
 def test_an_empty_chunk_is_named_rather_than_sent(daemon):
