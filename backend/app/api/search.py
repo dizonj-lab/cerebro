@@ -5,9 +5,9 @@ never appear as knowledge. Documents match at any status, and carry that
 status with them. Every query is scoped to the authenticated user: the owner
 comes from the session, never from the request.
 """
-from fastapi import APIRouter, Query
-
 import time
+
+from fastapi import APIRouter, Query
 
 from app.api.deps import CurrentUser, DbSession
 from app.schemas.search import (
@@ -16,9 +16,9 @@ from app.schemas.search import (
     SearchResponse,
     SuggestionsResponse,
 )
+from app.services import ingest_settings, metrics
 from app.services import search as search_service
-from app.services import metrics
-from app.services.embeddings import get_embedding_provider
+from app.services.embeddings import provider_for
 
 router = APIRouter(prefix="/api/search", tags=["search"])
 
@@ -56,7 +56,7 @@ def search(payload: SearchRequest, current_user: CurrentUser, db: DbSession) -> 
 
     # The provider is reported even for a keyword-only query, so a caller can
     # always tell which space any scores it does receive came from.
-    provider = get_embedding_provider()
+    provider = provider_for(ingest_settings.for_user(db, current_user.id))
     matches = [
         SearchMatch(
             fragment_id=item["fragment_id"],

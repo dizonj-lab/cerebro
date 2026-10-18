@@ -111,7 +111,13 @@ docs/                                               architecture, contracts, sta
   Linux parity. See `docs/DEVELOPMENT.md`.
 - Switching embedding provider **orphans existing vectors**: provider, model
   and dimensions are stored per vector and search filters on all three, so
-  artifacts must be re-registered under the new provider to be found.
+  artifacts must be re-registered under the new provider to be found. The
+  model, width, context limit, chunk size and overlap are per-user settings
+  (null = deployment default), resolved via `services/ingest_settings.py` at
+  both write and read time — a query must be embedded by the same model its
+  vectors were. Their combination is validated on the merged preferences row,
+  never field by field: a chunk target and a context limit are each valid
+  alone and impossible together.
 - Extracted text is a **derived object** in the object store, keyed
   `<storage_key>.extraction.json`; the artifact row holds only a summary in
   `extraction`. Never put document text on the row — a library query would

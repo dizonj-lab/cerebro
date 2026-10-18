@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { PageHeader } from "@/components/construct/PageHeader";
 import { AiPrivacySection } from "@/components/construct/AiPrivacySection";
+import { EmbeddingSection } from "@/components/construct/EmbeddingSection";
 import { Button } from "@/components/ui/Button";
 import { ErrorMessage } from "@/components/ui/ErrorMessage";
 import { FormField } from "@/components/ui/FormField";
@@ -18,7 +19,7 @@ import { cn } from "@/lib/cn";
 import { chooseTheme, isTheme, storedTheme } from "@/lib/theme";
 import type { Theme } from "@/lib/theme";
 
-const TABS = ["Preferences", "AI & Privacy", "Account"] as const;
+const TABS = ["Preferences", "AI & Privacy", "Embedding", "Account"] as const;
 type Tab = (typeof TABS)[number];
 
 export function SettingsView() {
@@ -143,6 +144,10 @@ export function SettingsView() {
 
         {tab === "AI & Privacy" && prefs && (
           <AiPrivacySection preferences={prefs} onChange={patch} />
+        )}
+
+        {tab === "Embedding" && prefs && (
+          <EmbeddingSection preferences={prefs} onChange={patch} />
         )}
 
         {tab === "Account" && account && (

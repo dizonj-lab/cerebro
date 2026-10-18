@@ -126,6 +126,31 @@ export interface CerebroPreferences {
   cloud_model: string | null;
   cloud_ai_consent: boolean;
   cloud_ai_consent_at: string | null;
+
+  /**
+   * The embedding and chunking budget. Null means "inherit whatever this
+   * deployment is configured with", which is why every one of these is
+   * nullable rather than merely optional: sending null clears an override,
+   * sending nothing leaves it alone.
+   */
+  embedding_model: string | null;
+  embedding_dimensions: number | null;
+  embedding_context_limit: number | null;
+  chunk_target_tokens: number | null;
+  chunk_overlap_tokens: number | null;
+  /** What is actually in force once the nulls above are resolved. */
+  effective?: CerebroEffectiveIngestSettings | null;
+}
+
+export interface CerebroEffectiveIngestSettings {
+  embedding_model: string | null;
+  embedding_dimensions: number | null;
+  embedding_context_limit: number;
+  chunk_target_tokens: number;
+  chunk_overlap_tokens: number;
+  chunk_target_chars: number;
+  /** Which of the five the user chose rather than inherited. */
+  overridden: string[];
 }
 
 export interface CerebroAccount {

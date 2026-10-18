@@ -1,4 +1,6 @@
 """Phase 1.5 — profile, preferences, account."""
+import re
+
 import pytest
 from sqlalchemy import select
 
@@ -158,10 +160,41 @@ def test_invalid_preference_values_rejected(client, signed_in):
         "/api/preferences", json={"ai_processing_mode": "quantum"}).status_code == 422
 
 
+# A credential-shaped field name, matched against whole key names rather than
+# as a substring of the response text. The substring form read "token" inside
+# `chunk_target_tokens` — a token *count*, which is a legitimate part of this
+# payload now that the embedding budget is a setting. Matching key names keeps
+# the check exact and extends it to nested objects, which the text scan never
+# reached: an auth token called `access_token` three levels down would have
+# been found by both, but a count called `tokens` only trips the old one.
+_CREDENTIAL_KEY = re.compile(
+    r"api_?key|secret|password|passphrase|credential|bearer"
+    r"|(^|_)(access|auth|refresh|session|id|api)_?tokens?($|_)"
+    r"|^tokens?$"
+)
+# Secret *material*, as opposed to a field name: a JWT's header, an Argon2
+# hash's prefix. Neither belongs in a preferences response at any key.
+_SECRET_MATERIAL = ("eyj", "argon2", "$2b$")
+
+
+def _keys(value) -> list[str]:
+    """Every key in a JSON document, however deeply nested."""
+    if isinstance(value, dict):
+        return [k for key, v in value.items() for k in [key, *_keys(v)]]
+    if isinstance(value, list):
+        return [k for item in value for k in _keys(item)]
+    return []
+
+
 def test_preferences_never_expose_credentials(client, signed_in):
-    text = client.get("/api/preferences").text.lower()
-    for leak in ("api_key", "apikey", "secret", "token", "password"):
-        assert leak not in text
+    response = client.get("/api/preferences")
+
+    offenders = [k for k in _keys(response.json()) if _CREDENTIAL_KEY.search(k.lower())]
+    assert offenders == []
+
+    text = response.text.lower()
+    for material in _SECRET_MATERIAL:
+        assert material not in text
 
 
 # --- account ---------------------------------------------------------------

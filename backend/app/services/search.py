@@ -29,7 +29,8 @@ from sqlalchemy.orm import Session
 
 from app.models.artifact import Artifact
 from app.models.fragment import KnowledgeFragment
-from app.services.embeddings import EmbeddingFailed, get_embedding_provider
+from app.services import ingest_settings
+from app.services.embeddings import EmbeddingFailed, provider_for
 from app.services.retrieval import get_index
 
 MODES = ("keyword", "semantic", "hybrid")
@@ -216,7 +217,7 @@ def _keyword_documents(db: Session, owner_id, query: str, filters: Filters) -> l
 
 
 def _semantic_fragments(db: Session, owner_id, query: str, filters: Filters) -> list[dict]:
-    provider = get_embedding_provider()
+    provider = provider_for(ingest_settings.for_user(db, owner_id))
     vector = provider.embed([query])[0]
     matches = get_index().search(
         db,

@@ -95,6 +95,48 @@ class PreferencesUpdate(BaseModel):
     # Consent is granted or withdrawn explicitly; the timestamp is server-set.
     cloud_ai_consent: bool | None = None
 
+    # Embedding and chunking. Bounds here only catch a typo — a missing digit,
+    # a pasted line. Whether the five values work *together* depends on the
+    # stored row as well as the request, so it is checked on the merged
+    # preferences in the route, not field by field here.
+    #
+    # An explicit null clears an override and returns the field to the
+    # deployment default, which is why every one of these is nullable rather
+    # than merely optional.
+    embedding_model: str | None = Field(default=None, max_length=120)
+    embedding_dimensions: int | None = Field(default=None, ge=8, le=8192)
+    embedding_context_limit: int | None = Field(default=None, ge=64, le=32768)
+    chunk_target_tokens: int | None = Field(default=None, ge=32, le=32768)
+    chunk_overlap_tokens: int | None = Field(default=None, ge=0, le=32767)
+
+    @field_validator("embedding_model")
+    @classmethod
+    def _tidy_model(cls, v: str | None) -> str | None:
+        """A pasted model name keeps its tag but loses its whitespace."""
+        if v is None:
+            return None
+        cleaned = v.strip()
+        return cleaned or None
+
+
+class EffectiveIngestSettings(BaseModel):
+    """What is actually in force, after overrides are merged onto defaults.
+
+    Sent alongside the stored values so the settings screen can show the
+    number a document will really be cut at, and mark which of the five the
+    user chose rather than inherited. A blank field is not "no limit"; it is
+    "whatever this deployment is configured with", and the screen has to be
+    able to say what that is.
+    """
+
+    embedding_model: str | None
+    embedding_dimensions: int | None
+    embedding_context_limit: int
+    chunk_target_tokens: int
+    chunk_overlap_tokens: int
+    chunk_target_chars: int
+    overridden: list[str]
+
 
 class PreferencesResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -111,6 +153,15 @@ class PreferencesResponse(BaseModel):
     cloud_model: str | None
     cloud_ai_consent: bool
     cloud_ai_consent_at: datetime | None
+
+    embedding_model: str | None
+    embedding_dimensions: int | None
+    embedding_context_limit: int | None
+    chunk_target_tokens: int | None
+    chunk_overlap_tokens: int | None
+    # Derived, never stored: recomputed on every read so it cannot drift from
+    # the deployment defaults it is merged with.
+    effective: EffectiveIngestSettings | None = None
 
 
 class AccountResponse(BaseModel):

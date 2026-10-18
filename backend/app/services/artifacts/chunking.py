@@ -76,14 +76,27 @@ class Chunk:
         }
 
 
-def chunking_provenance(chunks: list[Chunk], *, chunk_chars: int, overlap_chars: int) -> dict:
-    """What produced these fragments, recorded on the artifact."""
+def chunking_provenance(
+    chunks: list[Chunk],
+    *,
+    chunk_chars: int,
+    overlap_chars: int,
+    target_tokens: int = TARGET_TOKENS,
+    limit_tokens: int = HARD_LIMIT_TOKENS,
+) -> dict:
+    """What produced these fragments, recorded on the artifact.
+
+    The budget is recorded alongside the algorithm because it is now a
+    setting: "which splitter" no longer answers "why is this fragment this
+    size" on its own.
+    """
     return {
         "algorithm": CHUNKER,
         "version": CHUNKER_VERSION,
         "chunk_chars": chunk_chars,
         "overlap_chars": overlap_chars,
-        "target_tokens": TARGET_TOKENS,
+        "target_tokens": target_tokens,
+        "limit_tokens": limit_tokens,
         "chunks": len(chunks),
         "token_estimate": sum(c.token_estimate for c in chunks),
         # An estimate, and labelled as one everywhere it travels.
@@ -106,6 +119,7 @@ def chunk_blocks(
     *,
     chunk_chars: int = DEFAULT_CHUNK_CHARS,
     overlap_chars: int | None = None,
+    limit_tokens: int = HARD_LIMIT_TOKENS,
 ) -> list[Chunk]:
     """Chunk within block boundaries, packing sentences up to the budget.
 
@@ -139,7 +153,7 @@ def chunk_blocks(
             # A chunk that still estimates over the limit is split rather
             # than trimmed — trimming would drop content the document has
             # and nobody would ever know which.
-            for piece in _within_token_limit(chunk.content):
+            for piece in _within_token_limit(chunk.content, limit_tokens):
                 piece_chunk = _make(len(chunks), piece, chunk.source_location, chunk.kind)
                 if piece_chunk.content_sha256 in seen and piece is not chunk.content:
                     continue

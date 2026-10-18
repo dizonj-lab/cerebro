@@ -12,8 +12,8 @@ from sqlalchemy import func, select
 
 from app.api.deps import CurrentUser, DbSession
 from app.models.fragment import FragmentEmbedding, KnowledgeFragment
-from app.services import ollama, telemetry
-from app.services.embeddings import EmbeddingFailed, get_embedding_provider
+from app.services import ingest_settings, ollama, telemetry
+from app.services.embeddings import EmbeddingFailed, provider_for
 
 router = APIRouter(prefix="/api/ml", tags=["ml"])
 
@@ -21,7 +21,11 @@ router = APIRouter(prefix="/api/ml", tags=["ml"])
 @router.get("/status")
 def status(current_user: CurrentUser, db: DbSession) -> dict:
     found = ollama.discover()
-    provider = get_embedding_provider()
+    budget = ingest_settings.for_user(db, current_user.id)
+    provider = provider_for(budget)
+    # The limit follows the model actually in use when the user pinned none,
+    # so the figure reported is the one a registration would be measured by.
+    resolved = budget.with_model(provider.model)
 
     # Coverage is counted against the *active* provider, model and width,
     # because that is what retrieval filters on: a fragment embedded under a
@@ -63,6 +67,17 @@ def status(current_user: CurrentUser, db: DbSession) -> dict:
             "embedded": embedded or 0,
             "missing": max((total or 0) - (embedded or 0), 0),
         },
+        # The budget in force for this owner, reported next to the coverage
+        # it explains: "missing" is usually a model or width that changed,
+        # and these are the numbers that changed it.
+        "budget": {
+            "embedding_model": resolved.embedding_model,
+            "embedding_dimensions": resolved.embedding_dimensions,
+            "context_limit": resolved.context_limit,
+            "chunk_target_tokens": resolved.target_tokens,
+            "chunk_overlap_tokens": resolved.overlap_tokens,
+            "overridden": sorted(resolved.overrides),
+        },
         "retrieval": {
             "vector_index": "exact cosine scan over float4[] (no pgvector)",
             "keyword_index": "postgresql full-text, GIN",
@@ -77,7 +92,7 @@ def status(current_user: CurrentUser, db: DbSession) -> dict:
 
 
 @router.post("/probe")
-def probe(current_user: CurrentUser) -> dict:
+def probe(current_user: CurrentUser, db: DbSession) -> dict:
     """Actually run the models, rather than reporting that they exist.
 
     An installed model is not a working one: a daemon can list a model it
@@ -116,7 +131,7 @@ def probe(current_user: CurrentUser) -> dict:
         except ollama.OllamaUnavailable as exc:
             result["generation"] = {"model": answering, "ok": False, "error": str(exc)}
 
-    provider = get_embedding_provider()
+    provider = provider_for(ingest_settings.for_user(db, current_user.id))
     started = time.perf_counter()
     try:
         vector = provider.embed(["cerebro readiness probe"])[0]

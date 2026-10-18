@@ -12,12 +12,14 @@ from app.models.profile import UserProfile
 from app.schemas.auth import MessageResponse
 from app.schemas.profile import (
     AccountResponse,
+    EffectiveIngestSettings,
     PasswordChangeRequest,
     PreferencesResponse,
     PreferencesUpdate,
     ProfileResponse,
     ProfileUpdate,
 )
+from app.services import ingest_settings
 from app.services import profiles as profile_service
 
 router = APIRouter(prefix="/api", tags=["profile"])
@@ -52,12 +54,34 @@ def write_profile(
     return _to_response(profile)
 
 
+def _with_effective(prefs) -> PreferencesResponse:
+    """The stored row plus the budget actually in force.
+
+    A null column means "inherit", so the stored row alone cannot tell the
+    settings screen what a document will be chunked at. The resolved values
+    are computed on every read rather than stored, so they cannot drift from
+    the deployment defaults they are merged with.
+    """
+    resolved = ingest_settings.resolve(prefs)
+    response = PreferencesResponse.model_validate(prefs)
+    response.effective = EffectiveIngestSettings(
+        embedding_model=resolved.embedding_model,
+        embedding_dimensions=resolved.embedding_dimensions,
+        embedding_context_limit=resolved.context_limit,
+        chunk_target_tokens=resolved.target_tokens,
+        chunk_overlap_tokens=resolved.overlap_tokens,
+        chunk_target_chars=resolved.target_chars,
+        overridden=sorted(resolved.overrides),
+    )
+    return response
+
+
 @router.get("/preferences", response_model=PreferencesResponse)
 def read_preferences(current_user: CurrentUser, db: DbSession) -> PreferencesResponse:
     prefs = profile_service.get_preferences(db, current_user.id)
     db.commit()
     db.refresh(prefs)
-    return PreferencesResponse.model_validate(prefs)
+    return _with_effective(prefs)
 
 
 @router.patch("/preferences", response_model=PreferencesResponse)
@@ -68,9 +92,19 @@ def write_preferences(
     prefs = profile_service.update_preferences(
         db, current_user.id, payload.model_dump(exclude_unset=True)
     )
+    # Checked on the merged row, before the commit. A chunk target and a
+    # context limit are each valid alone and impossible together, so one
+    # field at a time is exactly how an unembeddable library gets written.
+    try:
+        ingest_settings.check(prefs)
+    except ingest_settings.InvalidIngestSettings as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from None
     db.commit()
     db.refresh(prefs)
-    return PreferencesResponse.model_validate(prefs)
+    return _with_effective(prefs)
 
 
 @router.get("/account", response_model=AccountResponse)

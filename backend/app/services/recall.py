@@ -29,8 +29,8 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.models.artifact import Artifact
-from app.services import ollama, telemetry
-from app.services.embeddings import EmbeddingFailed, get_embedding_provider
+from app.services import ingest_settings, ollama, telemetry
+from app.services.embeddings import EmbeddingFailed, provider_for
 from app.services.retrieval import get_index
 
 # Enough passages to answer from, few enough to keep the prompt small and
@@ -117,7 +117,7 @@ def _natural(answer: str) -> str:
 def _passages(db: Session, owner_id: uuid.UUID, query: str, *, topic: str | None) -> list[dict]:
     """The owner's registered fragments most like the question."""
     started = time.perf_counter()
-    provider = get_embedding_provider()
+    provider = provider_for(ingest_settings.for_user(db, owner_id))
     # A selected cluster is extra context for the query, not a filter: the
     # user may be asking about something adjacent to what they clicked.
     enriched = f"{topic}. {query}" if topic else query

@@ -83,10 +83,15 @@ class OllamaEmbedder:
         base_url: str = "http://localhost:11434",
         model: str = DEFAULT_MODEL,
         dimensions: int = DEFAULT_DIMENSIONS,
+        context_limit: int | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.dimensions = dimensions
+        # A stated limit for this model, from the owner's settings. None means
+        # use the published number for the family. Held on the provider so the
+        # check below needs nothing from the request that reached it.
+        self.context_limit = context_limit
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         """Embed a batch in as few round trips as possible.
@@ -111,7 +116,7 @@ class OllamaEmbedder:
         # sent. The daemon's answer to an over-long input is a bare 400 that
         # fails the whole registration, so the payload is validated where
         # the fragment it came from can still be named.
-        limit = token_budget.context_for(self.model)
+        limit = token_budget.context_for(self.model, self.context_limit)
         oversized = [
             (i, token_budget.estimate(text)) for i, text in enumerate(texts)
             if token_budget.estimate(text) > limit

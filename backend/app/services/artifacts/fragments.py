@@ -18,13 +18,12 @@ from sqlalchemy.orm import Session
 
 from app.models.artifact import Artifact
 from app.models.fragment import FragmentEmbedding, KnowledgeFragment
-from app.services import telemetry
+from app.services import ingest_settings, telemetry
 from app.services.artifacts.chunking import (
-    DEFAULT_CHUNK_CHARS,
     chunk_blocks,
     chunking_provenance,
 )
-from app.services.embeddings import EmbeddingFailed, get_embedding_provider
+from app.services.embeddings import EmbeddingFailed, provider_for
 
 
 class FragmentsUnavailable(RuntimeError):
@@ -50,15 +49,37 @@ def build_for_artifact(db: Session, artifact: Artifact, *, document) -> int:
             "fragments can be built from it."
         )
 
+    # The owner's budget, not a constant: the five numbers that decide
+    # whether this document can be embedded at all are settings now.
+    budget = ingest_settings.for_user(db, artifact.owner_id)
+    try:
+        provider = provider_for(budget)
+    except EmbeddingFailed as exc:
+        # A pinned model whose width has to be measured needs the daemon to
+        # answer before anything can be chunked. Reported as the registration
+        # failure it is, rather than escaping as an unhandled error — which
+        # FastAPI renders as plain text and the browser shows as "Something
+        # went wrong."
+        raise FragmentsUnavailable(str(exc)) from None
+    # The limit follows the model actually in use when the user pinned none.
+    budget = budget.with_model(provider.model)
+
     started_chunking = time.perf_counter()
-    chunks = chunk_blocks(document.blocks)
+    chunks = chunk_blocks(
+        document.blocks,
+        chunk_chars=budget.target_chars,
+        overlap_chars=budget.overlap_chars,
+        limit_tokens=budget.context_limit,
+    )
     if not chunks:
         raise FragmentsUnavailable("Extraction produced no text to build fragments from.")
 
     provenance = chunking_provenance(
         chunks,
-        chunk_chars=DEFAULT_CHUNK_CHARS,
-        overlap_chars=round(DEFAULT_CHUNK_CHARS * 0.15),
+        chunk_chars=budget.target_chars,
+        overlap_chars=budget.overlap_chars,
+        target_tokens=budget.target_tokens,
+        limit_tokens=budget.context_limit,
     )
     telemetry.record(
         "chunking",
@@ -82,7 +103,6 @@ def build_for_artifact(db: Session, artifact: Artifact, *, document) -> int:
     if not pending:
         return 0
 
-    provider = get_embedding_provider()
     started = time.perf_counter()
     try:
         vectors = provider.embed([c.content for c in pending])
@@ -169,7 +189,7 @@ def backfill_embeddings(db: Session, owner_id: uuid.UUID, *, limit: int = 500) -
     Fragments are only ever created for registered artifacts, so nothing here
     can pull unapproved content into retrieval.
     """
-    provider = get_embedding_provider()
+    provider = provider_for(ingest_settings.for_user(db, owner_id))
 
     has_vector = (
         select(FragmentEmbedding.fragment_id)

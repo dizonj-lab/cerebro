@@ -102,6 +102,26 @@ class UserPreferences(Base):
     cloud_ai_consent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     cloud_ai_consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+    # --- Embedding and chunking -------------------------------------------
+    # All null by default, meaning "use what this deployment is configured
+    # with". They exist because the alternative was editing an environment
+    # file and rebuilding a container to try a different embedder — and
+    # because the values that broke PDF ingestion were compiled-in constants
+    # nobody could see, let alone correct.
+    #
+    # Changing the model or the width **orphans existing vectors**: provider,
+    # model and dimensions travel with every vector and search filters on all
+    # three, so a library must be re-registered under the new model to be
+    # found again. The settings screen says so before the change is saved.
+    embedding_model: Mapped[str | None] = mapped_column(String(120))
+    embedding_dimensions: Mapped[int | None] = mapped_column(Integer)
+    # The model's context. Chunks are checked against it before being sent.
+    embedding_context_limit: Mapped[int | None] = mapped_column(Integer)
+    # Chunk size and overlap, in tokens. These apply to what is registered
+    # next; fragments already written keep the size they were cut at.
+    chunk_target_tokens: Mapped[int | None] = mapped_column(Integer)
+    chunk_overlap_tokens: Mapped[int | None] = mapped_column(Integer)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

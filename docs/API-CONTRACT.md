@@ -100,6 +100,50 @@ Cloud AI processing requires `cloud_ai_consent`. Setting
 withdrawing consent returns the mode to `local`. The consent timestamp is
 server-set. No API credentials are stored on these records.
 
+### The embedding and chunking budget
+
+Five further preference fields decide how a document is cut up and embedded:
+`embedding_model`, `embedding_dimensions`, `embedding_context_limit`,
+`chunk_target_tokens` and `chunk_overlap_tokens`. They were compiled-in
+constants until a slide-deck chunk overran the embedding model's context and
+failed a whole registration with nothing on screen to say why.
+
+`null` means "inherit whatever this deployment is configured with", so an
+untouched account behaves exactly as before and a change to the deployment
+default still reaches everyone who has not overridden it. Sending an explicit
+`null` clears an override; omitting a field leaves it alone.
+
+A `GET` or `PATCH` also returns an `effective` object — the five values
+actually in force once the nulls are resolved, plus `chunk_target_chars` and
+an `overridden` list naming which the user chose rather than inherited. It is
+derived on every read and never stored, so it cannot drift from the defaults
+it is merged with.
+
+The combination is validated on the **merged** row rather than on the request,
+because a `PATCH` carries only what changed: a 900-token chunk target is valid
+alone and impossible against a stored 512-token limit, so checking the request
+alone would admit the pair one field at a time. A rejected combination is a
+422 naming the conflict, and nothing is stored. The rules are:
+
+- a stated width must match what the model publishes, where CEREBRO knows it;
+- a stated context limit may be **lower** than the model's published context
+  but never higher — overrunning it is the failure the setting exists to
+  prevent;
+- the chunk target must fit inside the effective context limit;
+- the overlap must be smaller than the chunk it overlaps.
+
+Changing `embedding_model` or `embedding_dimensions` **orphans existing
+vectors**: provider, model and width travel with every vector and search
+filters on all three, so documents registered under the old model stay in the
+library and stay findable by keyword, but drop out of semantic search until
+re-registered. The settings screen warns before saving either. The chunking
+fields only affect the next registration; fragments already written keep the
+size they were cut at.
+
+Every one of these is resolved from the session's own user, at both write time
+(registration) and read time (search and recall), so one account's budget
+never reaches another's.
+
 ## Phase 2 — artifacts
 
 Ownership always comes from the session. No route accepts an owner id, and

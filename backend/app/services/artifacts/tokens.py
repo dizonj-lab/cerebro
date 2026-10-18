@@ -53,11 +53,22 @@ def estimate(text: str) -> int:
     return max(math.ceil(words * TOKENS_PER_WORD), math.ceil(len(text) / DENSE_CHARS_PER_TOKEN))
 
 
-def context_for(model: str) -> int:
-    """The token limit for a model name, tag and all."""
+def context_for(model: str, limit: int | None = None) -> int:
+    """The token limit for a model name, tag and all.
+
+    `limit` is the owner's stated limit for this model and wins when given.
+    It can only ever be lower than what the model publishes — the settings
+    layer refuses a higher one for a model in this table — so a stated limit
+    narrows the budget and never widens it past what the daemon accepts. A
+    model missing from the table falls back to the smallest common size,
+    because guessing high is the mistake that produces the error this module
+    exists to prevent.
+    """
+    if limit:
+        return limit
     family = (model or "").split(":", 1)[0].strip().lower()
     return CONTEXT_TOKENS.get(family, DEFAULT_CONTEXT_TOKENS)
 
 
-def fits(text: str, model: str) -> bool:
-    return estimate(text) <= context_for(model)
+def fits(text: str, model: str, limit: int | None = None) -> bool:
+    return estimate(text) <= context_for(model, limit)
