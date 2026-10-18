@@ -17,6 +17,7 @@ import math
 import urllib.error
 import urllib.request
 
+from app.services.artifacts import tokens as token_budget
 from app.services.embeddings.base import EmbeddingFailed
 
 DEFAULT_MODEL = "nomic-embed-text"
@@ -106,6 +107,23 @@ class OllamaEmbedder:
                 f"{len(blank)} of {len(texts)} chunks were empty, which cannot be embedded."
             )
 
+        # Checked here, against this model's own limit, before anything is
+        # sent. The daemon's answer to an over-long input is a bare 400 that
+        # fails the whole registration, so the payload is validated where
+        # the fragment it came from can still be named.
+        limit = token_budget.context_for(self.model)
+        oversized = [
+            (i, token_budget.estimate(text)) for i, text in enumerate(texts)
+            if token_budget.estimate(text) > limit
+        ]
+        if oversized:
+            worst = max(size for _, size in oversized)
+            raise EmbeddingFailed(
+                f"{len(oversized)} of {len(texts)} chunks exceed the {limit}-token "
+                f"context of '{self.model}' (largest ~{worst}). Re-register the "
+                "document so it is chunked again."
+            )
+
         vectors: list[list[float]] = []
         for start in range(0, len(texts), MAX_BATCH):
             group = texts[start : start + MAX_BATCH]
@@ -150,17 +168,13 @@ class OllamaEmbedder:
         try:
             body = self._post(
                 "/api/embed",
-                # `truncate` asked for explicitly rather than left to the
-                # daemon's default, which has not been the same across
-                # versions. An embedding model's context is small —
-                # mxbai-embed-large's is 512 tokens — and a chunk that
-                # tokenises longer than it looks is common in slide decks,
-                # which are dense with symbols, URLs and short fragments. A
-                # daemon that refuses such a chunk fails the whole
-                # registration; one that truncates embeds the part that
-                # fits, which is the lesser loss and is recoverable by
-                # re-registering with smaller chunks.
-                {"model": self.model, "input": texts, "truncate": True},
+                # truncate=False on purpose, reversing an earlier attempt
+                # to let the daemon trim. Truncating embeds part of a chunk
+                # and indexes it as though it were the whole: the lost text
+                # becomes unsearchable and nothing says which text it was.
+                # Size is the chunker's responsibility and is guaranteed
+                # there; this refuses to paper over a miss.
+                {"model": self.model, "input": texts, "truncate": False},
                 _BATCH_TIMEOUT_SECONDS,
             )
         except _Refused as exc:
@@ -197,7 +211,7 @@ class OllamaEmbedder:
         try:
             body = self._post(
                 "/api/embed",
-                {"model": self.model, "input": text, "truncate": True},
+                {"model": self.model, "input": text, "truncate": False},
                 _TIMEOUT_SECONDS,
             )
         except _Refused as modern:

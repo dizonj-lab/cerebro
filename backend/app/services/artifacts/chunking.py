@@ -11,23 +11,36 @@ import hashlib
 import re
 from dataclasses import dataclass
 
+from app.services.artifacts import tokens
 from app.services.artifacts.extraction import Block
 
-# Sized in characters, targeted in tokens: roughly 500 tokens per chunk with
-# 75 of overlap, at the ~4 characters per token English averages. Characters
-# are what the splitter can count exactly — tokenising would mean shipping a
-# tokeniser per model and still being wrong for the next one.
-CHARS_PER_TOKEN = 4
-TARGET_TOKENS = 500
-OVERLAP_TOKENS = 75
-DEFAULT_CHUNK_CHARS = TARGET_TOKENS * CHARS_PER_TOKEN
-DEFAULT_OVERLAP_CHARS = OVERLAP_TOKENS * CHARS_PER_TOKEN
+# Sized in characters, targeted in tokens. Characters are what the splitter
+# can count exactly; tokens are what the embedding model counts.
+#
+# The ratio used to be four characters per token — the English prose average
+# — with a 500-token target, which is 2000 characters. That broke PDF
+# ingestion: a slide deck tokenises nearer two and a half characters per
+# token, so those 2000 characters reached the daemon as roughly 700 tokens
+# against mxbai-embed-large's 512-token context, and the whole registration
+# failed. The target was also set at the limit itself, leaving no room for
+# the estimate to be wrong in the direction it was wrong.
+#
+# 350 with 50 of overlap, measured pessimistically, leaves real headroom
+# under 512. A smaller chunk costs a little retrieval context; an oversized
+# one costs the document.
+CHARS_PER_TOKEN = tokens.DENSE_CHARS_PER_TOKEN
+TARGET_TOKENS = 350
+OVERLAP_TOKENS = 50
+# Nothing leaves this module above this, whatever the character budget said.
+HARD_LIMIT_TOKENS = 512
+DEFAULT_CHUNK_CHARS = int(TARGET_TOKENS * CHARS_PER_TOKEN)
+DEFAULT_OVERLAP_CHARS = int(OVERLAP_TOKENS * CHARS_PER_TOKEN)
 MIN_CHUNK_CHARS = 80
 
 # Bumped whenever the splitting rules change, so an artifact's provenance
 # says which version produced its fragments.
 CHUNKER = "structure_aware_sentence_packing"
-CHUNKER_VERSION = 2
+CHUNKER_VERSION = 3
 
 # Sentence boundary: terminator followed by whitespace. Deliberately simple
 # and deterministic — no model, no language detection.
@@ -122,16 +135,70 @@ def chunk_blocks(
             if not chunk.content.strip() or chunk.content_sha256 in seen:
                 continue
             seen.add(chunk.content_sha256)
-            chunks.append(
-                Chunk(
-                    ordinal=len(chunks) + 1,
-                    content=chunk.content,
-                    content_sha256=chunk.content_sha256,
-                    source_location=chunk.source_location,
-                    kind=chunk.kind,
+            # The character budget is a prediction; this is the guarantee.
+            # A chunk that still estimates over the limit is split rather
+            # than trimmed — trimming would drop content the document has
+            # and nobody would ever know which.
+            for piece in _within_token_limit(chunk.content):
+                piece_chunk = _make(len(chunks), piece, chunk.source_location, chunk.kind)
+                if piece_chunk.content_sha256 in seen and piece is not chunk.content:
+                    continue
+                seen.add(piece_chunk.content_sha256)
+                chunks.append(
+                    Chunk(
+                        ordinal=len(chunks) + 1,
+                        content=piece_chunk.content,
+                        content_sha256=piece_chunk.content_sha256,
+                        source_location=chunk.source_location,
+                        kind=chunk.kind,
+                    )
                 )
-            )
     return chunks
+
+
+def _within_token_limit(text: str, limit: int = HARD_LIMIT_TOKENS) -> list[str]:
+    """`text` as one piece, or split into pieces that each fit.
+
+    Sentences first, because a sentence is the smallest unit that still
+    reads as something; words only when a single sentence is itself too
+    long, which happens with tables and unbroken URLs. Nothing is discarded
+    at either level: every character of the input appears in exactly one
+    piece.
+    """
+    if tokens.estimate(text) <= limit:
+        return [text]
+
+    pieces: list[str] = []
+    current = ""
+    for sentence, _start, _end in _sentences(text):
+        candidate = f"{current}{sentence}"
+        if current and tokens.estimate(candidate) > limit:
+            pieces.append(current)
+            current = sentence
+        else:
+            current = candidate
+        # A single sentence over the limit cannot be helped by starting a
+        # new one, so it is broken on whitespace.
+        while tokens.estimate(current) > limit:
+            head, tail = _split_on_words(current, limit)
+            if not head:
+                break
+            pieces.append(head)
+            current = tail
+    if current.strip():
+        pieces.append(current)
+    return [p for p in pieces if p.strip()] or [text]
+
+
+def _split_on_words(text: str, limit: int) -> tuple[str, str]:
+    """The longest leading run of words that fits, and the rest."""
+    words = text.split(" ")
+    head: list[str] = []
+    for index, word in enumerate(words):
+        if head and tokens.estimate(" ".join([*head, word])) > limit:
+            return " ".join(head), " ".join(words[index:])
+        head.append(word)
+    return text, ""
 
 
 def _chunk_block(

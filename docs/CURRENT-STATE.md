@@ -590,13 +590,28 @@ turned a retry meant to isolate one awkward chunk into a registration that
 failed on every chunk it tried. It remains only for a daemon old enough to
 answer 404 to `/api/embed`.
 
-Embedding asks the daemon to **truncate** rather than refuse, explicitly
-rather than relying on a default that has moved between versions. A slide
-deck is dense with symbols, URLs and short fragments, so a chunk tokenises
-longer than its character count suggests and can exceed a 512-token context
-while looking small. A refused chunk fails the whole registration; a
-truncated one embeds the part that fits, which is the lesser loss and is
-recoverable by re-registering.
+Chunks are sized in **tokens**, pessimistically, and the daemon is told
+**not** to truncate.
+
+The bridge between characters, which the splitter can count, and tokens,
+which the model counts, used to be four characters per token — the English
+prose average — with a 500-token target. A slide deck is not prose: it is
+dense with symbols, URLs and short fragments, which wordpiece splits nearer
+two and a half characters per token. Those 2000-character chunks reached the
+daemon as roughly 700 tokens against mxbai-embed-large's 512, and PDF
+ingestion failed with "the input length exceeds the context length". The
+target was also set at the limit itself, leaving no room for the estimate to
+be wrong in the direction it was wrong.
+
+Now: 350 tokens with 50 of overlap, measured at the dense rate, and a hard
+limit of 512 that nothing leaves the chunker above. A chunk still estimating
+over it is **split** — sentences first, words when a single sentence is
+itself too long — and never trimmed, so every character appears in exactly
+one piece. The payload is checked against the model's own context before
+anything is sent, where the fragment can still be named, and `truncate` is
+explicitly false: a truncated embedding indexes part of a chunk as though it
+were the whole, making the lost text unsearchable with nothing to say which
+text it was.
 
 When the daemon does refuse, **its own explanation is shown**. Discarding
 the body of the error response is why several rounds of this were spent

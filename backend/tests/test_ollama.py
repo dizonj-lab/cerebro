@@ -71,6 +71,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(404, {"error": "not found"})
                 return
             STATE["batch_calls"] = STATE.get("batch_calls", 0) + 1
+            STATE["last_embed_request"] = request
             texts = request.get("input", [])
             STATE.setdefault("batch_sizes", []).append(len(texts))
             if isinstance(texts, str):
@@ -405,17 +406,23 @@ def test_an_empty_chunk_is_named_rather_than_sent(daemon):
     assert "empty" in str(caught.value)
 
 
-def test_the_daemon_is_asked_to_truncate_rather_than_refuse(daemon):
-    """An over-long chunk should cost its tail, not the whole registration."""
+def test_the_daemon_is_told_not_to_truncate(daemon):
+    """Truncating embeds part of a chunk and indexes it as the whole.
+
+    The lost text becomes unsearchable and nothing says which text it was.
+    Size is the chunker's responsibility and is guaranteed there, so this
+    refuses to paper over a miss: an over-long input should be a loud
+    failure, not a quiet half-embedding.
+    """
     from app.services.embeddings.ollama import OllamaEmbedder
 
     STATE["dimensions"] = 8
-    STATE["require_truncate"] = True
+    STATE["last_embed_request"] = None
     embedder = OllamaEmbedder(base_url=daemon, model="mxbai-embed-large", dimensions=8)
 
-    vectors = embedder.embed(["a chunk that tokenises longer than it looks"])
+    embedder.embed(["a chunk well inside the context"])
 
-    assert len(vectors) == 1
+    assert STATE["last_embed_request"]["truncate"] is False
 
 
 def test_the_daemons_own_explanation_reaches_the_user(daemon):
