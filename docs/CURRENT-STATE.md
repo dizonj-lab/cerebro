@@ -590,6 +590,19 @@ turned a retry meant to isolate one awkward chunk into a registration that
 failed on every chunk it tried. It remains only for a daemon old enough to
 answer 404 to `/api/embed`.
 
+Embedding asks the daemon to **truncate** rather than refuse, explicitly
+rather than relying on a default that has moved between versions. A slide
+deck is dense with symbols, URLs and short fragments, so a chunk tokenises
+longer than its character count suggests and can exceed a 512-token context
+while looking small. A refused chunk fails the whole registration; a
+truncated one embeds the part that fits, which is the lesser loss and is
+recoverable by re-registering.
+
+When the daemon does refuse, **its own explanation is shown**. Discarding
+the body of the error response is why several rounds of this were spent
+guessing at a cause from a bare status code — Ollama says what it objected
+to, in the very response that was being thrown away.
+
 A dropped suggestion is **named, not counted**. An empty People box looks
 identical whether the model proposed nobody or proposed people the grounding
 guard then removed, and those need opposite fixes — so the notes now say

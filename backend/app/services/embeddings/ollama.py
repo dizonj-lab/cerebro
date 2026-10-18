@@ -44,12 +44,31 @@ class _BatchUnsupported(Exception):
 
 
 class _Refused(Exception):
-    """The daemon answered with an HTTP status rather than an embedding."""
+    """The daemon answered with an HTTP status rather than an embedding.
 
-    def __init__(self, code: int, endpoint: str) -> None:
-        super().__init__(f"{code} from {endpoint}")
+    Carries the daemon's own message. Discarding it is why three rounds of
+    this were spent guessing at the cause from a bare status code: Ollama
+    says exactly what it objected to, in the body of the very response that
+    was being thrown away.
+    """
+
+    def __init__(self, code: int, endpoint: str, detail: str = "") -> None:
+        super().__init__(f"{code} from {endpoint}: {detail}" if detail else f"{code} from {endpoint}")
         self.code = code
         self.endpoint = endpoint
+        self.detail = detail
+
+
+def _reason(exc: urllib.error.HTTPError) -> str:
+    """Ollama's own explanation, read off the error response."""
+    try:
+        raw = exc.read().decode("utf-8", "replace")
+    except Exception:  # noqa: BLE001 - a body that cannot be read is not an error
+        return ""
+    try:
+        return str(json.loads(raw).get("error") or "")[:200]
+    except json.JSONDecodeError:
+        return raw.strip()[:200]
 
 
 class OllamaEmbedder:
@@ -118,7 +137,7 @@ class OllamaEmbedder:
             with urllib.request.urlopen(request, timeout=timeout) as response:
                 return json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
-            raise _Refused(exc.code, endpoint) from None
+            raise _Refused(exc.code, endpoint, _reason(exc)) from None
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             raise EmbeddingFailed(
                 f"Could not reach Ollama at {self.base_url}. Is it running, and has "
@@ -131,7 +150,17 @@ class OllamaEmbedder:
         try:
             body = self._post(
                 "/api/embed",
-                {"model": self.model, "input": texts},
+                # `truncate` asked for explicitly rather than left to the
+                # daemon's default, which has not been the same across
+                # versions. An embedding model's context is small —
+                # mxbai-embed-large's is 512 tokens — and a chunk that
+                # tokenises longer than it looks is common in slide decks,
+                # which are dense with symbols, URLs and short fragments. A
+                # daemon that refuses such a chunk fails the whole
+                # registration; one that truncates embeds the part that
+                # fits, which is the lesser loss and is recoverable by
+                # re-registering with smaller chunks.
+                {"model": self.model, "input": texts, "truncate": True},
                 _BATCH_TIMEOUT_SECONDS,
             )
         except _Refused as exc:
@@ -141,7 +170,7 @@ class OllamaEmbedder:
                 raise _BatchUnsupported from None
             raise EmbeddingFailed(
                 f"Ollama returned {exc.code} embedding a batch of {len(texts)} "
-                f"with '{self.model}'."
+                f"with '{self.model}'" + (f": {exc.detail}" if exc.detail else ".")
             ) from None
 
         vectors = body.get("embeddings")
@@ -167,13 +196,16 @@ class OllamaEmbedder:
         """
         try:
             body = self._post(
-                "/api/embed", {"model": self.model, "input": text}, _TIMEOUT_SECONDS
+                "/api/embed",
+                {"model": self.model, "input": text, "truncate": True},
+                _TIMEOUT_SECONDS,
             )
         except _Refused as modern:
             if modern.code != 404:
                 raise EmbeddingFailed(
                     f"Ollama returned {modern.code} embedding a "
-                    f"{len(text)}-character chunk with '{self.model}'."
+                    f"{len(text)}-character chunk with '{self.model}'"
+                    + (f": {modern.detail}" if modern.detail else ".")
                 ) from None
             # Genuinely old daemon: no /api/embed at all.
             try:
@@ -185,7 +217,8 @@ class OllamaEmbedder:
             except _Refused as old:
                 raise EmbeddingFailed(
                     f"Ollama returned {old.code} embedding a "
-                    f"{len(text)}-character chunk with '{self.model}'."
+                    f"{len(text)}-character chunk with '{self.model}'"
+                    + (f": {old.detail}" if old.detail else ".")
                 ) from None
             return self._normalise(legacy.get("embedding"), check_width=check_width)
 

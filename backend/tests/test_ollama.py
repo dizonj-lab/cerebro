@@ -83,7 +83,12 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(400, {"error": "too many input tokens"})
                 return
             if STATE.get("refuse_everything"):
-                self._json(500, {"error": "model runner failed"})
+                self._json(500, {"error": "model runner has unexpectedly stopped"})
+                return
+            if STATE.get("require_truncate") and not request.get("truncate"):
+                # A daemon that refuses an over-long input rather than
+                # trimming it, which is what the parameter is for.
+                self._json(400, {"error": "input length exceeds maximum context length"})
                 return
             if STATE.get("short_batch") and len(texts) > 1:
                 # Only a real batch comes back short. Truncating a
@@ -398,3 +403,33 @@ def test_an_empty_chunk_is_named_rather_than_sent(daemon):
         embedder.embed(["real text", "   "])
 
     assert "empty" in str(caught.value)
+
+
+def test_the_daemon_is_asked_to_truncate_rather_than_refuse(daemon):
+    """An over-long chunk should cost its tail, not the whole registration."""
+    from app.services.embeddings.ollama import OllamaEmbedder
+
+    STATE["dimensions"] = 8
+    STATE["require_truncate"] = True
+    embedder = OllamaEmbedder(base_url=daemon, model="mxbai-embed-large", dimensions=8)
+
+    vectors = embedder.embed(["a chunk that tokenises longer than it looks"])
+
+    assert len(vectors) == 1
+
+
+def test_the_daemons_own_explanation_reaches_the_user(daemon):
+    """Discarding it is why three rounds of this were spent guessing."""
+    from app.services.embeddings.base import EmbeddingFailed
+    from app.services.embeddings.ollama import OllamaEmbedder
+
+    STATE["dimensions"] = 8
+    STATE["refuse_everything"] = True
+    embedder = OllamaEmbedder(base_url=daemon, model="mxbai-embed-large", dimensions=8)
+
+    with pytest.raises(EmbeddingFailed) as caught:
+        embedder.embed(["one"])
+
+    # The status alone said nothing actionable; the body says what it
+    # objected to.
+    assert "model runner has unexpectedly stopped" in str(caught.value)
