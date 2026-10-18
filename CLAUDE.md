@@ -118,6 +118,14 @@ docs/                                               architecture, contracts, sta
   vectors were. Their combination is validated on the merged preferences row,
   never field by field: a chunk target and a context limit are each valid
   alone and impossible together.
+- A model's **context is not its payload limit**. Wordpiece wraps every input
+  in `[CLS] … [SEP]`, so the text's share is smaller: use
+  `tokens.payload_limit()`, never `context_for()`, to size or check a chunk.
+  Measuring against the context let a 1280-character chunk through — estimated
+  at exactly 512 against a 512-token context — and the daemon refused it. The
+  guard lives in `OllamaEmbedder._post`, immediately before the request, so
+  every path is covered. `embed()` splits an oversized input and mean-pools
+  the pieces rather than failing the document, and never truncates.
 - Extracted text is a **derived object** in the object store, keyed
   `<storage_key>.extraction.json`; the artifact row holds only a summary in
   `extraction`. Never put document text on the row — a library query would

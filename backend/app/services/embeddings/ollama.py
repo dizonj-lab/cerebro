@@ -17,6 +17,7 @@ import math
 import urllib.error
 import urllib.request
 
+from app.services import telemetry
 from app.services.artifacts import tokens as token_budget
 from app.services.embeddings.base import EmbeddingFailed
 
@@ -54,7 +55,8 @@ class _Refused(Exception):
     """
 
     def __init__(self, code: int, endpoint: str, detail: str = "") -> None:
-        super().__init__(f"{code} from {endpoint}: {detail}" if detail else f"{code} from {endpoint}")
+        said = f"{code} from {endpoint}"
+        super().__init__(f"{said}: {detail}" if detail else said)
         self.code = code
         self.endpoint = endpoint
         self.detail = detail
@@ -70,6 +72,26 @@ def _reason(exc: urllib.error.HTTPError) -> str:
         return str(json.loads(raw).get("error") or "")[:200]
     except json.JSONDecodeError:
         return raw.strip()[:200]
+
+
+def _pool(vectors: list[list[float]], pieces: list[str]) -> list[float]:
+    """One vector for an input that had to be sent in several pieces.
+
+    A length-weighted mean, re-normalised. Mean pooling over sub-sequences is
+    the ordinary way to represent text longer than a model's context, and the
+    weighting stops a three-word tail counting as much as the paragraph it
+    trails. The alternative — keeping only the first piece — is truncation
+    with extra steps, and loses exactly the content this path exists to keep.
+    """
+    weights = [max(len(piece), 1) for piece in pieces]
+    total = sum(weights)
+    width = len(vectors[0])
+    pooled = [
+        sum(vector[i] * weight for vector, weight in zip(vectors, weights, strict=True)) / total
+        for i in range(width)
+    ]
+    norm = math.sqrt(sum(v * v for v in pooled))
+    return [v / norm for v in pooled] if norm else pooled
 
 
 class OllamaEmbedder:
@@ -112,38 +134,65 @@ class OllamaEmbedder:
                 f"{len(blank)} of {len(texts)} chunks were empty, which cannot be embedded."
             )
 
-        # Checked here, against this model's own limit, before anything is
-        # sent. The daemon's answer to an over-long input is a bare 400 that
-        # fails the whole registration, so the payload is validated where
-        # the fragment it came from can still be named.
-        limit = token_budget.context_for(self.model, self.context_limit)
-        oversized = [
-            (i, token_budget.estimate(text)) for i, text in enumerate(texts)
-            if token_budget.estimate(text) > limit
-        ]
-        if oversized:
-            worst = max(size for _, size in oversized)
-            raise EmbeddingFailed(
-                f"{len(oversized)} of {len(texts)} chunks exceed the {limit}-token "
-                f"context of '{self.model}' (largest ~{worst}). Re-register the "
-                "document so it is chunked again."
+        # Measured against what may actually be sent, which is smaller than
+        # the model's context: the context has to hold the special tokens
+        # too. Measuring against the context is what let a chunk two tokens
+        # too long through, and the daemon's answer to that is a bare 400
+        # that fails the whole registration.
+        limit = token_budget.payload_limit(self.model, self.context_limit)
+
+        # An input the chunker sized wrongly is split here rather than
+        # refused. Refusing cost the whole document for one awkward chunk;
+        # splitting costs that chunk a little precision and nothing else.
+        # Nothing is truncated and nothing is dropped — the pieces are
+        # embedded and recombined, so one input still yields one vector.
+        plan = [token_budget.split_to_fit(text, limit) for text in texts]
+        split = sum(1 for pieces in plan if len(pieces) > 1)
+        if split:
+            # Recorded, because a vector that came from several pieces is
+            # not quite the same object as one the model produced in a
+            # single pass, and the difference should be answerable later.
+            telemetry.record(
+                "embeddings.split",
+                model=f"{self.name}/{self.model}",
+                duration_ms=0,
+                detail=(
+                    f"{split} of {len(texts)} chunks exceeded the {limit}-token "
+                    f"payload limit and were embedded in pieces"
+                ),
             )
 
+        flat = [piece for pieces in plan for piece in pieces]
+        vectors = self._send(flat)
+
+        # Back to one vector per input, in the order they arrived.
+        out: list[list[float]] = []
+        cursor = 0
+        for pieces in plan:
+            group = vectors[cursor : cursor + len(pieces)]
+            cursor += len(pieces)
+            out.append(group[0] if len(group) == 1 else _pool(group, pieces))
+        return out
+
+    def _send(self, texts: list[str]) -> list[list[float]]:
+        """Every piece through the daemon, in as few round trips as allowed."""
         vectors: list[list[float]] = []
         for start in range(0, len(texts), MAX_BATCH):
             group = texts[start : start + MAX_BATCH]
             try:
                 vectors.extend(self._batch(group))
             except _BatchUnsupported:
-                vectors.extend(self._one(text) for text in group)
+                vectors.extend(self._one_adaptive(text) for text in group)
             except EmbeddingFailed:
                 # A refused group is retried one text at a time. One chunk
                 # the daemon will not take should cost that chunk, not the
                 # whole document — and doing it singly names which one.
-                vectors.extend(self._one(text) for text in group)
+                vectors.extend(self._one_adaptive(text) for text in group)
         return vectors
 
-    def _post(self, endpoint: str, payload: dict, timeout: float) -> dict:
+    def _post(
+        self, endpoint: str, payload: dict, timeout: float, *, guard: bool = True
+    ) -> dict:
         """One request to the daemon, with its failures told apart.
 
         HTTPError is checked before URLError, which it subclasses. Without
@@ -151,6 +200,19 @@ class OllamaEmbedder:
         be reached, and the remedy offered — start Ollama, pull the model —
         addressed a problem the user did not have.
         """
+        # The last thing that happens before text leaves for the daemon, so
+        # it covers every path into it — registration, enrichment, a search
+        # query, a width probe, and anything added later. embed() splits
+        # oversized input before it gets here, so this firing at all means a
+        # caller bypassed that; it says so rather than letting the daemon
+        # answer with a bare 400.
+        #
+        # `guard=False` exists only so a regression test can send what the
+        # old rule sent and show the daemon refusing it. Nothing in the
+        # application passes it.
+        if guard:
+            self._guard(payload)
+
         request = urllib.request.Request(  # noqa: S310 - fixed http scheme, local daemon
             f"{self.base_url}{endpoint}",
             data=json.dumps(payload).encode("utf-8"),
@@ -168,6 +230,23 @@ class OllamaEmbedder:
             ) from exc
         except json.JSONDecodeError as exc:
             raise EmbeddingFailed("Ollama returned a response that was not JSON.") from exc
+
+    def _guard(self, payload: dict) -> None:
+        """Refuse a payload whose text cannot fit the model's context."""
+        raw = payload.get("input", payload.get("prompt"))
+        texts = raw if isinstance(raw, list) else [raw]
+        limit = token_budget.payload_limit(self.model, self.context_limit)
+        sizes = [
+            token_budget.estimate(text) for text in texts if isinstance(text, str)
+        ]
+        over = [size for size in sizes if size > limit]
+        if over:
+            raise EmbeddingFailed(
+                f"{len(over)} of {len(sizes)} inputs exceed the {limit}-token "
+                f"payload limit of '{self.model}' (largest ~{max(over)}, context "
+                f"{token_budget.context_for(self.model, self.context_limit)}). "
+                "Nothing was sent."
+            )
 
     def _batch(self, texts: list[str]) -> list[list[float]]:
         try:
@@ -203,6 +282,50 @@ class OllamaEmbedder:
     def measure(self, text: str) -> list[float]:
         """Embed without the width check, to learn an unknown model's width."""
         return self._one(text, check_width=False)
+
+    # How many times a refusal may halve the budget before giving up. The
+    # estimate assumes 2.5 characters per token; text denser than that — symbol
+    # soup, unbroken URLs, CJK — can still overrun a limit the guard thought it
+    # was inside. Four halvings take 502 tokens down to about 31, which is past
+    # any plausible density, and each step is driven by the daemon's own answer
+    # rather than by another guess.
+    _MAX_RESPLITS = 4
+
+    def _one_adaptive(self, text: str, *, depth: int = 0) -> list[float]:
+        """One text, re-split and retried if the daemon says it is too long.
+
+        The guard sizes text by an estimate, and an estimate can be wrong in
+        the direction that matters. When it is, the daemon says so precisely,
+        and the right response is to split smaller and try again — not to fail
+        the document, and not to truncate it. The pieces are pooled, so one
+        text still yields one vector.
+        """
+        try:
+            return self._one(text)
+        except EmbeddingFailed as exc:
+            overflowed = "context" in str(exc).lower() and "length" in str(exc).lower()
+            if not overflowed or depth >= self._MAX_RESPLITS:
+                raise
+            limit = max(
+                token_budget.payload_limit(self.model, self.context_limit) // (2 ** (depth + 1)),
+                token_budget.MIN_PAYLOAD_TOKENS,
+            )
+            pieces = token_budget.split_to_fit(text, limit)
+            if len(pieces) < 2:
+                # Nothing left to split — one unbreakable word. Cutting it
+                # would lose content, so the daemon's refusal stands.
+                raise
+            telemetry.record(
+                "embeddings.resplit",
+                model=f"{self.name}/{self.model}",
+                duration_ms=0,
+                detail=(
+                    f"the daemon refused a {len(text)}-character input the estimate "
+                    f"accepted; re-split into {len(pieces)} at {limit} tokens"
+                ),
+            )
+            vectors = [self._one_adaptive(piece, depth=depth + 1) for piece in pieces]
+            return _pool(vectors, pieces)
 
     def _one(self, text: str, *, check_width: bool = True) -> list[float]:
         """One text, through the modern endpoint, falling back to the old one.

@@ -124,7 +124,13 @@ def test_ordinals_stay_contiguous_after_a_split():
 # --- the guard before the daemon -------------------------------------------
 
 def test_an_oversized_payload_is_refused_before_it_is_sent():
-    """Named here, where the fragment can still be identified."""
+    """The guard, which sits immediately before the request.
+
+    `embed` no longer refuses an oversized input — it splits it, because
+    failing a whole document over one badly sized chunk was the worse
+    outcome. The guard remains as the thing that makes "no oversized payload
+    is ever sent" true for every path, including one that skipped the split.
+    """
     from app.services.embeddings.base import EmbeddingFailed
     from app.services.embeddings.ollama import OllamaEmbedder
 
@@ -133,10 +139,23 @@ def test_an_oversized_payload_is_refused_before_it_is_sent():
     )
 
     with pytest.raises(EmbeddingFailed) as caught:
-        embedder.embed(["word " * 2000])
+        embedder._post("/api/embed", {"model": embedder.model, "input": ["word " * 2000]}, 5)
 
-    assert "512-token context" in str(caught.value)
-    assert "Re-register" in str(caught.value)
+    assert "payload limit" in str(caught.value)
+    assert "Nothing was sent" in str(caught.value)
+
+
+def test_an_oversized_input_is_split_rather_than_losing_the_document():
+    """What embed() does with it now: pieces, not a refusal and not a cut."""
+    from app.services.artifacts import tokens as token_budget
+
+    text = "word " * 2000
+    limit = token_budget.payload_limit("mxbai-embed-large:latest")
+    pieces = token_budget.split_to_fit(text, limit)
+
+    assert len(pieces) > 1
+    assert all(token_budget.estimate(p) <= limit for p in pieces)
+    assert " ".join(pieces).split() == text.split()
 
 
 def test_chunks_this_pipeline_produces_pass_that_guard():

@@ -44,6 +44,20 @@ CONTEXT_TOKENS = {
 }
 DEFAULT_CONTEXT_TOKENS = 512
 
+# A wordpiece model wraps every input in [CLS] … [SEP]. Those are tokens the
+# daemon counts and the text does not contain, so a chunk measured at exactly
+# the context length arrives two tokens over it. This is the gap the previous
+# fix left open: the guard allowed an estimate equal to the limit, which for
+# mxbai-embed-large is a 1280-character chunk — passing every check and then
+# refused by the daemon as "input length exceeds the context length".
+SPECIAL_TOKENS = 2
+# Further headroom, because the estimate is an estimate. Two characters of
+# difference decided whether the old boundary case was caught, which is far
+# too fine a margin to rest a registration on.
+SAFETY_TOKENS = 8
+# Never leave less than this to put text in, however small the context.
+MIN_PAYLOAD_TOKENS = 16
+
 
 def estimate(text: str) -> int:
     """A pessimistic token count for this text."""
@@ -70,5 +84,48 @@ def context_for(model: str, limit: int | None = None) -> int:
     return CONTEXT_TOKENS.get(family, DEFAULT_CONTEXT_TOKENS)
 
 
+def payload_limit(model: str, limit: int | None = None) -> int:
+    """The most *text* that may be sent, as opposed to the model's context.
+
+    The context has to hold the special tokens as well as the text, so the
+    text's share is smaller than the context — always, for every model and
+    every caller. Measuring against the context instead of against this is
+    what let a chunk two tokens too long through.
+    """
+    return max(context_for(model, limit) - SPECIAL_TOKENS - SAFETY_TOKENS, MIN_PAYLOAD_TOKENS)
+
+
 def fits(text: str, model: str, limit: int | None = None) -> bool:
-    return estimate(text) <= context_for(model, limit)
+    return estimate(text) <= payload_limit(model, limit)
+
+
+def split_to_fit(text: str, limit: int) -> list[str]:
+    """`text` as one piece, or several that each fit inside `limit`.
+
+    The last net before a request goes out, so it splits on whitespace and
+    nothing cleverer: by the time text arrives here the chunker has already
+    failed to size it, and the only thing that matters is that no character
+    is lost. Fragment boundaries are the chunker's business and it splits on
+    sentences for exactly that reason; these pieces are recombined into one
+    vector, so where they divide changes nothing a search can see.
+
+    Never truncates and never discards: every character of the input appears
+    in exactly one piece. A single word longer than the limit is returned
+    whole rather than cut, because cutting a word is losing content — the
+    guard will then refuse it and say so, which is the honest outcome.
+    """
+    if estimate(text) <= limit:
+        return [text]
+
+    pieces: list[str] = []
+    current = ""
+    for word in text.split():
+        candidate = f"{current} {word}" if current else word
+        if current and estimate(candidate) > limit:
+            pieces.append(current)
+            current = word
+        else:
+            current = candidate
+    if current:
+        pieces.append(current)
+    return pieces or [text]

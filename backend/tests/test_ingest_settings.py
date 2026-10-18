@@ -218,7 +218,13 @@ def test_a_pinned_model_carries_its_limit_onto_the_provider():
 
 
 def test_an_oversized_chunk_is_refused_against_the_users_lower_limit():
-    """A narrowed limit must be enforced, not merely recorded."""
+    """A narrowed limit must be enforced, not merely recorded.
+
+    Checked at the guard rather than through `embed`, which now splits an
+    oversized input instead of refusing it. The limit the guard applies is
+    the user's, less the room the special tokens need.
+    """
+    from app.services.artifacts import tokens as token_budget
     from app.services.embeddings import EmbeddingFailed
     from app.services.embeddings.ollama import OllamaEmbedder
 
@@ -227,9 +233,10 @@ def test_an_oversized_chunk_is_refused_against_the_users_lower_limit():
     )
     text = " ".join(f"word{i}" for i in range(300))
     with pytest.raises(EmbeddingFailed) as exc:
-        provider.embed([text])
-    # Refused here, before any request leaves, naming the limit in force.
-    assert "100-token" in str(exc.value)
+        provider._post("/api/embed", {"model": provider.model, "input": text}, 5)
+
+    assert str(token_budget.payload_limit(provider.model, 100)) in str(exc.value)
+    assert "Nothing was sent" in str(exc.value)
 
 
 def test_resolving_a_budget_never_writes_a_preferences_row(db, client, signed_in):
@@ -343,6 +350,8 @@ def test_ml_status_reports_the_budget_beside_the_coverage_it_explains(client, si
     budget = client.get("/api/ml/status").json()["budget"]
     assert budget["chunk_target_tokens"] == 220
     assert budget["context_limit"] >= budget["chunk_target_tokens"]
+    # The usable limit is reported too, and is smaller than the context.
+    assert budget["payload_limit"] < budget["context_limit"]
     assert "target_tokens" in budget["overridden"]
 
 

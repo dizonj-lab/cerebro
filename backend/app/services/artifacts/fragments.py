@@ -69,7 +69,7 @@ def build_for_artifact(db: Session, artifact: Artifact, *, document) -> int:
         document.blocks,
         chunk_chars=budget.target_chars,
         overlap_chars=budget.overlap_chars,
-        limit_tokens=budget.context_limit,
+        limit_tokens=budget.embeddable_tokens,
     )
     if not chunks:
         raise FragmentsUnavailable("Extraction produced no text to build fragments from.")
@@ -79,7 +79,7 @@ def build_for_artifact(db: Session, artifact: Artifact, *, document) -> int:
         chunk_chars=budget.target_chars,
         overlap_chars=budget.overlap_chars,
         target_tokens=budget.target_tokens,
-        limit_tokens=budget.context_limit,
+        limit_tokens=budget.embeddable_tokens,
     )
     telemetry.record(
         "chunking",

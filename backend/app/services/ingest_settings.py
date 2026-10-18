@@ -72,6 +72,16 @@ class IngestSettings:
     overrides: frozenset[str] = field(default_factory=frozenset)
 
     @property
+    def embeddable_tokens(self) -> int:
+        """The limit the chunker must cut to.
+
+        Smaller than `context_limit`, because the context has to hold the
+        model's special tokens as well as the text. Cutting to the context
+        produced chunks that sat exactly on the boundary and were refused.
+        """
+        return token_budget.payload_limit(self.embedding_model or "", self.context_limit)
+
+    @property
     def target_chars(self) -> int:
         return int(self.target_tokens * chunking.CHARS_PER_TOKEN)
 

@@ -144,6 +144,38 @@ Every one of these is resolved from the session's own user, at both write time
 (registration) and read time (search and recall), so one account's budget
 never reaches another's.
 
+### The context and the payload limit are not the same number
+
+A wordpiece model wraps every input in `[CLS] … [SEP]`. Those are tokens the
+daemon counts and the text does not contain, so the text's share of the
+context is smaller than the context. `tokens.payload_limit()` is that share —
+the context less the special tokens and a small safety margin — and it is what
+chunks are cut to, what the guard measures against, and what `/api/ml/status`
+reports as `payload_limit` beside `context_limit`.
+
+Measuring against the context instead is what allowed a 1280-character chunk
+through: estimated at exactly 512 tokens against a 512-token context, it
+passed every check and the daemon refused it as `input length exceeds the
+context length`. Two characters decided it.
+
+Two guarantees follow, and both are tested:
+
+- **Nothing oversized is ever sent.** The check sits immediately before the
+  request, inside the one function that posts to the daemon, so it covers
+  every path — registration, enrichment, search and recall queries, the width
+  probe, and anything added later.
+- **An oversized input is split, never truncated or dropped.** The pieces are
+  embedded and recombined into one vector by a length-weighted mean, so one
+  input still yields one vector and no content is lost. A split is recorded in
+  telemetry as `embeddings.split`, because a pooled vector is not quite the
+  same object as one the model produced in a single pass.
+
+An embedding failure mid-document rolls the whole attempt back: the artifact
+stays unregistered and no fragments are written. Registering content that
+retrieval cannot reach would show it in the library as trusted evidence no
+query can find, and a half-written fragment set is worse than none. The upload
+survives, so a retry needs no re-upload.
+
 ## Phase 2 — artifacts
 
 Ownership always comes from the session. No route accepts an owner id, and

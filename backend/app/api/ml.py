@@ -74,6 +74,11 @@ def status(current_user: CurrentUser, db: DbSession) -> dict:
             "embedding_model": resolved.embedding_model,
             "embedding_dimensions": resolved.embedding_dimensions,
             "context_limit": resolved.context_limit,
+            # What may actually be sent: the context less the room the
+            # model's special tokens need. This is the number chunks are
+            # cut to and the guard measures against, so it is the one worth
+            # reading when a registration is refused.
+            "payload_limit": resolved.embeddable_tokens,
             "chunk_target_tokens": resolved.target_tokens,
             "chunk_overlap_tokens": resolved.overlap_tokens,
             "overridden": sorted(resolved.overrides),
