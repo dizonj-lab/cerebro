@@ -8,10 +8,13 @@ import { PageHeader } from "@/components/construct/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { ErrorMessage } from "@/components/ui/ErrorMessage";
 import { LoadingState } from "@/components/ui/LoadingState";
+import { EnrichmentQueue } from "@/components/construct/EnrichmentQueue";
 import { ApiError, api } from "@/lib/api";
+import { useEnrichmentQueue } from "@/lib/useEnrichmentQueue";
 import type { CerebroArtifactSummary } from "@/lib/api";
 
 export function LibraryView() {
+  const { queue } = useEnrichmentQueue();
   const [items, setItems] = useState<CerebroArtifactSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +64,11 @@ export function LibraryView() {
       />
 
       <ErrorMessage className="mt-5">{error}</ErrorMessage>
+
+      {/* The queue belongs to the server, so it is the same here as on
+          Ingest — including work started before this page was opened, which
+          is what leaving the page used to destroy. */}
+      <EnrichmentQueue queue={queue} className="mt-5" />
 
       {items.length === 0 && !error ? (
         <div className="mt-8 rounded-lg border border-line bg-surface-subtle p-6 text-center">

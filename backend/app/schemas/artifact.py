@@ -97,6 +97,9 @@ class ArtifactDetail(ArtifactSummary):
     extraction: dict = Field(default_factory=dict)
     provenance: dict = Field(default_factory=dict)
     integrity: dict = Field(default_factory=dict)
+    # The enrichment job: queued, running, done or failed, with how many
+    # windows have been read. Empty when the model was never asked.
+    enrichment_job: dict = Field(default_factory=dict)
     # Short preview of the stored text, for the review screen.
     preview: str | None = None
 

@@ -72,6 +72,7 @@ def enrich(
     filename: str,
     ai_suggestions: bool = True,
     use_llm: bool = False,
+    on_progress=None,
 ) -> Enrichment:
     """Suggestions for a human to confirm. Nothing here establishes a value.
 
@@ -98,7 +99,12 @@ def enrich(
             )
         else:
             result = result.merge(
-                engine.enrich(text=text, properties=properties, filename=filename)
+                engine.enrich(
+                    text=text,
+                    properties=properties,
+                    filename=filename,
+                    on_progress=on_progress,
+                )
             )
 
     merged = result.merge(

@@ -532,6 +532,28 @@ overwrite CEREBRO must not do. `?apply=true` performs it, touching only the
 concept fields, recording what it removed in the artifact's provenance, and
 never deleting an artifact, a fragment, an extraction or source bytes.
 
+Enrichment is a **background queue**, not part of the request that asks for
+it. Running it inside the request caused three separate complaints at once:
+the request blocked for minutes, there was nowhere to report progress to,
+and navigating away aborted the fetch and threw the work away. The job now
+lives on the artifact row, so it survives the page, the navigation and a
+restart, and both Ingest and the Library read the same queue.
+
+**One or two at a time, and the rest wait.** A local model is a single
+daemon on one machine: asking it for twenty documents at once does not make
+twenty arrive sooner, it makes all twenty slow and none reviewable early.
+The queue admits one by default and a second only on evidence — a recent job
+that finished quickly — and drops back to one when that stops being true.
+Everything else waits visibly, with its place in the line, because "waiting"
+without a number is indistinguishable from stuck. Claiming uses
+`FOR UPDATE SKIP LOCKED`, so no two workers can take the same artifact.
+
+Suggestions are **stored** when a job finishes, as unconfirmed proposals.
+They used to exist only in the browser tab that asked for them. Storing them
+changes nothing about trust: `field_methods` still records them as
+proposals, only approval sets `human_confirmed`, and a value the user has
+already typed is never overwritten from behind the page they are looking at.
+
 Local enrichment runs under a **time budget**, not just a per-call timeout.
 A long document is read in windows, and ten windows at the per-call timeout
 is half an hour inside one HTTP request — which no browser waits for. The

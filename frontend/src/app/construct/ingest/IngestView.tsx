@@ -14,7 +14,9 @@ import { LoadingState } from "@/components/ui/LoadingState";
 import { TagInput } from "@/components/ui/TagInput";
 import { Textarea } from "@/components/ui/Textarea";
 import { BulkIngest } from "@/app/construct/ingest/BulkIngest";
+import { EnrichmentQueue } from "@/components/construct/EnrichmentQueue";
 import { ApiError, api } from "@/lib/api";
+import { useEnrichmentQueue } from "@/lib/useEnrichmentQueue";
 import type {
   CerebroArtifact,
   CerebroArtifactExtraction,
@@ -67,6 +69,7 @@ function IngestInner() {
   const existingId = useSearchParams().get("artifact");
 
   const [artifact, setArtifact] = useState<CerebroArtifact | null>(null);
+  const { queue, refresh } = useEnrichmentQueue();
   const [draft, setDraft] = useState<CerebroArtifactMetadata>(EMPTY);
   const [loading, setLoading] = useState(Boolean(existingId));
   const [busy, setBusy] = useState(false);
@@ -172,19 +175,69 @@ function IngestInner() {
     setError(null);
     setSuggesting(true);
     try {
-      const result = await api.suggestArtifact(artifact.id);
-      setSuggestion(result);
-      // Suggestions land in the form, where they can be edited or removed.
-      // They are not saved until the form is submitted, and they stay
-      // unconfirmed until it is approved.
-      setDraft((d) => ({ ...d, ...toDraft({ ...d, ...result.suggestions }) }));
-      setSaved(false);
+      // Queued, not awaited. The work now outlives this page, so leaving it
+      // no longer throws away minutes of a local model's time — coming back
+      // finds the suggestions already on the artifact.
+      await api.suggestArtifact(artifact.id);
+      refresh();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not ask the local model.");
-    } finally {
       setSuggesting(false);
     }
   }
+
+  // Wait for the artifact's own job to reach a terminal state.
+  //
+  // Absence from the queue is not the same as finished: a queue snapshot can
+  // predate the enqueue, and treating it as completion refetched the
+  // artifact while the job was still waiting — which produced an empty
+  // result and then stopped looking. The row's own status is the authority.
+  // Wait for the artifact's own job to finish, then fill the form from the
+  // server.
+  //
+  // Absence from the queue is not the same as finished: a queue snapshot can
+  // predate the enqueue, and treating it as completion refetched the artifact
+  // while the job was still waiting — which produced an empty result and then
+  // stopped looking. The row's own status is the authority.
+  const awaitJob = useCallback(async (id: string) => {
+    const fresh = await api.artifact(id);
+    setArtifact(fresh);
+    const status = fresh.enrichment_job?.status;
+    if (status !== "done" && status !== "failed") return false;
+    // Only fills what is still empty: a value the user typed while waiting is
+    // theirs, and the job must not overwrite it from behind them.
+    setDraft((current) => {
+      const filled = toDraft(fresh.metadata) as unknown as Record<string, unknown>;
+      const merged = { ...current } as unknown as Record<string, unknown>;
+      for (const [key, value] of Object.entries(filled)) {
+        const held = merged[key];
+        const empty =
+          held === undefined ||
+          held === null ||
+          held === "" ||
+          (Array.isArray(held) && held.length === 0);
+        if (empty && value !== undefined) merged[key] = value;
+      }
+      return merged as unknown as CerebroArtifactMetadata;
+    });
+    setSaved(false);
+    return true;
+  }, []);
+
+  useEffect(() => {
+    if (!artifact || !suggesting) return;
+    const id = artifact.id;
+    let cancelled = false;
+    const handle = setInterval(() => {
+      void awaitJob(id).then((done) => {
+        if (done && !cancelled) setSuggesting(false);
+      });
+    }, 1200);
+    return () => {
+      cancelled = true;
+      clearInterval(handle);
+    };
+  }, [artifact, suggesting, awaitJob]);
 
   // Live methods: a field the model has just proposed reports as such before
   // anything is saved, so the hint matches what is in the box.
@@ -348,15 +401,26 @@ function IngestInner() {
               )}
             </div>
 
+            {/* The queue, not a spinner. It keeps running if this page is
+                closed, so what it shows is the server's state rather than
+                this tab's. */}
+            <EnrichmentQueue queue={queue} className="mt-3" />
+
             <p className="mt-3 text-xs text-ink-subtle">
-              {suggestion?.ai_used
-                ? `Suggested by ${suggestion.model ?? suggestion.engine}, running in your CEREBRO environment. Check each field before confirming.`
+              {artifact?.enrichment_job?.ai_used
+                ? `Suggested by ${artifact.enrichment_job.model}, running in your CEREBRO environment. Check each field before confirming.`
                 : "Inspected and extracted deterministically — no AI has read this artifact."}
             </p>
 
-            {suggestion?.notes?.length ? (
+            {artifact?.enrichment_job?.error && (
+              <p className="mt-2 text-xs text-danger">
+                Enrichment did not finish: {artifact.enrichment_job.error}
+              </p>
+            )}
+
+            {artifact?.enrichment_job?.notes?.length ? (
               <ul className="mt-2 space-y-1">
-                {suggestion.notes.map((note) => (
+                {artifact.enrichment_job.notes.map((note) => (
                   <li key={note} className="text-xs text-ink-subtle">
                     {note}
                   </li>

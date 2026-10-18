@@ -33,9 +33,8 @@ from app.schemas.artifact import (
     BulkReviewResultItem,
     BulkUploadItem,
     BulkUploadResponse,
-    EnrichmentSuggestion,
 )
-from app.services import metrics, profiles
+from app.services import enrichment_queue, metrics, profiles
 from app.services.artifacts import service, serving
 from app.services.artifacts.fragments import FragmentsUnavailable
 from app.services.artifacts.registration import RegistrationRejected
@@ -66,6 +65,7 @@ def _detail(a: Artifact, *, preview: bool = True) -> ArtifactDetail:
         extraction=a.extraction or {},
         provenance=a.provenance or {},
         integrity=a.integrity or {},
+        enrichment_job=a.enrichment_job or {},
         preview=service.preview_text(a) if preview else None,
     )
 
@@ -368,55 +368,48 @@ def content(artifact_id: uuid.UUID, current_user: CurrentUser, db: DbSession) ->
     )
 
 
-@router.post("/{artifact_id}/suggest", response_model=EnrichmentSuggestion)
-def suggest(
-    artifact_id: uuid.UUID, current_user: CurrentUser, db: DbSession
-) -> EnrichmentSuggestion:
-    """Ask the configured local model to propose metadata for this artifact.
+@router.post("/{artifact_id}/suggest", status_code=status.HTTP_202_ACCEPTED)
+def suggest(artifact_id: uuid.UUID, current_user: CurrentUser, db: DbSession) -> dict:
+    """Queue this artifact for enrichment by the local model.
 
-    Separate from upload on purpose: a model on a laptop takes tens of
-    seconds, and this is also the point at which the user explicitly asks for
-    it. The suggestions come back for review and are not saved.
+    Accepted, not done. Enrichment used to run inside this request, which
+    blocked it for minutes, had nowhere to report progress to, and lost the
+    work entirely when the user navigated away — the browser aborted the
+    fetch and the model's output went with it. The job now belongs to the
+    queue rather than to a request, so leaving the page is free and the
+    progress is somewhere both pages can read.
     """
     artifact = service.get_for_owner(db, current_user.id, artifact_id)
     if artifact is None:
         raise NOT_FOUND
+    if artifact.status == "registered":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This artifact is already registered.",
+        )
 
     preferences = profiles.get_preferences(db, current_user.id)
-    started = time.perf_counter()
-    try:
-        result = service.suggest_with_model(
-            db, artifact, ai_suggestions=preferences.ai_suggestions
-        )
-    except service.ArtifactRejected as exc:
-        db.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from None
-
-    metrics.record(
-        db,
-        owner_id=current_user.id,
-        kind="enrichment",
-        operation="enrichment.suggest",
-        duration_ms=(time.perf_counter() - started) * 1000,
-        model=getattr(result, "model", None),
-        algorithm="local model proposes, human confirms",
-        artifact_id=artifact.id,
-        status="ok" if getattr(result, "ai_used", False) else "fallback",
-        units={
-            "suggested": sum(
-                len(v) if isinstance(v, list) else 1
-                for v in (getattr(result, "suggestions", {}) or {}).values()
-            ),
-            # The grounding guard's own verdict: suggestions the document did
-            # not contain, dropped. The clearest single signal of whether a
-            # model can be trusted on this corpus.
-            "notes": len(getattr(result, "notes", []) or []),
-            "ai_used": bool(getattr(result, "ai_used", False)),
-        },
-    )
-
+    job = enrichment_queue.enqueue(artifact, ai_suggestions=preferences.ai_suggestions)
     db.commit()
-    return EnrichmentSuggestion(**result)
+    # Started here rather than at import: a test run and a migration both
+    # import the application, and neither should start threads that reach
+    # for a model.
+    enrichment_queue.start()
+    return {"artifact_id": str(artifact_id), **job}
+
+
+@router.get("/enrichment/queue")
+def enrichment_status(current_user: CurrentUser, db: DbSession) -> dict:
+    """What this owner has waiting or running. Polled by the Library."""
+    jobs = enrichment_queue.pending(db, current_user.id)
+    return {
+        "jobs": jobs,
+        "running": sum(1 for j in jobs if j["status"] == "running"),
+        "waiting": sum(1 for j in jobs if j["status"] == "queued"),
+        # Stated so the UI can explain why the rest are waiting rather than
+        # looking stuck.
+        "max_concurrent": enrichment_queue.MAX_WORKERS,
+    }
 
 
 @router.delete("/{artifact_id}", status_code=status.HTTP_204_NO_CONTENT)

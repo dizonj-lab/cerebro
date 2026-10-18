@@ -8,7 +8,9 @@ import { Button } from "@/components/ui/Button";
 import { ErrorMessage } from "@/components/ui/ErrorMessage";
 import { Input } from "@/components/ui/Input";
 import { TagInput } from "@/components/ui/TagInput";
+import { EnrichmentQueue } from "@/components/construct/EnrichmentQueue";
 import { ApiError, api } from "@/lib/api";
+import { useEnrichmentQueue } from "@/lib/useEnrichmentQueue";
 import type { CerebroArtifact, CerebroArtifactMetadata } from "@/lib/api";
 import { cn } from "@/lib/cn";
 
@@ -53,6 +55,7 @@ export function BulkIngest({
   const [rows, setRows] = useState<Row[]>([]);
   const [refused, setRefused] = useState<Refused[]>([]);
   const [busy, setBusy] = useState(false);
+  const { queue, refresh } = useEnrichmentQueue();
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -132,26 +135,13 @@ export function BulkIngest({
       ),
     );
 
+    // Queue them all; the server runs one or two at a time and the rest
+    // wait. Asking a single local model for twenty at once does not make
+    // twenty arrive sooner, it makes all twenty slow — and it used to hold
+    // this page open for every one of them.
     for (const row of pending) {
       try {
-        const result = await api.suggestArtifact(row.artifact.id);
-        setRows((current) =>
-          current.map((item) =>
-            item.artifact.id === row.artifact.id
-              ? {
-                  ...item,
-                  state: "awaiting",
-                  // Suggestions land in the row, where they can still be
-                  // edited. Nothing is saved until the row is registered.
-                  title: (result.suggestions.title as string) ?? item.title,
-                  topics: (result.suggestions.topics as string[]) ?? item.topics,
-                  tags: (result.suggestions.tags as string[]) ?? item.tags,
-                  enrichedBy: result.ai_used ? result.model ?? result.engine : null,
-                  note: result.ai_used ? undefined : result.notes[0],
-                }
-              : item,
-          ),
-        );
+        await api.suggestArtifact(row.artifact.id);
       } catch (e) {
         const message = e instanceof ApiError ? e.message : "Could not ask the local model.";
         setRows((current) =>
@@ -163,8 +153,58 @@ export function BulkIngest({
         );
       }
     }
+    refresh();
     setBusy(false);
   }
+
+  // Poll each enriching row until its own job reports a terminal state.
+  //
+  // Absence from the queue is not the same as finished — a queue snapshot
+  // can predate the enqueue — so the row's own status is what is waited on,
+  // and the suggestions are read from the artifact rather than from a
+  // response this page had to stay open to receive.
+  useEffect(() => {
+    const waiting = rows.filter((row) => row.state === "enriching");
+    if (!waiting.length) return;
+    let cancelled = false;
+
+    const handle = setInterval(() => {
+      for (const row of waiting) {
+        void api.artifact(row.artifact.id).then((fresh) => {
+          if (cancelled) return;
+          const status = fresh.enrichment_job?.status;
+          if (status !== "done" && status !== "failed") return;
+          setRows((current) =>
+            current.map((item) =>
+              item.artifact.id === row.artifact.id
+                ? {
+                    ...item,
+                    artifact: fresh,
+                    state: "awaiting",
+                    title: (fresh.metadata.title as string) ?? item.title,
+                    topics: (fresh.metadata.topics as string[]) ?? item.topics,
+                    tags: (fresh.metadata.tags as string[]) ?? item.tags,
+                    enrichedBy: fresh.enrichment_job?.ai_used
+                      ? fresh.enrichment_job.model ?? null
+                      : null,
+                    note: fresh.enrichment_job?.notes?.[0],
+                    error:
+                      status === "failed"
+                        ? fresh.enrichment_job?.error ?? "Enrichment did not finish."
+                        : item.error,
+                  }
+                : item,
+            ),
+          );
+        });
+      }
+    }, 1200);
+
+    return () => {
+      cancelled = true;
+      clearInterval(handle);
+    };
+  }, [rows]);
 
   async function register(ids: string[]) {
     const pending = rows.filter((row) => ids.includes(row.artifact.id) && row.state !== "registered");
@@ -255,6 +295,8 @@ export function BulkIngest({
       </div>
 
       <ErrorMessage className="mt-4">{error}</ErrorMessage>
+
+      <EnrichmentQueue queue={queue} className="mt-4" />
 
       {refused.length > 0 && (
         <ul className="mt-4 space-y-1.5" data-testid="refused-files">

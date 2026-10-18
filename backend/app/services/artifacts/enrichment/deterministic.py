@@ -111,7 +111,9 @@ class DeterministicEnricher:
     ai_used = False
     local = True
 
-    def enrich(self, *, text: str, properties: dict, filename: str) -> Enrichment:
+    def enrich(
+        self, *, text: str, properties: dict, filename: str, on_progress=None
+    ) -> Enrichment:
         """Both phases together. Used directly in tests and when no model runs."""
         return self.from_properties(properties=properties).merge(
             self.from_statistics(text=text, properties=properties, filename=filename)

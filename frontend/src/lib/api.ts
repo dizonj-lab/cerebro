@@ -202,6 +202,8 @@ export interface CerebroArtifact extends CerebroArtifactSummary {
   extraction: CerebroArtifactExtraction;
   provenance: Record<string, unknown>;
   integrity: Record<string, boolean>;
+  /** The enrichment job, empty when the model has never been asked. */
+  enrichment_job: CerebroEnrichmentJob;
   preview: string | null;
 }
 
@@ -620,6 +622,34 @@ export interface CerebroPerformance {
   truncated: boolean;
 }
 
+/** An enrichment job's state, as it sits on the artifact row. */
+export interface CerebroEnrichmentJob {
+  status?: "queued" | "running" | "done" | "failed";
+  /** Windows of the document read so far, and how many there are. */
+  progress?: number;
+  total?: number | null;
+  model?: string | null;
+  error?: string | null;
+  notes?: string[];
+  ai_used?: boolean;
+}
+
+export interface CerebroEnrichmentQueue {
+  jobs: {
+    artifact_id: string;
+    filename: string;
+    status: string;
+    progress: number;
+    total: number | null;
+    model: string | null;
+    /** Place in the line, so "waiting" has a number attached. */
+    position: number;
+  }[];
+  running: number;
+  waiting: number;
+  max_concurrent: number;
+}
+
 export interface CerebroAnchor {
   id: string;
   event_type: string;
@@ -900,9 +930,21 @@ export const api = {
    */
   artifactContentUrl: (id: string) => `${API_BASE_URL}/api/artifacts/${id}/content`,
 
-  /** Ask the configured local model to propose metadata. Saves nothing. */
+  /**
+   * Queue this artifact for enrichment by the local model.
+   *
+   * Accepted, not done. Enrichment runs in a background queue, so this
+   * returns at once and the page polls `enrichmentQueue` for progress —
+   * which is why leaving the page no longer abandons the work.
+   */
   suggestArtifact: (id: string) =>
-    request<CerebroEnrichmentSuggestion>(`/api/artifacts/${id}/suggest`, { method: "POST" }),
+    request<CerebroEnrichmentJob & { artifact_id: string }>(
+      `/api/artifacts/${id}/suggest`,
+      { method: "POST" },
+    ),
+
+  /** What is waiting or running for this user, and how many may run at once. */
+  enrichmentQueue: () => request<CerebroEnrichmentQueue>("/api/artifacts/enrichment/queue"),
 
   /** Several files in one request. Each succeeds or fails on its own. */
   uploadArtifacts: (list: File[]) => {

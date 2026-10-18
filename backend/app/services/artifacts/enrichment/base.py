@@ -92,4 +92,6 @@ class EnrichmentEngine(Protocol):
     ai_used: bool
     local: bool
 
-    def enrich(self, *, text: str, properties: dict, filename: str) -> Enrichment: ...
+    def enrich(
+        self, *, text: str, properties: dict, filename: str, on_progress=None
+    ) -> Enrichment: ...

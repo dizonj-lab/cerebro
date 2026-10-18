@@ -83,7 +83,9 @@ class OllamaEnricher:
         self.base_url = base_url.rstrip("/")
         self.model = model
 
-    def enrich(self, *, text: str, properties: dict, filename: str) -> Enrichment:
+    def enrich(
+        self, *, text: str, properties: dict, filename: str, on_progress=None
+    ) -> Enrichment:
         # A long document is read in windows rather than truncated: the
         # people and projects in a 29-page deck are mostly not in its first
         # six thousand characters. Each window is a separate, bounded call —
@@ -105,6 +107,10 @@ class OllamaEnricher:
         windows = _windows(text)
         bodies: list[dict] = []
         unread = 0
+        if on_progress:
+            # Said before the first call, so a queue shows "0 of 4" rather
+            # than nothing while the slowest part of the job starts.
+            on_progress(0, len(windows), self.model)
         for index, window in enumerate(windows):
             spent = time.monotonic() - started
             # Stop before starting a call that could outlast the budget,
@@ -115,6 +121,8 @@ class OllamaEnricher:
             found = self._ask(window)
             if found is not None:
                 bodies.append(found)
+            if on_progress:
+                on_progress(index + 1, len(windows), self.model)
         body = _merge(bodies) if bodies else None
         # Grounding is checked against exactly what was read, so a name
         # "found" in a part the model never saw would be coincidence, not

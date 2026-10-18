@@ -51,6 +51,14 @@ class Artifact(Base):
         JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
     )
     integrity: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    # The AI enrichment job for this artifact: queued, running, done or
+    # failed, with how many windows of the document have been read. Kept on
+    # the row rather than in memory so progress survives the request that
+    # started it — navigating away from the review screen used to abandon
+    # the work and lose the evidence that it had ever run.
+    enrichment_job: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
 
     registered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(

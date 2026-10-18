@@ -40,6 +40,26 @@ def deployed(daemon, monkeypatch):  # noqa: F811 - the fixture is the daemon
     return daemon
 
 
+def suggest_now(client, artifact_id):
+    """Run enrichment synchronously, as the queue worker would.
+
+    The HTTP route only queues now — enrichment moved off the request so it
+    could survive navigation — so these tests, which are about what the
+    model's reply parses into rather than about HTTP, drive the service
+    directly instead of racing a worker thread.
+    """
+    import uuid as _uuid
+
+    from app.db.session import SessionLocal
+    from app.models.artifact import Artifact
+    from app.services.artifacts import service
+
+    with SessionLocal() as db:
+        artifact = db.get(Artifact, _uuid.UUID(artifact_id))
+        result = service.suggest_with_model(db, artifact, ai_suggestions=True)
+        db.commit()
+        return result
+
 def test_the_installed_pair_is_selected_for_its_proper_job(deployed):
     found = ollama.discover(force=True)
     # qwen3 answers; the embedder is never asked to.
@@ -156,7 +176,7 @@ def test_people_organizations_and_projects_populate(client, valid_signup, deploy
         '"organizations": ["Acme, Inc."], "projects": ["Project Atlas"]}',
     ]
 
-    body = client.post(f"/api/artifacts/{artifact['id']}/suggest").json()
+    body = suggest_now(client, artifact["id"])
 
     assert body["ai_used"] is True
     assert body["model"] == "qwen3:4b"
@@ -181,7 +201,7 @@ def test_suggestions_are_never_saved_without_review(client, valid_signup, deploy
     ).json()
     STATE["pieces"] = ['{"people": ["Maria Santos"], "projects": ["Project Atlas"]}']
 
-    client.post(f"/api/artifacts/{artifact['id']}/suggest")
+    suggest_now(client, artifact["id"])
     stored = client.get(f"/api/artifacts/{artifact['id']}").json()
 
     # Proposed, not established. The form shows them; the artifact does not
@@ -199,7 +219,7 @@ def test_prose_around_the_json_is_recovered(client, valid_signup, deployed):
     ).json()
     STATE["pieces"] = ['Here you go:\n```json\n{"projects": ["Project Atlas"]}\n```']
 
-    body = client.post(f"/api/artifacts/{artifact['id']}/suggest").json()
+    body = suggest_now(client, artifact["id"])
 
     assert body["suggestions"]["projects"] == ["Project Atlas"]
 
@@ -250,7 +270,7 @@ def test_technologies_and_concepts_are_suggested_and_grounded(client, valid_sign
         '"people": ["Maria Santos"], "organizations": ["Acme Inc."]}'
     ]
 
-    body = client.post(f"/api/artifacts/{artifact['id']}/suggest").json()
+    body = suggest_now(client, artifact["id"])
 
     assert body["suggestions"]["technologies"] == ["PostgreSQL", "Kubernetes"]
     assert body["suggestions"]["concepts"] == ["Retrieval augmented generation"]
@@ -272,7 +292,7 @@ def test_a_long_document_is_read_in_windows_not_truncated(client, valid_signup, 
     ).json()
     STATE["pieces"] = ['{"people": ["Priya Raman"]}']
 
-    body = client.post(f"/api/artifacts/{artifact['id']}/suggest").json()
+    body = suggest_now(client, artifact["id"])
 
     # A name only in the tail is still found, and still checked against the
     # text that was actually read.

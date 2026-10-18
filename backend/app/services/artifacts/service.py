@@ -489,12 +489,25 @@ def delete(db: Session, artifact: Artifact) -> None:
     db.flush()
 
 
-def suggest_with_model(db: Session, artifact: Artifact, *, ai_suggestions: bool) -> dict:
+def suggest_with_model(
+    db: Session,
+    artifact: Artifact,
+    *,
+    ai_suggestions: bool,
+    on_progress=None,
+    store: bool = False,
+) -> dict:
     """Ask the configured local model to propose metadata for this artifact.
 
-    Returns the suggestions and how each was arrived at, without saving them.
-    The user sees them in the form and decides; nothing becomes part of the
-    artifact until they approve it at review.
+    Returns the suggestions and how each was arrived at. `store` writes them
+    onto the artifact as **unconfirmed** suggestions, which is what a
+    background job needs: without it the work exists only in the browser tab
+    that asked for it, and leaving the page threw it away. Storing changes
+    nothing about trust — `field_methods` still records them as proposals,
+    and only approval at review sets `human_confirmed`.
+
+    `on_progress(done, total, model)` is called as each window of a long
+    document is read, so a queue can show a number rather than a spinner.
     """
     if artifact.status == "registered":
         raise ArtifactRejected("This artifact is already registered.")
@@ -509,12 +522,32 @@ def suggest_with_model(db: Session, artifact: Artifact, *, ai_suggestions: bool)
         filename=artifact.filename,
         ai_suggestions=ai_suggestions,
         use_llm=True,
+        on_progress=on_progress,
     )
-    # Record that a model was consulted, even though the suggestions are not
-    # saved: the attempt is part of the artifact's history.
+    # Record that a model was consulted: the attempt is part of the
+    # artifact's history whether or not the suggestions are kept.
     if result.ai_used:
         artifact.provenance = {**artifact.provenance, "ai_enrichment": result.provenance()}
-        db.flush()
+
+    if store and result.suggestions:
+        # Suggestions only fill what is still empty: a value the user has
+        # already typed is theirs, and a background job must never overwrite
+        # it from behind the page they are looking at.
+        current = dict(artifact.artifact_metadata or {})
+        methods = dict(artifact.field_methods or {})
+        for field, value in result.suggestions.items():
+            existing = current.get(field)
+            if existing in (None, "", [], {}) or methods.get(field) in (
+                None,
+                "not_established",
+                "filename_stem",
+                "ai_suggested",
+            ):
+                current[field] = value
+                methods[field] = result.methods.get(field, "ai_suggested")
+        artifact.artifact_metadata = current
+        artifact.field_methods = methods
+    db.flush()
     return {
         "suggestions": result.suggestions,
         "field_methods": result.methods,
