@@ -72,6 +72,11 @@ class Handler(BaseHTTPRequestHandler):
                 return
             STATE["batch_calls"] = STATE.get("batch_calls", 0) + 1
             texts = request.get("input", [])
+            STATE.setdefault("batch_sizes", []).append(len(texts))
+            if STATE.get("refuse_batches"):
+                # A daemon answering 400 to a batch it will not take.
+                self._json(400, {"error": "too many input tokens"})
+                return
             if STATE.get("short_batch"):
                 texts = texts[:-1]
             width = STATE.get("dimensions", 768)
@@ -248,8 +253,14 @@ def test_embeddings_are_unit_length(daemon, monkeypatch):
     assert abs(sum(v * v for v in vector) ** 0.5 - 1.0) < 1e-6
 
 
-def test_a_batch_is_one_request_not_one_per_text(daemon, monkeypatch):
-    """87 round trips for one PDF is what made registering feel broken."""
+def test_a_batch_is_few_requests_not_one_per_text(daemon, monkeypatch):
+    """87 round trips for one PDF is what made registering feel broken.
+
+    "One request for everything" was the first answer and it was too far the
+    other way: a thirty-two page deck became eighty chunks in a single call,
+    which the daemon refused with a 400. Few round trips, each inside what a
+    daemon will take.
+    """
     from app.services import embeddings
 
     monkeypatch.setattr(get_settings(), "embedding_provider", "auto")
@@ -260,7 +271,8 @@ def test_a_batch_is_one_request_not_one_per_text(daemon, monkeypatch):
     vectors = provider.embed([f"chunk number {i}" for i in range(40)])
 
     assert len(vectors) == 40
-    assert STATE.get("batch_calls") == 1
+    # Three calls rather than forty, and none of them oversized.
+    assert STATE.get("batch_calls") == 3
     assert STATE.get("single_calls", 0) == 0
 
 
@@ -280,15 +292,67 @@ def test_an_older_daemon_still_works_one_text_at_a_time(daemon, monkeypatch):
     assert STATE.get("single_calls") == 3
 
 
-def test_a_short_batch_is_refused_rather_than_misaligned(daemon):
-    """Fewer vectors than texts would attach embeddings to the wrong chunks."""
-    from app.services.embeddings import EmbeddingFailed
+def test_a_short_batch_is_never_trusted_and_is_redone_one_at_a_time(daemon):
+    """Fewer vectors than texts would attach embeddings to the wrong chunks.
+
+    The misaligned reply is discarded, not patched up. Redoing the group one
+    text at a time makes the pairing true by construction — each call
+    carries one text and returns one vector — and each is width-checked, so
+    nothing misaligned can reach the index either way.
+    """
     from app.services.embeddings.ollama import OllamaEmbedder
 
+    STATE["dimensions"] = 8
     STATE["short_batch"] = True
-    provider = OllamaEmbedder(
-        base_url=daemon, model="nomic-embed-text:latest", dimensions=768
-    )
+    embedder = OllamaEmbedder(base_url=daemon, model="nomic-embed-text", dimensions=8)
 
-    with pytest.raises(EmbeddingFailed):
-        provider.embed(["a", "b", "c"])
+    vectors = embedder.embed(["one", "two", "three"])
+
+    assert len(vectors) == 3
+    assert all(len(v) == 8 for v in vectors)
+
+
+# --- embedding batches a daemon will actually accept ------------------------
+
+def test_a_long_document_is_embedded_in_batches_a_daemon_will_take(daemon):
+    """All of them in one call is what a thirty-two page deck turned into."""
+    from app.services.embeddings.ollama import MAX_BATCH, OllamaEmbedder
+
+    STATE["dimensions"] = 8
+    STATE["batch_sizes"] = []
+    embedder = OllamaEmbedder(base_url=daemon, model="mxbai-embed-large", dimensions=8)
+
+    vectors = embedder.embed([f"chunk {i}" for i in range(40)])
+
+    assert len(vectors) == 40
+    assert max(STATE["batch_sizes"]) <= MAX_BATCH
+    # Still batched, which was the point: not forty round trips.
+    assert len(STATE["batch_sizes"]) == 3
+
+
+def test_a_refused_batch_costs_that_batch_and_not_the_document(daemon):
+    """One chunk the daemon will not take must not stop a registration."""
+    from app.services.embeddings.ollama import OllamaEmbedder
+
+    STATE["dimensions"] = 8
+    STATE["refuse_batches"] = True
+    embedder = OllamaEmbedder(base_url=daemon, model="mxbai-embed-large", dimensions=8)
+
+    # /api/embed refuses; the retry goes one at a time through /api/embeddings.
+    vectors = embedder.embed(["one", "two", "three"])
+
+    assert len(vectors) == 3
+    assert all(len(v) == 8 for v in vectors)
+
+
+def test_an_empty_chunk_is_named_rather_than_sent(daemon):
+    """Ollama refuses the whole request over one blank, with no explanation."""
+    from app.services.embeddings.base import EmbeddingFailed
+    from app.services.embeddings.ollama import OllamaEmbedder
+
+    embedder = OllamaEmbedder(base_url=daemon, model="mxbai-embed-large", dimensions=8)
+
+    with pytest.raises(EmbeddingFailed) as caught:
+        embedder.embed(["real text", "   "])
+
+    assert "empty" in str(caught.value)

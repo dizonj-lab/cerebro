@@ -159,6 +159,7 @@ class OllamaEnricher:
         methods: dict = {}
         notes: list[str] = []
         evidence: dict = {}
+        empty_fields: list[str] = []
         haystack = text
 
         if unread:
@@ -192,6 +193,12 @@ class OllamaEnricher:
             grounded, dropped, found = _grounded(
                 body.get(field), haystack, limit, source=text
             )
+            if not grounded and not dropped and body.get(field) in (None, [], ""):
+                # The model offered nothing for this field. Worth saying,
+                # because an empty People box looks identical whether the
+                # model proposed nobody or proposed people the guard then
+                # removed — and those need opposite fixes.
+                empty_fields.append(field)
             if grounded:
                 suggestions[field] = grounded
                 methods[field] = "ai_suggested"
@@ -199,9 +206,21 @@ class OllamaEnricher:
             if dropped:
                 # Recorded rather than hidden: a model that keeps proposing
                 # absent phrases is a model to stop trusting.
+                # Named, not counted. A count makes a dropped suggestion
+                # invisible: the field is empty and nothing says what was
+                # removed or why, so a grounding guard doing its job is
+                # indistinguishable from a model proposing nothing.
+                removed = _removed_values(body.get(field), grounded)
                 notes.append(
-                    f"Dropped {dropped} suggested {field} not found in the document."
+                    f"Dropped {dropped} suggested {field} not found in the document"
+                    + (f": {', '.join(removed[:6])}" if removed else "")
+                    + ("…" if len(removed) > 6 else ".")
                 )
+
+        if empty_fields:
+            notes.append(
+                f"The model proposed nothing for: {', '.join(empty_fields)}."
+            )
 
         for forbidden in ("author", "created_date", "date"):
             if body.get(forbidden):
@@ -290,6 +309,18 @@ def _evidence(needle: str, text: str) -> str | None:
     # purpose: it is a quote to read, not a citation to compute with.
     start = max(0, position - 90)
     return flat[start : position + len(needle) + 90].strip()
+
+
+def _removed_values(proposed: object, kept: list[str]) -> list[str]:
+    """What the guard took out, as the model wrote it."""
+    if not isinstance(proposed, list):
+        return []
+    survived = {k.strip().lower() for k in kept}
+    return [
+        " ".join(str(item).split())
+        for item in proposed
+        if isinstance(item, str) and " ".join(item.split()).lower() not in survived
+    ]
 
 
 def _grounded(

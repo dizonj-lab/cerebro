@@ -25,6 +25,18 @@ _TIMEOUT_SECONDS = 30
 # A batch is many texts through the model in one request, so it is allowed
 # proportionally longer than a single embedding.
 _BATCH_TIMEOUT_SECONDS = 300
+# How many texts go in one request.
+#
+# "All of them" was the first attempt and it is what a thirty-two page deck
+# turned into: eighty chunks in a single call, which Ollama answered with a
+# 400 and no explanation, and registration stopped having done nothing.
+# Embedding models have small contexts — mxbai-embed-large's is 512 tokens —
+# and a daemon asked for far more than it can hold refuses the request
+# rather than truncating it.
+#
+# Sixteen keeps the round trips low, which was the point of batching, while
+# staying well inside what a daemon will accept.
+MAX_BATCH = 16
 
 
 class _BatchUnsupported(Exception):
@@ -58,10 +70,27 @@ class OllamaEmbedder:
         """
         if not texts:
             return []
-        try:
-            return self._batch(texts)
-        except _BatchUnsupported:
-            return [self._one(text) for text in texts]
+        # An empty chunk has no meaning to embed and Ollama refuses the whole
+        # request over one of them, so it is caught here, named, and not sent.
+        blank = [i for i, text in enumerate(texts) if not text.strip()]
+        if blank:
+            raise EmbeddingFailed(
+                f"{len(blank)} of {len(texts)} chunks were empty, which cannot be embedded."
+            )
+
+        vectors: list[list[float]] = []
+        for start in range(0, len(texts), MAX_BATCH):
+            group = texts[start : start + MAX_BATCH]
+            try:
+                vectors.extend(self._batch(group))
+            except _BatchUnsupported:
+                vectors.extend(self._one(text) for text in group)
+            except EmbeddingFailed:
+                # A refused group is retried one text at a time. One chunk
+                # the daemon will not take should cost that chunk, not the
+                # whole document — and doing it singly names which one.
+                vectors.extend(self._one(text) for text in group)
+        return vectors
 
     def _batch(self, texts: list[str]) -> list[list[float]]:
         payload = json.dumps({"model": self.model, "input": texts}).encode("utf-8")
@@ -79,7 +108,8 @@ class OllamaEmbedder:
             if exc.code == 404:
                 raise _BatchUnsupported from None
             raise EmbeddingFailed(
-                f"Ollama returned {exc.code} embedding with '{self.model}'."
+                f"Ollama returned {exc.code} embedding with '{self.model}'. "
+                f"The batch of {len(texts)} was refused."
             ) from None
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             raise EmbeddingFailed(
@@ -111,6 +141,16 @@ class OllamaEmbedder:
         try:
             with urllib.request.urlopen(request, timeout=_TIMEOUT_SECONDS) as response:
                 body = json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            # Checked before URLError, which it subclasses. Without this a
+            # daemon answering 400 was reported as a daemon that could not
+            # be reached, and the suggested fix — start Ollama, pull the
+            # model — addressed a problem the user did not have.
+            raise EmbeddingFailed(
+                f"Ollama refused a {len(text)}-character chunk with "
+                f"'{self.model}' ({exc.code}). The chunk may be longer than the "
+                "model's context."
+            ) from None
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             raise EmbeddingFailed(
                 f"Could not reach Ollama at {self.base_url}. Is it running, and has "

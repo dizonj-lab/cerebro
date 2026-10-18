@@ -573,6 +573,22 @@ Everything else waits visibly, with its place in the line, because "waiting"
 without a number is indistinguishable from stuck. Claiming uses
 `FOR UPDATE SKIP LOCKED`, so no two workers can take the same artifact.
 
+Embedding sends **sixteen chunks per request**, not all of them. "All of
+them" was the first answer to 87 round trips for one PDF and it went too far
+the other way: a thirty-two page deck became eighty chunks in one call,
+which Ollama refused with a 400 and no explanation, and registration stopped
+having done nothing. Embedding models have small contexts —
+mxbai-embed-large's is 512 tokens — and a daemon asked for more than it can
+hold refuses rather than truncates. A refused group is retried one text at a
+time, so one chunk the daemon will not take costs that chunk and not the
+document, and a blank chunk is named rather than sent.
+
+A dropped suggestion is **named, not counted**. An empty People box looks
+identical whether the model proposed nobody or proposed people the grounding
+guard then removed, and those need opposite fixes — so the notes now say
+which values were dropped, and say separately when the model proposed
+nothing for a field at all.
+
 Every filled field on the review screen carries a **badge beside its label**
 saying where its value came from — "AI suggested", "From the file", "From
 the page", "From the text", "You confirmed". The hint underneath already
