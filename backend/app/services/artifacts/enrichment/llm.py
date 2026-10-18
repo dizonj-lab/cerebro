@@ -50,12 +50,17 @@ no prose, no code fences, matching exactly this shape:
 "concepts": array of strings}
 
 Rules:
-- title: the document's actual title if the text makes it clear, else null.
+- title: the document's actual subject, as its own heading states it. A
+  lecture deck is named by its topic, not by "PowerPoint Presentation" or
+  the file it was exported from. Null if the text does not make it clear.
 - description: at most two sentences describing what the document is about.
 - topics: up to 6 subjects, each a phrase that appears in the text verbatim.
 - tags: up to 8 single keywords, each a word that appears in the text.
 - people: named individuals the text mentions, spelled exactly as the text
-  spells them. Only actual people. Not companies, teams or job titles.
+  spells them, **including the presenter, lecturer or author printed on the
+  first page** — a deck names the person giving it and that person belongs
+  here. Keep any honorific the text uses. Only actual people: not
+  companies, teams or job titles.
 - organizations: companies, institutions and bodies the text names, spelled
   exactly as the text spells them.
 - projects: named projects, products or initiatives, spelled exactly as the
@@ -103,9 +108,17 @@ class OllamaEnricher:
         # been read when it runs low is what gets merged, and the shortfall is
         # recorded in the notes. Partial suggestions a human reviews are worth
         # more than a request that dies.
+        #
+        # Windows are read **ends first**. What metadata needs — the title,
+        # the byline, the subject, and whatever a document concludes — sits
+        # at the front and the back; the middle is elaboration. Reading in
+        # page order spent the budget on the elaboration of a forty-page
+        # deck and never reached either end, which is how a lecture deck
+        # came back named after the program that exported it.
         started = time.monotonic()
-        windows = _windows(text)
+        windows = _ends_first(_windows(text))
         bodies: list[dict] = []
+        read: list[str] = []
         unread = 0
         if on_progress:
             # Said before the first call, so a queue shows "0 of 4" rather
@@ -119,15 +132,18 @@ class OllamaEnricher:
                 unread = len(windows) - index
                 break
             found = self._ask(window)
+            read.append(window)
             if found is not None:
                 bodies.append(found)
             if on_progress:
                 on_progress(index + 1, len(windows), self.model)
         body = _merge(bodies) if bodies else None
-        # Grounding is checked against exactly what was read, so a name
-        # "found" in a part the model never saw would be coincidence, not
-        # evidence.
-        text = "\n".join(windows)
+        # Grounding is checked against exactly what was read — the windows
+        # actually sent, not every window the document has. Joining all of
+        # them would let a suggestion be "found" in a part the model never
+        # saw, which is coincidence wearing the costume of evidence. The
+        # time budget made that reachable: before it, every window was read.
+        text = "\n".join(read)
         if body is None:
             return Enrichment(
                 engine=self.name,
@@ -328,6 +344,25 @@ MAX_WINDOWS = 10
 # is slow, and a request nobody waits for is worth nothing however complete it
 # would have been. Sized to stay well inside the browser proxy's own patience.
 ENRICHMENT_BUDGET_SECONDS = 150
+
+
+def _ends_first(windows: list[str]) -> list[str]:
+    """First, last, then inward.
+
+    A document introduces itself at the front and concludes at the back, and
+    a budget that runs out should have spent itself on those rather than on
+    the middle. Order only: nothing is skipped, and a document whose budget
+    is sufficient still reads all of it.
+    """
+    out: list[str] = []
+    left, right = 0, len(windows) - 1
+    while left <= right:
+        out.append(windows[left])
+        if left != right:
+            out.append(windows[right])
+        left += 1
+        right -= 1
+    return out
 
 
 def _windows(text: str) -> list[str]:

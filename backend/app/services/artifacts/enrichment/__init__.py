@@ -50,11 +50,13 @@ def _llm_engine() -> EnrichmentEngine | None:
     if not found.reachable or found.base_url is None:
         return None
 
+    # A configured model wins outright; otherwise the fastest installed
+    # model that answers directly rather than deliberating first.
     configured = settings.ollama_enrichment_model
     model = next(
         (m for m in found.models if m == configured or m.split(":", 1)[0] == configured),
         None,
-    ) or found.chat_model()
+    ) or found.enrichment_model()
     if model is None:
         return None
     return OllamaEnricher(base_url=found.base_url, model=model)

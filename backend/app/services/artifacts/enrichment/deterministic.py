@@ -17,6 +17,8 @@ import re
 from collections import Counter
 from pathlib import Path
 
+from app.services.artifacts.enrichment import byline
+from app.services.artifacts.enrichment.significance import is_placeholder_title
 from app.services.artifacts.enrichment.base import Enrichment
 from app.services.artifacts.enrichment.keyphrases import extract as extract_keyphrases
 
@@ -135,8 +137,17 @@ class DeterministicEnricher:
             suggestions[field] = value
             methods[field] = method
 
+        # The document's own title, unless the authoring tool wrote it. A
+        # deck exported from PowerPoint carries "PowerPoint Presentation" in
+        # /Title, and the rule that document metadata outranks everything
+        # then puts that on the review screen as the document's name. It
+        # says which program made the file, not what the file is about, so
+        # it is left out and a better candidate is allowed through.
+        title = properties.get("title")
+        if title and not is_placeholder_title(title):
+            propose("title", title, "document_metadata")
+
         # Author and creation date come from here and nowhere else.
-        propose("title", properties.get("title"), "document_metadata")
         propose("author", properties.get("author"), "document_metadata")
         propose("created_date", properties.get("created_date"), "document_metadata")
 
@@ -159,12 +170,26 @@ class DeterministicEnricher:
             if properties.get("keywords")
             else []
         )
+        # The line a byline was printed on, shown at review so the value can
+        # be checked rather than taken on trust.
+        byline_evidence: dict = {}
 
         def propose(field: str, value, method: str) -> None:
             if value in (None, "", [], {}):
                 return
             suggestions[field] = value
             methods[field] = method
+
+        # The author a document prints on its own first page, where its
+        # metadata carries none. Still the document asserting its own
+        # authorship — printed rather than embedded — so it is the same kind
+        # of claim as /Author and carries its own method, never a model's.
+        if not properties.get("author"):
+            found = byline.find(text)
+            if found:
+                name, evidence = found
+                propose("author", name, "extracted_byline")
+                byline_evidence[name] = evidence
 
         topics, tags = extract_keyphrases(text)
         propose("topics", topics, "keyphrase_extraction")
@@ -199,4 +224,5 @@ class DeterministicEnricher:
             ai_used=False,
             local=True,
             notes=notes,
+            evidence=byline_evidence,
         )

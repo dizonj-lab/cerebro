@@ -60,6 +60,8 @@ const METHOD_HINTS: Record<string, string> = {
     "The document's own keywords, plus words it repeats.",
   language_detection: "Detected from the text, and left blank when unclear.",
   extracted_opening: "A quote of the opening, not a summary.",
+  extracted_byline:
+    "Printed on the document's first page, read verbatim. Check it before confirming.",
   ai_suggested: "Suggested by the local model. Check it before confirming.",
   human_confirmed: "You confirmed this.",
   not_established: "",

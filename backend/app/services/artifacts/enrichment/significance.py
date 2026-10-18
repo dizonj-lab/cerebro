@@ -151,3 +151,62 @@ def filter_concepts(values: list[str]) -> tuple[list[str], list[str]]:
             rejected.append(term)
 
     return kept, rejected
+
+
+# Titles an authoring tool writes when nobody gave the document one.
+# PowerPoint stamps "PowerPoint Presentation" into every exported PDF, Word
+# writes "Microsoft Word - <filename>", and both outrank anything else under
+# the rule that the document's own metadata wins. That rule is right in
+# general and wrong here: these strings say which program made the file, not
+# what the file is about, which is how a deck of machine-learning lectures
+# came to be called "PowerPoint Presentation".
+_PLACEHOLDER_TITLES = frozenset(
+    {
+        "powerpoint presentation",
+        "microsoft powerpoint",
+        "presentation",
+        "presentation1",
+        "microsoft word",
+        "document",
+        "document1",
+        "doc1",
+        "untitled",
+        "untitled document",
+        "untitled1",
+        "new document",
+        "slide",
+        "slide1",
+        "document properties",
+        "microsoft excel",
+        "workbook",
+        "workbook1",
+        "book1",
+        "adobe acrobat",
+        "pdf document",
+        "scanned document",
+        "printout",
+    }
+)
+_TOOL_PREFIX = re.compile(
+    r"^(microsoft\s+(word|powerpoint|excel)|adobe\s+acrobat|libreoffice|google\s+docs)\s*[-–—:]\s*",
+    re.I,
+)
+_SLIDE_LIKE = re.compile(r"^(slide|page|sheet|chart|figure|document|presentation)\s*\d*$", re.I)
+
+
+def is_placeholder_title(title: str) -> bool:
+    """True when a title names the tool that made the file, not its subject.
+
+    Deliberately narrow. A real title is only rejected if it survives
+    stripping a known tool prefix and still says nothing — "Microsoft Word -
+    Q3 Revenue" keeps "Q3 Revenue", because the subject is right there.
+    """
+    cleaned = _TOOL_PREFIX.sub("", " ".join((title or "").split())).strip()
+    if not cleaned:
+        return True
+    # A filename left in the title field is not a title either.
+    stem = re.sub(r"\.(pdf|docx?|pptx?|xlsx?|txt|md)$", "", cleaned, flags=re.I)
+    folded = canonical(stem)
+    if not folded:
+        return True
+    return folded in _PLACEHOLDER_TITLES or bool(_SLIDE_LIKE.match(stem.strip()))

@@ -359,3 +359,149 @@ def test_the_budget_does_not_cut_a_document_that_fits(monkeypatch):
 
     assert len(asked) == len(windows) > 1
     assert not any("not read" in note for note in result.notes)
+
+
+# --- a title that names the tool, not the document --------------------------
+
+def test_a_title_written_by_the_authoring_tool_is_not_the_document_title():
+    """PowerPoint stamps this into every exported PDF."""
+    from app.services.artifacts.enrichment.significance import is_placeholder_title
+
+    for title in (
+        "PowerPoint Presentation",
+        "Microsoft Word - Document1",
+        "Untitled",
+        "Slide 1",
+        "Presentation1",
+    ):
+        assert is_placeholder_title(title), title
+
+
+def test_a_real_title_survives_even_behind_a_tool_prefix():
+    from app.services.artifacts.enrichment.significance import is_placeholder_title
+
+    assert not is_placeholder_title("Pattern Recognition and Machine Learning Systems")
+    # The subject is right there after the prefix.
+    assert not is_placeholder_title("Microsoft Word - Q3 Revenue")
+
+
+def test_a_placeholder_title_is_not_proposed_from_document_metadata():
+    from app.services.artifacts.enrichment.deterministic import DeterministicEnricher
+
+    result = DeterministicEnricher().from_properties(
+        properties={"title": "PowerPoint Presentation", "author": "Someone"}
+    )
+
+    assert "title" not in result.suggestions
+    # Everything else the document asserts is untouched.
+    assert result.suggestions["author"] == "Someone"
+
+
+# --- the author a document prints on its own first page ---------------------
+
+def test_a_byline_is_read_from_the_first_page():
+    """A deck carries no /Author and prints the lecturer on slide one."""
+    from app.services.artifacts.enrichment import byline
+
+    found = byline.find(
+        "PATTERN RECOGNITION AND MACHINE\nLEARNING SYSTEMS\nDAY 2A\nDr Zhu Fangming\n"
+    )
+
+    assert found is not None
+    name, evidence = found
+    assert name == "Dr Zhu Fangming"
+    # The line it was printed on, so a reviewer can check rather than trust.
+    assert evidence == "Dr Zhu Fangming"
+
+
+def test_a_byline_needs_an_explicit_signal():
+    """A title in title case has the same shape as a name."""
+    from app.services.artifacts.enrichment import byline
+
+    assert byline.find("Quarterly Revenue Review\nSecond line\n") is None
+    assert byline.find("Acme Systems Limited\nIntroduction\n") is None
+    # A heading shouted in capitals is not a byline either.
+    assert byline.find("PATTERN RECOGNITION AND MACHINE\nLEARNING\n") is None
+    # With a signal, it is.
+    assert byline.find("Report\nPresented by: Maria Santos\n")[0] == "Maria Santos"
+
+
+def test_a_name_in_the_body_is_never_an_author():
+    """Being mentioned is not evidence of having written it."""
+    from app.services.artifacts.enrichment import byline
+
+    assert byline.find("The migration was led by Maria Santos across three teams.") is None
+
+
+def test_the_byline_author_carries_its_own_method():
+    from app.services.artifacts.enrichment.deterministic import DeterministicEnricher
+
+    result = DeterministicEnricher().from_statistics(
+        text="LECTURE NOTES\nDr Zhu Fangming\nThe deck covers radial basis function networks.",
+        properties={},
+        filename="deck.pdf",
+    )
+
+    assert result.suggestions["author"] == "Dr Zhu Fangming"
+    # Not "ai_suggested": no model proposed it, and the review screen says so.
+    assert result.methods["author"] == "extracted_byline"
+    assert result.evidence["Dr Zhu Fangming"]
+
+
+def test_the_documents_own_metadata_still_outranks_a_byline():
+    from app.services.artifacts.enrichment.deterministic import DeterministicEnricher
+
+    result = DeterministicEnricher().from_statistics(
+        text="LECTURE NOTES\nDr Zhu Fangming\nThe deck covers networks.",
+        properties={"author": "Zhu, Fangming"},
+        filename="deck.pdf",
+    )
+
+    assert "author" not in result.suggestions
+
+
+# --- speed ------------------------------------------------------------------
+
+def test_enrichment_prefers_a_model_that_answers_directly():
+    """A reasoning model deliberates first; for JSON that time is thrown away."""
+    from app.services.ollama import Discovery
+
+    both = Discovery(
+        reachable=True, base_url="x", models=["qwen3:4b", "llama3.2:3b"], error=None
+    )
+    assert both.enrichment_model() == "llama3.2:3b"
+    # Answering a question is the opposite case and keeps its own order.
+    assert both.chat_model() == "qwen3:4b"
+
+    only_reasoning = Discovery(reachable=True, base_url="x", models=["qwen3:4b"], error=None)
+    assert only_reasoning.enrichment_model() == "qwen3:4b"
+
+
+def test_windows_are_read_from_both_ends_inward():
+    """A budget that runs out should have spent itself on the ends."""
+    from app.services.artifacts.enrichment.llm import _ends_first
+
+    assert _ends_first(["a", "b", "c", "d", "e"]) == ["a", "e", "b", "d", "c"]
+    assert _ends_first(["a"]) == ["a"]
+
+
+def test_grounding_uses_only_the_windows_actually_read(monkeypatch):
+    """Otherwise a name is 'found' in a part the model never saw."""
+    from app.services.artifacts.enrichment import llm
+
+    monkeypatch.setattr(llm, "ENRICHMENT_BUDGET_SECONDS", 100)
+    monkeypatch.setattr(llm, "ENRICHMENT_TIMEOUT_SECONDS", 60)
+    clock = iter([0.0] + [50.0] * 20)
+    monkeypatch.setattr(llm.time, "monotonic", lambda: next(clock))
+
+    # "Hidden Person" appears only in the middle, which the budget never reaches.
+    head = "Opening. " * 900
+    middle = "Hidden Person chaired it. " * 900
+    tail = "Closing. " * 900
+
+    enricher = llm.OllamaEnricher()
+    enricher._ask = lambda text: {"people": ["Hidden Person"]}  # noqa: SLF001
+
+    result = enricher.enrich(text=head + middle + tail, properties={}, filename="a.pdf")
+
+    assert "Hidden Person" not in (result.suggestions.get("people") or [])

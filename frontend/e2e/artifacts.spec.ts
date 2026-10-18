@@ -322,3 +322,21 @@ test("a document can be deleted from the library, with its knowledge", async ({ 
   });
   expect((await search.json()).total).toBe(0);
 });
+
+test("the author printed on the first page is read, with its evidence", async ({ page }) => {
+  await signedIn(page, "a-byline");
+  await page.goto("/construct/ingest");
+
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "deck.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from(
+      "LECTURE NOTES\nDr Zhu Fangming\nThe deck covers radial basis function networks.\n",
+    ),
+  });
+
+  const author = page.getByLabel("Author", { exact: true });
+  await expect(author).toHaveValue("Dr Zhu Fangming");
+  // Said to be read from the page, not proposed by a model.
+  await expect(page.getByText(/printed on the document's first page/i)).toBeVisible();
+});

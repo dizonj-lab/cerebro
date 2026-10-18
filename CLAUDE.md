@@ -93,10 +93,16 @@ docs/                                               architecture, contracts, sta
   packages. Do not wire them up without an explicit work package.
 - Enrichment **proposes**, it never establishes. Every field carries its
   method in `field_methods`, and only approval sets `human_confirmed`.
-  `author` and `created_date` may come **only** from the document's own
-  metadata — no engine, statistical or generative, may propose them. A model's
-  suggested topics and tags are dropped unless they appear in the document
-  verbatim.
+  `created_date` may come **only** from the document's own metadata. `author`
+  may come from that or from a **byline the document prints on its own first
+  page** — a line carrying an honorific or an introducer like "Presented by",
+  taken verbatim and marked `extracted_byline`. No model may propose either,
+  and a name in the body is never an author: being mentioned is not evidence
+  of having written it. A model's suggested topics and tags are dropped
+  unless they appear in the document verbatim.
+- A title the authoring tool wrote is not the document's title. "PowerPoint
+  Presentation" and "Microsoft Word - Document1" are dropped so a better
+  candidate can through; a real title behind a tool prefix is kept.
 - There is **no cloud AI engine**. A failing local engine falls back to
   deterministic enrichment, never to a remote service. Say "CEREBRO
   environment", not "your device", and never claim data never leaves it.

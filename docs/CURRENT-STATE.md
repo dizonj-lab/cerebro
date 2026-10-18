@@ -532,6 +532,31 @@ overwrite CEREBRO must not do. `?apply=true` performs it, touching only the
 concept fields, recording what it removed in the artifact's provenance, and
 never deleting an artifact, a fragment, an extraction or source bytes.
 
+`author` has one source beyond the file's metadata: a **byline the document
+prints on its own first page**. A lecture deck exported to PDF carries no
+`/Author` and prints the lecturer on slide one, so refusing to read it left
+the field blank while the answer sat in the first thing anyone sees. The
+rule is widened by exactly that case — a short line near the top carrying an
+honorific or an introducer like "Presented by", taken verbatim and marked
+`extracted_byline`. An explicit signal is required because a title in title
+case has the same shape as a name. A name in the body is never an author:
+being mentioned is not evidence of having written it, and no model may
+propose one either way.
+
+A **title the authoring tool wrote** is not the document's title. PowerPoint
+stamps "PowerPoint Presentation" into every exported PDF, and the rule that
+document metadata outranks everything then puts the name of a program where
+the subject should be. Those are dropped so a better candidate can come
+through; a real title behind a tool prefix keeps its subject.
+
+Enrichment reads its windows **ends first** and prefers a model that answers
+directly. What metadata needs sits at the front and the back of a document;
+the middle is elaboration, and reading in page order spent the budget on the
+elaboration of a forty-page deck without reaching either end. A reasoning
+model deliberates before answering, which for a small JSON object is time
+spent on text that is thrown away — so enrichment prefers `qwen2.5` or
+`llama3.2` over `qwen3`, and answering a question keeps its own order.
+
 Enrichment is a **background queue**, not part of the request that asks for
 it. Running it inside the request caused three separate complaints at once:
 the request blocked for minutes, there was nowhere to report progress to,

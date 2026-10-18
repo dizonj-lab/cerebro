@@ -49,6 +49,25 @@ EMBED_TIMEOUT_SECONDS = 60
 # is a summarise-these-passages job, not a reasoning benchmark, and a 3B
 # model that replies in two seconds is worth more here than a 70B that takes
 # a minute on a laptop.
+# Enrichment asks for a small JSON object about one window of a document.
+# A reasoning model deliberates first and then answers, which for this task
+# is time spent producing text that is thrown away — qwen3's <think> block
+# has to be stripped before the JSON can even be parsed. So enrichment
+# prefers a model that answers directly, and falls back to the chat list
+# when none is installed. Answering a question is the opposite case, and
+# keeps its own order.
+ENRICHMENT_PREFERENCES = (
+    "qwen2.5",
+    "llama3.2",
+    "llama3.1",
+    "mistral",
+    "phi3.5",
+    "phi3",
+    "gemma2",
+    "llama3",
+    "qwen3",
+)
+
 CHAT_PREFERENCES = (
     "qwen3",
     "llama3.2",
@@ -157,6 +176,10 @@ class Discovery:
 
     def chat_model(self) -> str | None:
         return _prefer(self.models, CHAT_PREFERENCES, embedding=False)
+
+    def enrichment_model(self) -> str | None:
+        """A model that answers directly, for metadata extraction."""
+        return _prefer(self.models, ENRICHMENT_PREFERENCES, embedding=False) or self.chat_model()
 
     def embedding_model(self) -> str | None:
         return _prefer(self.models, EMBEDDING_PREFERENCES, embedding=True)
