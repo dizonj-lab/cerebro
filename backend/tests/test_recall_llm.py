@@ -63,9 +63,17 @@ def test_only_the_retrieved_passages_are_put_in_front_of_the_model(client, libra
 
     prompt = STATE["last_prompt"]
     assert "retention schedule" in prompt
-    # The instruction is the grounding contract, and the question is in it.
-    assert "Never use knowledge from outside these passages" in prompt
     assert "How long are ledger exports kept?" in prompt
+    # The grounding contract moved to the system role, where a reasoning
+    # model treats it as instruction rather than as material to summarise
+    # back to the user. Asserted on what reached the daemon rather than on
+    # the constant: a system prompt that never makes it into the request
+    # body does nothing at all.
+    assert (
+        "Never use knowledge from outside these passages"
+        in STATE["last_request"]["system"]
+    )
+    assert "Never use knowledge" not in prompt
 
 
 def test_a_citation_to_a_passage_that_does_not_exist_is_removed(client, library, answering):
@@ -261,10 +269,14 @@ def test_the_instruction_asks_for_prose_not_a_search_result(client, library, ans
     prompt = STATE["last_prompt"]
     # Named documents, so the model can say "the retention policy says".
     assert "from Retention Policy:" in prompt
-    assert "Never open with" in prompt
-    assert "in plain prose" in prompt
+    assert "Never open with" in STATE["last_request"]["system"]
+    system = STATE["last_request"]["system"]
+    assert "in plain prose" in system
     # The old cap that produced telegraphic answers is gone.
-    assert "at most four sentences" not in prompt
+    assert "at most four sentences" not in system
+    # And the model is told not to narrate its way in, which is the habit
+    # that put its reasoning on screen in place of the answer.
+    assert "Do not narrate your reasoning" in system
 
 
 def test_search_engine_throat_clearing_is_removed(client, library, answering):

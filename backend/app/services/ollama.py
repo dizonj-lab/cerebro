@@ -110,6 +110,171 @@ _THINK_OPEN = "<think>"
 _THINK_CLOSE = "</think>"
 
 
+# Turning <think> off does not turn deliberating off. A reasoning model asked
+# for `think: false` stops emitting the tag and then reasons in plain prose
+# instead — restating the question, counting the passages, listing back the
+# rules it was given — which nothing was stripping, so it reached the user as
+# though it were the answer. The tag was never the problem; it was the only
+# part that was easy to find.
+#
+# These are the openings that mark a model talking about the task rather than
+# answering it. Matched only at the start of a line, and only while still in
+# the preamble: "We have two options here" is a fine sentence in an answer,
+# and must survive if it arrives after real prose has started.
+_DELIBERATION = re.compile(
+    r"""^\s*(?:
+        we\s+(?:are\s+given|have|must|need|should|will|can)\b
+      | (?:the\s+)?(?:user|question)\s+(?:is|asks|wants|has)\b
+      | (?:okay|ok|alright|right|so|now|hmm)\b\s*[,:]
+      | let(?:'s|\s+us|\s+me)\b
+      | first(?:ly)?[,:]\s*(?:i|we|let)\b
+      | i\s+(?:need|should|must|will|am\s+asked|have)\s+to\b
+      | i'?ll\s+(?:start|begin|answer|write)\b
+      | my\s+answer\s+(?:should|must|will)\b
+      | the\s+task\s+is\b
+      | looking\s+at\s+the\s+(?:passages?|documents?|question)\b
+      | (?:key\s+)?rules?\s*:
+      | (?:instructions?|guidelines?|constraints?|requirements?)\s*:
+      | (?:step\s+\d+|plan)\s*:
+    )""",
+    re.IGNORECASE | re.VERBOSE,
+)
+# Every opener above starts with one of these words. Checking the first word
+# alone decides almost every response: "Seven years [1]." is released the
+# moment the first space arrives, so a normal answer streams word by word
+# exactly as before. Only a response that genuinely opens with one of these
+# is held long enough to run the full pattern.
+_DELIBERATION_FIRST_WORDS = frozenset(
+    """we the user question okay ok alright right so now hmm let let's lets
+    first firstly i i'll ill my task key rules rule instructions instruction
+    guidelines guideline constraints constraint requirements requirement step
+    plan looking""".split()
+)
+# Enough to run the full pattern against, once the first word says it might
+# be deliberation. The longest opener above is "looking at the passages", so
+# this is conclusive — and short, because the common words are common: "The
+# retention schedule says…" opens with a word on that list and must not be
+# held back any longer than it takes to rule the pattern out.
+_PREAMBLE_SAMPLE = 32
+# Never hold back more than this. If a model deliberates past it, showing the
+# deliberation is better than showing nothing at all.
+_PREAMBLE_CAP = 4000
+
+
+def _is_deliberation(paragraph: str) -> bool:
+    """Whether a paragraph is the model thinking rather than answering."""
+    lines = [line for line in paragraph.splitlines() if line.strip()]
+    if not lines:
+        return False
+    if _DELIBERATION.match(lines[0]):
+        return True
+    # A bare list of restated rules, with no opener above it.
+    bullets = [line for line in lines if line.lstrip().startswith(("-", "*", "•"))]
+    return len(bullets) == len(lines) and len(bullets) >= 3
+
+
+def strip_deliberation(text: str) -> str:
+    """Drop a leading block of the model talking about the task.
+
+    Only leading paragraphs are considered, and only until one of them reads
+    like an answer — so deliberation-shaped prose later in a genuine reply is
+    left alone. If every paragraph looks like deliberation the original is
+    returned: an unhelpful answer is recoverable, an empty one is not.
+    """
+    if not text.strip():
+        return text
+    paragraphs = re.split(r"\n\s*\n", text)
+    kept = 0
+    while kept < len(paragraphs) and _is_deliberation(paragraphs[kept]):
+        kept += 1
+    if kept == 0 or kept == len(paragraphs):
+        return text
+    return "\n\n".join(paragraphs[kept:]).strip()
+
+
+class _PreambleFilter:
+    """Holds back untagged deliberation from a stream.
+
+    Decides from the first few characters, so an answer that does not open
+    with deliberation streams with no delay at all. Once it is holding, it
+    releases at the first paragraph that reads like an answer.
+    """
+
+    def __init__(self) -> None:
+        self.state = "deciding"
+        self.held = ""
+        # Suppressed paragraphs are kept, not thrown away. A stream cannot be
+        # un-sent, so if the whole response turns out to be deliberation there
+        # is no second chance to decide it was the answer after all — and an
+        # odd answer is recoverable where an empty one is not.
+        self.dropped = ""
+
+    def _might_deliberate(self) -> bool:
+        """Whether what is held so far could still be a deliberation opener.
+
+        Decided on the first word, which is the whole point: holding every
+        answer back for eighty characters to find out would turn a streamed
+        reply into one that arrives all at once.
+        """
+        text = self.held.lstrip()
+        if not text:
+            return True
+        word, sep, _ = text.partition(" ")
+        if not sep and "\n" not in text:
+            # The first word is still arriving; it may yet become one of them.
+            lowered = text.lower().rstrip(":,'")
+            return any(w.startswith(lowered) for w in _DELIBERATION_FIRST_WORDS)
+        return word.lower().strip(":,.\n'\"") in _DELIBERATION_FIRST_WORDS
+
+    def feed(self, piece: str) -> str:
+        if self.state == "passing":
+            return piece
+        self.held += piece
+
+        if self.state == "deciding":
+            if not self._might_deliberate():
+                out, self.held, self.state = self.held, "", "passing"
+                return out
+            if len(self.held) < _PREAMBLE_SAMPLE and "\n" not in self.held:
+                return ""
+            if not _is_deliberation(self.held):
+                out, self.held, self.state = self.held, "", "passing"
+                return out
+            self.state = "suppressing"
+
+        # Suppressing: release from the first paragraph that is not deliberation.
+        while True:
+            split = re.search(r"\n\s*\n", self.held)
+            if split is None:
+                break
+            tail = self.held[split.end() :]
+            if tail and not _is_deliberation(tail):
+                # Only release once there is enough after the break to judge.
+                if len(tail) >= _PREAMBLE_SAMPLE or "\n" in tail:
+                    self.held, self.state = "", "passing"
+                    return tail
+                break
+            self.dropped += self.held[: split.end()]
+            self.held = tail
+            if not tail:
+                break
+
+        if len(self.held) > _PREAMBLE_CAP:
+            out, self.held, self.state = self.held, "", "passing"
+            return out
+        return ""
+
+    def flush(self) -> str:
+        if self.state != "suppressing":
+            rest, self.held = self.held, ""
+            return rest
+        # Nothing in this response ever read as an answer. Hand back
+        # everything that was held, rather than nothing at all.
+        rest = strip_deliberation(self.dropped + self.held)
+        self.held = self.dropped = ""
+        return rest
+
+
 def strip_thinking(text: str) -> str:
     cleaned = _THINK.sub("", text)
     # An unterminated block means the model was cut off mid-deliberation;
@@ -291,6 +456,7 @@ def generate_stream(
     *,
     operation: str = "ollama.generate",
     fmt: str | None = None,
+    system: str | None = None,
     timeout: float = GENERATE_TIMEOUT_SECONDS,
 ) -> Iterator[str | Generation]:
     """Stream a generation: each text piece as it arrives, then a summary.
@@ -311,6 +477,12 @@ def generate_stream(
         # <think> tags. Ignored by daemons and models that do not know it.
         "think": False,
     }
+    # Instructions belong in the system role, not in the prompt body. A model
+    # given its rules as prose inside the prompt treats them as material to
+    # work with, and a reasoning model summarises them back before answering
+    # — which is exactly how the rulebook ended up on screen.
+    if system:
+        body["system"] = system
     if fmt:
         body["format"] = fmt
     payload = json.dumps(body).encode("utf-8")
@@ -334,6 +506,10 @@ def generate_stream(
     )
     collected: list[str] = []
     filter_ = _ThinkFilter()
+    # Chained after it, and only for prose: a JSON reply opens with "{", which
+    # never reads as deliberation, but skipping it outright keeps a structured
+    # response off a heuristic's path entirely.
+    preamble = None if fmt else _PreambleFilter()
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
 
@@ -351,6 +527,8 @@ def generate_stream(
                 piece = event.get("response")
                 if isinstance(piece, str) and piece:
                     visible = filter_.feed(piece)
+                    if visible and preamble is not None:
+                        visible = preamble.feed(visible)
                     if visible:
                         collected.append(visible)
                         yield visible
@@ -372,6 +550,10 @@ def generate_stream(
 
     duration_ms = int((time.perf_counter() - started) * 1000)
     trailing = filter_.flush()
+    if preamble is not None:
+        # Whatever the think filter still held goes through the preamble
+        # filter too, then the preamble filter's own remainder.
+        trailing = (preamble.feed(trailing) if trailing else "") + preamble.flush()
     if trailing:
         collected.append(trailing)
         yield trailing
@@ -406,6 +588,7 @@ def generate(
     *,
     operation: str = "ollama.generate",
     fmt: str | None = None,
+    system: str | None = None,
     timeout: float = GENERATE_TIMEOUT_SECONDS,
 ) -> Generation:
     """The whole generation at once, for callers that cannot stream.
@@ -417,7 +600,13 @@ def generate(
     """
     final: Generation | None = None
     for item in generate_stream(
-        base_url, model, prompt, operation=operation, fmt=fmt, timeout=timeout
+        base_url,
+        model,
+        prompt,
+        operation=operation,
+        fmt=fmt,
+        system=system,
+        timeout=timeout,
     ):
         if isinstance(item, Generation):
             final = item

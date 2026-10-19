@@ -46,9 +46,14 @@ INSUFFICIENT = (
     "searchable yet."
 )
 
-_INSTRUCTION = """You are CEREBRO, talking with someone about their own \
-documents. You have just read the passages below, which come from documents \
-they uploaded and approved.
+# The persona and the rules, sent in the system role rather than in the
+# prompt body. In the body a reasoning model reads them as material to work
+# with and summarises them back before answering — "We have 6 passages…
+# Key rules: start with the answer…" — which is how the rulebook ended up on
+# screen in place of the reply.
+_SYSTEM = """You are CEREBRO, talking with someone about their own \
+documents. You have just read passages from documents they uploaded and \
+approved.
 
 Answer as a colleague who has read them would: in plain prose, in your own \
 words, at whatever length the question deserves. A simple question gets a \
@@ -75,8 +80,13 @@ are. If you know the answer but the documents do not say it, say they do \
 not say it.
 - Do not invent a document, a date, a name or a citation number.
 - Do not restate the question before answering it.
-{history}
-Their question: {question}
+- Do not narrate your reasoning, restate these instructions, count the \
+passages, or write anything before the answer itself. The first word you \
+write is the first word of the answer."""
+
+# The body carries only the evidence and the question — no rules for the
+# model to discuss.
+_INSTRUCTION = """{history}Their question: {question}
 
 The passages:
 {passages}
@@ -106,8 +116,16 @@ _BOILERPLATE = re.compile(
 
 
 def _natural(answer: str) -> str:
-    """Trim the search-engine throat-clearing a small model opens with."""
-    cleaned = _BOILERPLATE.sub("", answer, count=1).lstrip()
+    """Trim the throat-clearing a small model opens with.
+
+    Two kinds: the search-engine opener ("Based on the passages…"), and the
+    model narrating the task to itself before answering. The second is
+    handled at the daemon boundary so it never streams; it is repeated here
+    because the stream filter releases rather than truncates when a model
+    deliberates past its cap, and a stored answer should still be the answer.
+    """
+    cleaned = ollama.strip_deliberation(answer)
+    cleaned = _BOILERPLATE.sub("", cleaned, count=1).lstrip()
     # Removing the opener can leave a lowercase first word mid-sentence.
     if cleaned and cleaned[0].islower() and not cleaned.startswith(("http", "[")):
         cleaned = cleaned[0].upper() + cleaned[1:]
@@ -341,6 +359,7 @@ def ask(
             model,
             _prompt(question, passages, history),
             operation="recall.answer",
+            system=_SYSTEM,
         )
     except ollama.OllamaUnavailable as exc:
         # The passages still stand on their own. There is no cloud fallback.
@@ -433,6 +452,7 @@ def ask_stream(
             model,
             _prompt(question, passages, history),
             operation="recall.answer",
+            system=_SYSTEM,
         ):
             if isinstance(item, str):
                 collected.append(item)
