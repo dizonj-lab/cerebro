@@ -159,6 +159,127 @@ make port-forward WEB_PORT=3100
 
 ---
 
+## First run, end to end
+
+From a running CEREBRO to an answer drawn from your own documents. Each step
+says what to expect, so a step that goes wrong is obvious at the time rather
+than three steps later.
+
+### 1. Create an account
+
+Open **http://localhost:3100** and sign up. The session is a JWT in an
+httpOnly cookie, so it is not readable from JavaScript by design — there is
+no token to copy and no client-side token store.
+
+You land on the Dashboard at `/construct`. It is empty, and says so.
+
+> If login ever fails, note that CEREBRO returns **one** message for both an
+> unknown email and a wrong password. That is deliberate anti-enumeration
+> behaviour, not a vague error.
+
+### 2. Add a document
+
+**Ingest** in the sidebar, or `/construct/ingest`. Drop one or more PDFs,
+Word documents, PowerPoints or text files onto the drop zone. Several at once
+is fine — they arrive as a table of rows rather than one form.
+
+CEREBRO inspects each file as it arrives: it reads the bytes, extracts the
+text, and drafts metadata from what the document itself provides. Two
+refusals are deliberate and will show here if they apply:
+
+- **The bytes contradict the extension.** The filename is a claim; the bytes
+  are the evidence.
+- **A PDF has no text layer.** An artifact with no retrievable content must
+  not enter the library. Scanned pages need OCR first.
+
+### 3. Review it
+
+Each row opens a **Review artifact** form: title, author, dates, topics,
+tags, and so on. Every field shows where its value came from — the
+document's own metadata, a byline the document prints, the filename, or
+nothing at all.
+
+With a local model running, **Suggest with local AI** fills what it can and
+marks those fields as AI-suggested. Two rules hold regardless:
+
+- **Enrichment proposes, it never establishes.** Nothing a model suggests is
+  treated as fact until you approve it.
+- `created_date` may come **only** from the document's own metadata, and
+  `author` only from that or from a byline the document prints on its first
+  page. No model may invent either. A name in the body is not an author —
+  being mentioned is not evidence of having written it.
+
+Edit anything you disagree with. Unknown stays unknown; there is no
+placeholder invented to fill a gap.
+
+### 4. Approve it
+
+Approving is what **registers** the document. Until then it is a draft and is
+invisible to search, the galaxy and recollection.
+
+On approval CEREBRO re-verifies the stored bytes against their checksum,
+splits the text into fragments that each stay inside the embedding model's
+budget, embeds them, and records the provenance of the whole operation —
+which splitter, which version, which budget, which model.
+
+The row shows **Registered**. If it instead reports that registration stopped
+before completing, nothing was half-written: the document stays unregistered,
+no fragments are left behind, and you can retry without re-uploading.
+
+### 5. Find it again
+
+**Library** (`/construct/library`) lists what you have registered.
+
+**Search** (`/construct/search`) is the real test. Three modes:
+
+| Mode | What it does |
+| ---- | ------------ |
+| Keyword | PostgreSQL full-text, GIN index |
+| Semantic | Exact cosine over the stored vectors |
+| Hybrid | Both, fused by reciprocal rank (k=60) |
+
+Semantic search only returns anything if your fragments were embedded by the
+model currently in use — see [Why search can go
+quiet](#why-search-can-go-quiet) below.
+
+### 6. Ask it a question
+
+**Assisted Recollection** sits beside the search results, and also on the
+Dashboard and the Galaxy. Ask in plain language: *"what did the proposal say
+about retention?"*
+
+The answer is drawn only from your registered documents and cites them with
+`[1]`, `[2]` markers that map to the passages listed beneath. If the
+documents do not answer the question, it says so and tells you what they are
+about instead — it will not answer from the model's general knowledge, however
+confident the model is.
+
+This needs a local answering model. Without one you still get the passages,
+which stand on their own; there is no cloud fallback.
+
+### 7. See the shape of it
+
+- **Galaxy** (`/construct/galaxy`) — documents and the concepts connecting
+  them, draggable and rotatable. Edges carry their evidence: click one and it
+  names the documents it rests on. CEREBRO draws co-occurrence and never
+  claims an inferred semantic relationship.
+- **Timeline** (`/construct/timeline`) — documents across time, sized by page
+  count and coloured by category.
+- **Performance** (`/construct/performance`) — what each operation actually
+  cost, measured rather than estimated.
+
+Collections, Tags and Agents in the sidebar are placeholders for later work
+and are deliberately inert.
+
+### 8. Check the machinery
+
+`/api/ml/status` (signed in) is the single place that reports what the system
+is really doing: which models it can see, how many of your fragments are
+embedded under the model in use, how many are missing, and the token budget
+in force. It is the first thing to read when something behaves unexpectedly.
+
+---
+
 ## Local AI (optional)
 
 CEREBRO works without any AI model installed. With [Ollama](https://ollama.com)
@@ -271,16 +392,35 @@ contradict the file extension (the filename is a claim, the bytes are the
 evidence), and when a PDF has no text layer (an artifact with no retrievable
 content must not enter the library).
 
-**Search returns nothing after changing the embedding model** — expected.
-Provider, model and width travel with every vector and search matches on all
-three, so documents embedded under the old model drop out of semantic search
-until re-registered. They remain in your library and remain findable by
-keyword. `/api/ml/status` reports how many fragments are missing a vector for
-the active model, and there is a backfill endpoint to fix it.
+**"Registration stopped before completing: Could not reach Ollama"** — a
+reachability problem, not a model problem. Inside a container `localhost` is
+the container; see [Local AI](#local-ai-optional). Registration without a
+local model works fine — this only appears once one is configured.
+
+**The answer shows the model thinking** ("We are given a question…", "Key
+rules:…") — an old image. Reasoning models deliberate in prose when their
+`<think>` tags are turned off; CEREBRO strips that at the daemon boundary.
+Rebuild to pick it up.
 
 **Login does not say which field was wrong** — deliberate. One message covers
 unknown-email and wrong-password alike; it is anti-enumeration behaviour with
 a test asserting it.
+
+### Why search can go quiet
+
+**Semantic search returns nothing after changing the embedding model** —
+expected, and recoverable. Provider, model and width travel with every vector
+and search matches on all three, so documents embedded under the old model
+drop out of semantic search until they are embedded under the new one. They
+remain in your library and remain findable by keyword; nothing is lost.
+
+`/api/ml/status` reports how many fragments are missing a vector for the
+model currently in use, and `POST /api/ml/embeddings/backfill` embeds them
+without re-uploading or re-approving anything.
+
+The same applies the first time you install a local model: documents
+registered while no model was running were embedded by the deterministic
+fallback, and need the same backfill to become semantically searchable.
 
 ---
 
