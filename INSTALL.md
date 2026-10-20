@@ -4,9 +4,13 @@
 personal knowledge and experiences into a connected, private, searchable
 store — Learn · Connect · Reason · Recall.
 
-This document takes a clean machine to a running CEREBRO. There are three
-ways to install it; **Docker Compose is the recommended one** and the only
-one that needs nothing but Docker.
+This document takes a clean machine to a running CEREBRO, whether you were
+handed the **archive** (`cerebro-submission.zip`) or the **repository**. Both
+contain the same project and install identically — git is not needed to build
+or run it.
+
+There are three ways to install; **Docker Compose is the recommended one**
+and the only one that needs nothing but Docker.
 
 | Path | When to use it | Needs |
 | ---- | -------------- | ----- |
@@ -23,19 +27,42 @@ one that needs nothing but Docker.
 Docker Desktop, running. Nothing else — PostgreSQL, the API, the web app and
 the database migrations all come up in containers.
 
-### Install
+### Get the project
+
+Two ways in, depending on what you were given. They are equivalent from the
+second step onwards — the project does not need git to build or run.
+
+**A. You were given the archive** (`cerebro-submission.zip`):
+
+```bash
+unzip cerebro-submission.zip
+cd cerebro
+```
+
+On macOS you can double-click the archive instead; it expands to a `cerebro`
+folder. The archive is the source only — no dependencies, no build output —
+so everything is installed fresh by the step below.
+
+**B. You were given the repository:**
 
 ```bash
 git clone -b cerebro-mvp https://github.com/dizonj-lab/cerebro.git
 cd cerebro
-make compose-up WEB_PORT=3100
 ```
 
 > **The branch matters.** The current project is on `cerebro-mvp`. Cloning
 > without `-b cerebro-mvp` gets the default branch, which is far behind.
 
+### Install
+
+```bash
+make compose-up WEB_PORT=3100
+```
+
 That one command builds both images, starts PostgreSQL, runs the database
 migrations, waits for them to finish, then starts the API and the web app.
+The first build pulls base images and installs dependencies, so expect a few
+minutes; later runs are much faster.
 
 Open **http://localhost:3100** and create an account.
 
@@ -88,6 +115,8 @@ losing anything, use `docker compose stop`.
 ## 2. From source
 
 For development, where you want a reloading API and the Next.js dev server.
+Get the project first, either way from
+[step 1](#get-the-project), then continue here.
 
 ### Prerequisites
 
