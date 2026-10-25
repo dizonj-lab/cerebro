@@ -1,0 +1,98 @@
+%PDF-1.3
+%‚„œ”
+1 0 obj
+<<
+/PageMode /UseNone
+/Pages 2 0 R
+/Type /Catalog
+>>
+endobj
+2 0 obj
+<<
+/Count 1
+/Kids [ 3 0 R ]
+/Type /Pages
+>>
+endobj
+3 0 obj
+<<
+/Contents 4 0 R
+/MediaBox [ 0 0 595.2756 841.8898 ]
+/Parent 2 0 R
+/Resources <<
+/Font 5 0 R
+/ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>>
+/Rotate 0
+/Trans <<
+>>
+/Type /Page
+>>
+endobj
+4 0 obj
+<<
+/Filter [ /ASCII85Decode /FlateDecode ]
+/Length 1009
+>>
+stream
+Gatm9gN(b('RfFOm)O.D23r0;Vba"N;PkI,#p5hmS(JiVXs>seI/R2g0'!Fr+WNP78RtKF?<W\45qsuHr`1&eX#[k@,=j(:s%FVp17I+KebnLu6u5p?8Q:pG.;4n-OXQ,#mpS87-dsU]'ZFXBV\FutSAlH"jU(Vpq_C1V4-W9,PbCK#(-&ubPuMjPHUh.5;@V'`7ao&6q?>-Yd/:'Ii<-7_Jrph(0[dV$(+D[dR>?5W;3jr9]_he")Jt$2.`2gQ9h-K'Q@!>VVT#"\)98cML0h?=Rq&,0j`<b6CKBLWW>)=oT$Gie*3EC,=YNjQgE?H2/1mtAFH%6=h26'MQdfbR(uJ/.bnmOqMgg))@PU)/J1,pb;Pr4K,"_Ce`rfk!8^e:MA41oaUcP5ZP%+'q-;(2n3>5jQ>(e7h5F=om#P][7dRW^gG71jD`(:QgARhA^D=&\CEf`qk]+)#r`smIH2cdLAM8%s)3R6Y5:;eEFG"&<Q/Cd8ANb:9b`\a`g=uU?)&`nSWD&J'lT+/u([0NjMend;E`nm%`%p,qUhI@i3W<hp)]A?PGa!qgICMW1&m%>BG5j;iIn!0',]HD'i;J)kAG(2l]UVUquK[P.6*V02"8mgut\g-KPnc*8@5M%tF,,SM5Na+`M=JlBb6GYHGV355?>)sPtbfWf5qOIc7gS"sa"H*jCUT:WK&M2<^p/3of_RApD^A,0"h7&)Sc\':'F!WEn'ZuL229NPKqMq-Y6t<K)BJMkPDu-mD+N76ZFg-PSA:@VA'I^&ilXMadin;b,a1a;$YA7`qn\"Z<ZZu6[!-JdI.(Ojj#ghVIDOb\4,FT3F#4mE<$7uf/,:,_7)]R5&LCenN'"KAhb76>B$0hZ1=]Weu0,H%s=]aoF#kJeYVB4!tEFj5TVY^/g'6W(J]-amk%&Fp0fPU?:UKp]+3lYqNBg+mN4U&nI[QZ%,=dgF1qPR\_)l3a`(M#]1PO*V7<1@V.rFkh<!5.Vb29nZUE?(PI"6Cja7f~>
+endstream
+endobj
+5 0 obj
+<<
+/F1 6 0 R
+/F2 7 0 R
+>>
+endobj
+6 0 obj
+<<
+/BaseFont /Helvetica
+/Encoding /WinAnsiEncoding
+/Name /F1
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+7 0 obj
+<<
+/BaseFont /Helvetica-Bold
+/Encoding /WinAnsiEncoding
+/Name /F2
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+8 0 obj
+<<
+/Author (Joselito Dizon)
+/CreationDate (D\07220260928090000\05300\04700\047)
+/Creator (CEREBRO demo library)
+/Keywords ()
+/ModDate (D\07220260928090000\05300\04700\047)
+/Producer (CEREBRO demo library)
+/Subject (How small local models will be compared for grounded answering in both projects\056)
+/Title (Local LLM Evaluation Plan)
+/Trapped /False
+>>
+endobj
+xref
+0 9
+0000000000 65535 f 
+0000000015 00000 n 
+0000000083 00000 n 
+0000000142 00000 n 
+0000000341 00000 n 
+0000001442 00000 n 
+0000001483 00000 n 
+0000001590 00000 n 
+0000001702 00000 n 
+trailer
+<<
+/Size 9
+/Root 1 0 R
+/Info 8 0 R
+/ID [ <93f779ecd1f2924a75b2cd56e4383cfa> <93f779ecd1f2924a75b2cd56e4383cfa> ]
+>>
+startxref
+2071
+%%EOF
