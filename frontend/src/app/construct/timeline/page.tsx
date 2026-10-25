@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export default function TimelinePage() {
   // The view reads ?focus from the URL on the client, so it suspends.
   return (
-    <Suspense fallback={<p className="p-4 text-sm text-white/50">Loading timeline…</p>}>
+    <Suspense fallback={<p className="p-4 text-sm text-scene-ink/50">Loading timeline…</p>}>
       <TimelineView />
     </Suspense>
   );

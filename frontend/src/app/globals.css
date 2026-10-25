@@ -37,6 +37,24 @@
   --color-danger-subtle: #fef3f2;
   --color-success: #067647;
 
+  /* --- Scene: the Galaxy and Timeline canvases ------------------------ */
+  /* The two views draw on their own stage. Text, borders and hairlines use
+     `scene-ink` at an opacity (`text-scene-ink/50`), so one token carries
+     every shade and the theme flips them all at once. Dark values are the
+     colours the views were designed with. */
+  --color-scene: #f3f5f9;
+  --color-scene-raised: #ffffff;
+  --color-scene-overlay: #ffffff;
+  --color-scene-sunken: #e9edf3;
+  --color-scene-hover: #e3e9f2;
+  --color-scene-ink: #14171c;
+  /* A page thumbnail is paper in both themes; dark text on bright fills too. */
+  --color-paper: #ffffff;
+  --color-on-bright: #07121f;
+  --scene-glow-1: rgba(56, 110, 190, 0.1);
+  --scene-glow-2: rgba(24, 150, 130, 0.08);
+  --scene-glow-3: rgba(140, 90, 210, 0.08);
+
   /* --- Radius: moderate and consistent -------------------------------- */
   --radius-sm: 0.375rem;
   --radius-md: 0.5rem;
@@ -87,6 +105,16 @@
     --color-danger-subtle: #2a1715;
     --color-success: #5bd09b;
 
+    --color-scene: #070b14;
+    --color-scene-raised: #101725;
+    --color-scene-overlay: #0e1522;
+    --color-scene-sunken: #0b111c;
+    --color-scene-hover: #1a2334;
+    --color-scene-ink: #ffffff;
+    --scene-glow-1: rgba(56, 110, 190, 0.22);
+    --scene-glow-2: rgba(24, 150, 130, 0.16);
+    --scene-glow-3: rgba(140, 90, 210, 0.16);
+
     /* Shadows read as haze on a dark surface; depth comes from the borders
        the components already have. */
     --shadow-subtle: 0 1px 2px 0 rgb(0 0 0 / 0.5);
@@ -118,6 +146,16 @@
       --color-danger: #f08b7f;
       --color-danger-subtle: #2a1715;
       --color-success: #5bd09b;
+
+      --color-scene: #070b14;
+      --color-scene-raised: #101725;
+      --color-scene-overlay: #0e1522;
+      --color-scene-sunken: #0b111c;
+      --color-scene-hover: #1a2334;
+      --color-scene-ink: #ffffff;
+      --scene-glow-1: rgba(56, 110, 190, 0.22);
+      --scene-glow-2: rgba(24, 150, 130, 0.16);
+      --scene-glow-3: rgba(140, 90, 210, 0.16);
 
       --shadow-subtle: 0 1px 2px 0 rgb(0 0 0 / 0.5);
       --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.6), 0 1px 2px -1px rgb(0 0 0 / 0.4);

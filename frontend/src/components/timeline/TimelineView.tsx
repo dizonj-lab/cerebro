@@ -323,15 +323,15 @@ export function TimelineView() {
   }
 
   return (
-    <div className="flex h-[calc(100dvh-7.5rem)] min-h-0 flex-col gap-2 text-white">
+    <div className="flex h-[calc(100dvh-7.5rem)] min-h-0 flex-col gap-2 text-scene-ink">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Timeline</h1>
-          <p className="text-sm text-white/55">Explore the evolution of your knowledge over time</p>
+          <p className="text-sm text-scene-ink/55">Explore the evolution of your knowledge over time</p>
         </div>
-        <div className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 p-0.5 text-xs">
-          <span className="rounded-md bg-sky-500 px-3 py-1.5 font-medium text-[#07121f]">Timeline</span>
-          <Link href="/construct/galaxy" className="rounded-md px-3 py-1.5 text-white/65 hover:text-white">
+        <div className="flex items-center gap-1 rounded-lg border border-scene-ink/10 bg-scene-ink/5 p-0.5 text-xs">
+          <span className="rounded-md bg-sky-500 px-3 py-1.5 font-medium text-on-bright">Timeline</span>
+          <Link href="/construct/galaxy" className="rounded-md px-3 py-1.5 text-scene-ink/65 hover:text-scene-ink">
             Galaxy
           </Link>
         </div>
@@ -342,7 +342,7 @@ export function TimelineView() {
           aria-label="Category"
           value={categories[0] ?? ""}
           onChange={(e) => setCategories(e.target.value ? [e.target.value] : [])}
-          className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white outline-none"
+          className="rounded-lg border border-scene-ink/10 bg-scene-ink/5 px-3 py-2 text-scene-ink outline-none"
         >
           <option value="">All Categories</option>
           {lanes.map((lane) => (
@@ -354,7 +354,7 @@ export function TimelineView() {
           aria-label="Source"
           value={source}
           onChange={(e) => setSource(e.target.value)}
-          className="max-w-[12rem] rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white outline-none"
+          className="max-w-[12rem] rounded-lg border border-scene-ink/10 bg-scene-ink/5 px-3 py-2 text-scene-ink outline-none"
         >
           <option value="">All Sources</option>
           {(data?.sources ?? []).map(([id, filename]) => (
@@ -369,7 +369,7 @@ export function TimelineView() {
             setEntityType(e.target.value);
             setEntity("");
           }}
-          className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white outline-none"
+          className="rounded-lg border border-scene-ink/10 bg-scene-ink/5 px-3 py-2 text-scene-ink outline-none"
         >
           <option value="">All Entity Types</option>
           {Object.keys(data?.entity_values ?? {}).map((field) => (
@@ -382,7 +382,7 @@ export function TimelineView() {
             aria-label="Entity"
             value={entity}
             onChange={(e) => setEntity(e.target.value)}
-            className="max-w-[12rem] rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white outline-none"
+            className="max-w-[12rem] rounded-lg border border-scene-ink/10 bg-scene-ink/5 px-3 py-2 text-scene-ink outline-none"
           >
             <option value="">Any</option>
             {(data?.entity_values?.[entityType] ?? []).map((value) => (
@@ -391,37 +391,37 @@ export function TimelineView() {
           </select>
         )}
 
-        <label className="flex items-center gap-1.5 text-white/55">
+        <label className="flex items-center gap-1.5 text-scene-ink/55">
           <span className="sr-only">From</span>
           <input
             type="date"
             aria-label="From date"
             value={start}
             onChange={(e) => setStart(e.target.value)}
-            className="rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-white outline-none"
+            className="rounded-lg border border-scene-ink/10 bg-scene-ink/5 px-2 py-2 text-scene-ink outline-none"
           />
         </label>
-        <label className="flex items-center gap-1.5 text-white/55">
+        <label className="flex items-center gap-1.5 text-scene-ink/55">
           <span className="sr-only">To</span>
           <input
             type="date"
             aria-label="To date"
             value={end}
             onChange={(e) => setEnd(e.target.value)}
-            className="rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-white outline-none"
+            className="rounded-lg border border-scene-ink/10 bg-scene-ink/5 px-2 py-2 text-scene-ink outline-none"
           />
         </label>
 
         <button
           type="button"
           onClick={reset}
-          className="rounded-lg border border-white/10 px-3 py-2 text-white/70 hover:text-white"
+          className="rounded-lg border border-scene-ink/10 px-3 py-2 text-scene-ink/70 hover:text-scene-ink"
         >
           Reset
         </button>
 
         {data && (
-          <span className="ml-auto text-white/40" data-testid="timeline-summary">
+          <span className="ml-auto text-scene-ink/40" data-testid="timeline-summary">
             {data.total} event{data.total === 1 ? "" : "s"} · {data.extraction.method} v
             {data.extraction.version} · {Math.round(data.took_ms)} ms
           </span>
@@ -431,14 +431,14 @@ export function TimelineView() {
       <div className="flex min-h-0 flex-1 gap-2">
         <section
           aria-label="Knowledge timeline"
-          className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-white/10 bg-[#070b14]"
+          className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-scene-ink/10 bg-scene"
         >
           {error && <p className="p-4 text-sm text-rose-300">{error}</p>}
-          {!error && loading && !data && <p className="p-4 text-sm text-white/50">Reading your knowledge…</p>}
+          {!error && loading && !data && <p className="p-4 text-sm text-scene-ink/50">Reading your knowledge…</p>}
           {!error && data && data.total === 0 && (
             <div className="p-6 text-sm" data-testid="timeline-empty">
               <p className="font-medium">No dated statements in your registered documents yet.</p>
-              <p className="mt-1 text-white/55">
+              <p className="mt-1 text-scene-ink/55">
                 The timeline is built from dates the documents themselves give — “in March 2021”,
                 “on 2023-09-12”. Registering a document that states dates will fill it.
               </p>
@@ -447,14 +447,14 @@ export function TimelineView() {
 
           {data && data.total > 0 && window_ && (
             <>
-              <div className="relative h-10 shrink-0 border-b border-white/10">
+              <div className="relative h-10 shrink-0 border-b border-scene-ink/10">
                 {ticks.map((tick) => (
                   <span
                     key={`${tick.label}-${tick.at}`}
                     style={{ left: `${tick.at}%` }}
                     className={cn(
                       "absolute top-2 -translate-x-1/2 text-[0.7rem]",
-                      tick.major ? "font-semibold text-white/80" : "text-white/40",
+                      tick.major ? "font-semibold text-scene-ink/80" : "text-scene-ink/40",
                     )}
                   >
                     {tick.label}
@@ -471,7 +471,7 @@ export function TimelineView() {
                 <div
                   data-testid="anchor-band"
                   style={{ height: `${anchorRows * 20 + 8}px` }}
-                  className="relative shrink-0 border-b border-white/10 bg-white/[0.02]"
+                  className="relative shrink-0 border-b border-scene-ink/10 bg-scene-ink/[0.02]"
                 >
                   {placedAnchors.map(({ anchor, left, width, row }) => (
                     <button
@@ -482,7 +482,7 @@ export function TimelineView() {
                       onPointerDown={(e) => e.stopPropagation()}
                       onClick={() => setSelectedAnchor(anchor)}
                       style={{ left: `${left}%`, width: `${width}%`, top: `${row * 20 + 4}px` }}
-                      className="absolute h-4 overflow-hidden rounded border border-white/20 bg-white/10 px-1.5 text-left text-[0.65rem] leading-[0.9rem] text-white/80 hover:bg-white/20"
+                      className="absolute h-4 overflow-hidden rounded border border-scene-ink/20 bg-scene-ink/10 px-1.5 text-left text-[0.65rem] leading-[0.9rem] text-scene-ink/80 hover:bg-scene-ink/20"
                     >
                       <span className="truncate">{anchor.organization ?? anchor.title}</span>
                     </button>
@@ -505,7 +505,7 @@ export function TimelineView() {
                     style={{ left: `${tick.at}%` }}
                     className={cn(
                       "pointer-events-none absolute inset-y-0 w-px",
-                      tick.major ? "bg-white/10" : "bg-white/5",
+                      tick.major ? "bg-scene-ink/10" : "bg-scene-ink/5",
                     )}
                   />
                 ))}
@@ -520,7 +520,7 @@ export function TimelineView() {
                       key={lane.name}
                       data-testid={`lane-${lane.name}`}
                       style={{ minHeight: `${rows * ROW_HEIGHT_PX + 26}px` }}
-                      className="relative border-b border-white/5"
+                      className="relative border-b border-scene-ink/5"
                     >
                       <div className="pointer-events-none absolute left-0 top-2 z-10 pl-3">
                         <span
@@ -529,7 +529,7 @@ export function TimelineView() {
                         >
                           {lane.name}
                         </span>
-                        <span className="block text-[0.65rem] text-white/35">
+                        <span className="block text-[0.65rem] text-scene-ink/35">
                           {count} event{count === 1 ? "" : "s"}
                         </span>
                       </div>
@@ -553,8 +553,8 @@ export function TimelineView() {
                               "absolute w-[10.5rem] rounded-lg border px-2.5 py-1.5 text-left transition-all duration-150",
                               "backdrop-blur hover:z-20 hover:scale-[1.03]",
                               selected?.id === event.id
-                                ? "border-white/40 bg-white/15"
-                                : "border-white/10 bg-white/[0.06] hover:border-white/25",
+                                ? "border-scene-ink/40 bg-scene-ink/15"
+                                : "border-scene-ink/10 bg-scene-ink/[0.06] hover:border-scene-ink/25",
                               dimmed && "opacity-25",
                             )}
                           >
@@ -580,14 +580,14 @@ export function TimelineView() {
                                 without it two cards from one document are
                                 indistinguishable; it is just no longer the
                                 headline. */}
-                            <span className="block truncate text-[0.7rem] font-medium text-white">
+                            <span className="block truncate text-[0.7rem] font-medium text-scene-ink">
                               {event.document?.title ?? event.filename}
                             </span>
-                            <span className="block text-[0.65rem] text-white/45">
+                            <span className="block text-[0.65rem] text-scene-ink/45">
                               {formatEventDate(event)}
                               {event.document?.pages ? ` · ${event.document.pages}p` : ""}
                             </span>
-                            <span className="mt-0.5 block truncate text-[0.6rem] text-white/35">
+                            <span className="mt-0.5 block truncate text-[0.6rem] text-scene-ink/35">
                               {event.title}
                             </span>
                           </button>
@@ -606,22 +606,22 @@ export function TimelineView() {
                 onChange={setWindow}
               />
 
-              <div className="flex flex-wrap items-center gap-3 border-t border-white/10 px-3 py-2 text-[0.65rem]">
+              <div className="flex flex-wrap items-center gap-3 border-t border-scene-ink/10 px-3 py-2 text-[0.65rem]">
                 {lanes.filter((lane) => lane.name !== "Other" || lane.count > 0).map((lane) => (
-                  <span key={lane.name} className="flex items-center gap-1.5 text-white/55">
+                  <span key={lane.name} className="flex items-center gap-1.5 text-scene-ink/55">
                     <span className="size-2 rounded-full" style={{ background: lane.color }} />
                     {lane.name}
                   </span>
                 ))}
-                <span className="ml-auto flex items-center gap-2 text-white/55">
+                <span className="ml-auto flex items-center gap-2 text-scene-ink/55">
                   Zoom:
-                  <button type="button" aria-label="Zoom in" onClick={() => zoom(0.7)} className="rounded border border-white/15 px-2 py-0.5">+</button>
-                  <button type="button" aria-label="Zoom out" onClick={() => zoom(1.4)} className="rounded border border-white/15 px-2 py-0.5">−</button>
+                  <button type="button" aria-label="Zoom in" onClick={() => zoom(0.7)} className="rounded border border-scene-ink/15 px-2 py-0.5">+</button>
+                  <button type="button" aria-label="Zoom out" onClick={() => zoom(1.4)} className="rounded border border-scene-ink/15 px-2 py-0.5">−</button>
                   <span data-testid="zoom-level">{zoomPercent}%</span>
                   <button
                     type="button"
                     onClick={() => data && setWindow(fitAll(data))}
-                    className="rounded border border-white/15 px-2 py-0.5"
+                    className="rounded border border-scene-ink/15 px-2 py-0.5"
                   >
                     Fit
                   </button>
@@ -637,31 +637,31 @@ export function TimelineView() {
           {selectedAnchor && (
             <div
               data-testid="anchor-details"
-              className="absolute bottom-24 right-4 z-30 max-w-sm rounded-lg border border-white/15 bg-[#0e1522]/97 p-3 text-xs shadow-2xl"
+              className="absolute bottom-24 right-4 z-30 max-w-sm rounded-lg border border-scene-ink/15 bg-scene-overlay/97 p-3 text-xs shadow-2xl"
             >
               <div className="flex items-start justify-between gap-3">
-                <p className="font-medium text-white">{selectedAnchor.title}</p>
+                <p className="font-medium text-scene-ink">{selectedAnchor.title}</p>
                 <button
                   type="button"
                   aria-label="Close anchor details"
                   onClick={() => setSelectedAnchor(null)}
-                  className="rounded p-0.5 text-white/50 hover:text-white"
+                  className="rounded p-0.5 text-scene-ink/50 hover:text-scene-ink"
                 >
                   ✕
                 </button>
               </div>
-              <p className="mt-0.5 text-white/55">
+              <p className="mt-0.5 text-scene-ink/55">
                 {describeRange(selectedAnchor)}
                 {selectedAnchor.organization ? ` · ${selectedAnchor.organization}` : ""}
               </p>
-              <p className="mt-1 text-[0.65rem] text-white/40">
+              <p className="mt-1 text-[0.65rem] text-scene-ink/40">
                 {selectedAnchor.event_type.replace(/_/g, " ")} ·{" "}
                 {selectedAnchor.provenance_type === "user_entered"
                   ? "you added this"
                   : "from your CV"}
               </p>
               {selectedAnchor.evidence_text && (
-                <p className="mt-2 border-t border-white/10 pt-2 italic text-white/45">
+                <p className="mt-2 border-t border-scene-ink/10 pt-2 italic text-scene-ink/45">
                   “{selectedAnchor.evidence_text}”
                 </p>
               )}
@@ -672,12 +672,12 @@ export function TimelineView() {
           {hovered && hovered.id !== selected?.id && (
             <div
               data-testid="timeline-hover"
-              className="pointer-events-none absolute bottom-24 left-4 z-30 max-w-sm rounded-lg border border-white/15 bg-[#0e1522]/95 p-3 text-xs shadow-2xl"
+              className="pointer-events-none absolute bottom-24 left-4 z-30 max-w-sm rounded-lg border border-scene-ink/15 bg-scene-overlay/95 p-3 text-xs shadow-2xl"
             >
-              <p className="font-medium text-white">
+              <p className="font-medium text-scene-ink">
                 {hovered.document?.title ?? hovered.filename}
               </p>
-              <p className="mt-0.5 text-[0.65rem] text-white/40">
+              <p className="mt-0.5 text-[0.65rem] text-scene-ink/40">
                 {hovered.filename}
                 {hovered.document?.pages
                   ? ` · ${hovered.document.pages} page${hovered.document.pages === 1 ? "" : "s"}`
@@ -688,16 +688,16 @@ export function TimelineView() {
                   says where it came from. A date the file does not assert is
                   shown as unknown rather than filled in with the upload
                   time. */}
-              <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 border-t border-white/10 pt-2">
+              <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 border-t border-scene-ink/10 pt-2">
                 <DocumentDate label="Created" value={hovered.document?.created ?? null} />
                 <DocumentDate label="Modified" value={hovered.document?.modified ?? null} />
                 <DocumentDate label="Registered" value={hovered.document?.registered ?? null} />
               </dl>
 
-              <p className="mt-2 border-t border-white/10 pt-2 text-white/55">
+              <p className="mt-2 border-t border-scene-ink/10 pt-2 text-scene-ink/55">
                 {formatEventDate(hovered)} · {hovered.event_type}
               </p>
-              <p className="mt-1 line-clamp-3 text-white/45">{hovered.evidence}</p>
+              <p className="mt-1 line-clamp-3 text-scene-ink/45">{hovered.evidence}</p>
             </div>
           )}
         </section>
@@ -714,7 +714,7 @@ export function TimelineView() {
             type="button"
             onClick={() => setPanelOpen(true)}
             aria-label="Show event details"
-            className="shrink-0 rounded-xl border border-white/10 bg-[#0b111c] px-2 text-xs text-white/60"
+            className="shrink-0 rounded-xl border border-scene-ink/10 bg-scene-sunken px-2 text-xs text-scene-ink/60"
           >
             ▸
           </button>
@@ -736,10 +736,12 @@ export function TimelineView() {
 function DocumentDate({ label, value }: { label: string; value: string | null }) {
   return (
     <>
-      <dt className="text-[0.65rem] text-white/40">{label}</dt>
-      <dd className={cn("text-[0.65rem]", value ? "text-white/70" : "text-white/30")}>
+      <dt className="text-[0.65rem] text-scene-ink/40">{label}</dt>
+      <dd className={cn("text-[0.65rem]", value ? "text-scene-ink/70" : "text-scene-ink/30")}>
         {value
-          ? new Date(`${value}T00:00:00`).toLocaleDateString(undefined, {
+          ? // Created and modified are dates; registered is a full timestamp. Both are read
+            // as a calendar date, so a timestamp no longer becomes "Invalid Date".
+            new Date(`${value.slice(0, 10)}T00:00:00`).toLocaleDateString(undefined, {
               day: "numeric",
               month: "short",
               year: "numeric",

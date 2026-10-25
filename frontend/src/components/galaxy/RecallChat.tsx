@@ -117,7 +117,7 @@ export function RecallChat({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="absolute bottom-4 right-4 z-30 inline-flex items-center gap-2 rounded-full border border-white/15 bg-[#101725]/95 px-4 py-2.5 text-sm font-medium text-white shadow-xl backdrop-blur transition-colors hover:bg-[#182238]"
+        className="absolute bottom-4 right-4 z-30 inline-flex items-center gap-2 rounded-full border border-scene-ink/15 bg-scene-raised/95 px-4 py-2.5 text-sm font-medium text-scene-ink shadow-xl backdrop-blur transition-colors hover:bg-scene-hover"
       >
         <Spark />
         Ask CEREBRO
@@ -126,9 +126,9 @@ export function RecallChat({
   }
 
   return (
-    <section className="absolute bottom-4 right-4 z-30 flex h-[23rem] w-[21rem] max-w-[calc(100%-2rem)] flex-col rounded-xl border border-white/15 bg-[#0e1522]/97 shadow-2xl backdrop-blur">
-      <header className="flex items-center justify-between gap-2 border-b border-white/10 px-3 py-2.5">
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
+    <section className="absolute bottom-4 right-4 z-30 flex h-[23rem] w-[21rem] max-w-[calc(100%-2rem)] flex-col rounded-xl border border-scene-ink/15 bg-scene-overlay/97 shadow-2xl backdrop-blur">
+      <header className="flex items-center justify-between gap-2 border-b border-scene-ink/10 px-3 py-2.5">
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-scene-ink">
           <Spark />
           Ask CEREBRO
         </h2>
@@ -136,7 +136,7 @@ export function RecallChat({
           type="button"
           onClick={() => setOpen(false)}
           aria-label="Close chat"
-          className="rounded-md p-1 text-white/60 transition-colors hover:bg-white/10"
+          className="rounded-md p-1 text-scene-ink/60 transition-colors hover:bg-scene-ink/10"
         >
           <svg viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
             <path d="m5.5 5.5 9 9M14.5 5.5l-9 9" strokeLinecap="round" />
@@ -145,20 +145,20 @@ export function RecallChat({
       </header>
 
       {/* What the question will be answered against, stated rather than implied. */}
-      <p className="border-b border-white/10 px-3 py-1.5 text-[0.625rem] text-white/45">
+      <p className="border-b border-scene-ink/10 px-3 py-1.5 text-[0.625rem] text-scene-ink/45">
         {topic ? `Context: ${topic} · ` : ""}Answers come from your registered documents.
       </p>
 
       <div ref={log} className="flex-1 space-y-3 overflow-y-auto p-3">
         {turns.length === 0 && (
-          <p className="text-[0.75rem] leading-relaxed text-white/45">
+          <p className="text-[0.75rem] leading-relaxed text-scene-ink/45">
             Ask what a concept means, where you learned it, or which documents discuss it.
             Every answer cites the documents it came from.
           </p>
         )}
         {turns.map((turn, i) => (
           <div key={`${turn.question}-${i}`} className="space-y-2">
-            <p className="ml-auto w-fit max-w-[85%] rounded-lg rounded-br-sm bg-sky-500/20 px-2.5 py-1.5 text-[0.75rem] text-white">
+            <p className="ml-auto w-fit max-w-[85%] rounded-lg rounded-br-sm bg-sky-500/20 px-2.5 py-1.5 text-[0.75rem] text-scene-ink">
               {turn.question}
             </p>
             {turn.error ? (
@@ -166,24 +166,24 @@ export function RecallChat({
             ) : turn.reply ? (
               <Reply reply={turn.reply} onShowMe={onShowMe} />
             ) : (
-              <p className="text-[0.75rem] text-white/40">Searching your library…</p>
+              <p className="text-[0.75rem] text-scene-ink/40">Searching your library…</p>
             )}
           </div>
         ))}
       </div>
 
-      <form onSubmit={send} className="flex items-center gap-2 border-t border-white/10 p-2.5">
+      <form onSubmit={send} className="flex items-center gap-2 border-t border-scene-ink/10 p-2.5">
         <input
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           aria-label="Ask or describe what you're looking for"
           placeholder="Ask or describe what you're looking for…"
-          className="w-full rounded-lg border border-white/12 bg-white/5 px-2.5 py-2 text-[0.75rem] text-white outline-none placeholder:text-white/35 focus:border-sky-400/60"
+          className="w-full rounded-lg border border-scene-ink/12 bg-scene-ink/5 px-2.5 py-2 text-[0.75rem] text-scene-ink outline-none placeholder:text-scene-ink/35 focus:border-sky-400/60"
         />
         <button
           type="submit"
           disabled={busy || !question.trim()}
-          className="shrink-0 rounded-lg bg-sky-500 px-3 py-2 text-[0.75rem] font-medium text-[#07121f] transition-opacity disabled:opacity-40"
+          className="shrink-0 rounded-lg bg-sky-500 px-3 py-2 text-[0.75rem] font-medium text-on-bright transition-opacity disabled:opacity-40"
         >
           {busy ? "…" : "Send"}
         </button>
@@ -200,11 +200,11 @@ function Reply({
   onShowMe?: (reply: CerebroRecallAnswer) => void;
 }) {
   return (
-    <div className="w-fit max-w-[92%] space-y-2 rounded-lg rounded-bl-sm bg-white/8 px-2.5 py-2">
+    <div className="w-fit max-w-[92%] space-y-2 rounded-lg rounded-bl-sm bg-scene-ink/8 px-2.5 py-2">
       {reply.answer ? (
-        <p className="text-[0.75rem] leading-relaxed text-white/90">{reply.answer}</p>
+        <p className="text-[0.75rem] leading-relaxed text-scene-ink/90">{reply.answer}</p>
       ) : reply.sources.length > 0 ? (
-        <p className="text-[0.75rem] leading-relaxed text-white/75">
+        <p className="text-[0.75rem] leading-relaxed text-scene-ink/75">
           Found {reply.sources.length} passage{reply.sources.length === 1 ? "" : "s"} in your
           library:
         </p>
@@ -212,7 +212,7 @@ function Reply({
 
       {/* What ran, from the daemon's own accounting. */}
       {reply.telemetry && (
-        <p data-testid="chat-telemetry" className="text-[0.625rem] text-white/45">
+        <p data-testid="chat-telemetry" className="text-[0.625rem] text-scene-ink/45">
           {reply.telemetry.model}
           {reply.telemetry.duration_ms !== null && ` · ${reply.telemetry.duration_ms} ms`}
           {reply.telemetry.completion_tokens !== null &&
@@ -220,7 +220,7 @@ function Reply({
         </p>
       )}
 
-      {reply.note && <p className="text-[0.625rem] text-white/50">{reply.note}</p>}
+      {reply.note && <p className="text-[0.625rem] text-scene-ink/50">{reply.note}</p>}
 
       {/* Maps the answer onto the galaxy: what it quoted, what it merely
           found, and what it did not touch. */}
@@ -241,21 +241,21 @@ function Reply({
           href={api.artifactContentUrl(source.artifact_id)}
           target="_blank"
           rel="noopener noreferrer"
-          className="block rounded-md border border-white/10 p-2 transition-colors hover:border-white/25"
+          className="block rounded-md border border-scene-ink/10 p-2 transition-colors hover:border-scene-ink/25"
         >
           <span className="block text-[0.6875rem] font-medium text-sky-300">
             [{source.index}] {source.title || source.filename}
             {source.source_location?.page ? ` · page ${source.source_location.page}` : ""}
           </span>
-          <span className="mt-0.5 block line-clamp-2 text-[0.6875rem] leading-relaxed text-white/55">
+          <span className="mt-0.5 block line-clamp-2 text-[0.6875rem] leading-relaxed text-scene-ink/55">
             {source.excerpt}
           </span>
         </a>
       ))}
 
-      {reply.note && <p className="text-[0.625rem] text-white/40">{reply.note}</p>}
+      {reply.note && <p className="text-[0.625rem] text-scene-ink/40">{reply.note}</p>}
       {reply.model && (
-        <p className="text-[0.625rem] text-white/35">
+        <p className="text-[0.625rem] text-scene-ink/35">
           Phrased by {reply.model}, running in your CEREBRO environment.
         </p>
       )}

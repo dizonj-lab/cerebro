@@ -38,8 +38,8 @@ export function KnowledgeTimeline({
 
   if (!events.length) {
     return (
-      <section className="bg-[#101725] px-4 py-5 text-center">
-        <p className="text-sm text-white/60">
+      <section className="bg-scene-raised px-4 py-5 text-center">
+        <p className="text-sm text-scene-ink/60">
           Your timeline fills as you register documents. Dates come from the document
           itself where it states one.
         </p>
@@ -54,11 +54,11 @@ export function KnowledgeTimeline({
     : events;
 
   return (
-    <section className="flex h-full min-h-0 flex-col bg-[#101725]">
+    <section className="flex h-full min-h-0 flex-col bg-scene-raised">
       <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5">
         <div className="flex items-baseline gap-2">
-          <h2 className="text-xs font-semibold text-white">Knowledge Timeline</h2>
-          <span className="text-[0.625rem] text-white/45">
+          <h2 className="text-xs font-semibold text-scene-ink">Knowledge Timeline</h2>
+          <span className="text-[0.625rem] text-scene-ink/45">
             {total} document{total === 1 ? "" : "s"} · {years.length} year
             {years.length === 1 ? "" : "s"}
           </span>
@@ -68,12 +68,12 @@ export function KnowledgeTimeline({
             <button
               type="button"
               onClick={() => setFocusedMonth(null)}
-              className="rounded border border-white/15 px-1.5 py-0.5 text-[0.625rem] font-medium text-white/70 transition-colors hover:text-white"
+              className="rounded border border-scene-ink/15 px-1.5 py-0.5 text-[0.625rem] font-medium text-scene-ink/70 transition-colors hover:text-scene-ink"
             >
               Show all
             </button>
           )}
-          <span className="hidden text-[0.625rem] text-white/35 lg:inline">
+          <span className="hidden text-[0.625rem] text-scene-ink/35 lg:inline">
             Dates stated by the document, or when registered.
           </span>
           {onToggleCollapsed && (
@@ -82,7 +82,7 @@ export function KnowledgeTimeline({
               onClick={onToggleCollapsed}
               aria-expanded={!collapsed}
               aria-label={collapsed ? "Expand timeline" : "Collapse timeline"}
-              className="rounded p-1 text-white/55 transition-colors hover:bg-white/10 hover:text-white"
+              className="rounded p-1 text-scene-ink/55 transition-colors hover:bg-scene-ink/10 hover:text-scene-ink"
             >
               <svg viewBox="0 0 20 20" className={cn("size-4 transition-transform", collapsed && "rotate-180")} fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
                 <path d="M5.5 12 10 7.5l4.5 4.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -106,11 +106,11 @@ export function KnowledgeTimeline({
               // long year is wider than a short one.
               style={{ flex: `${year.months.length} 0 auto` }}
             >
-              <div className="flex items-baseline gap-1.5 border-b border-white/10 pb-0.5">
-                <span className="text-[0.6875rem] font-semibold tabular-nums text-white">
+              <div className="flex items-baseline gap-1.5 border-b border-scene-ink/10 pb-0.5">
+                <span className="text-[0.6875rem] font-semibold tabular-nums text-scene-ink">
                   {year.year}
                 </span>
-                <span className="truncate text-[0.5625rem] text-white/40">
+                <span className="truncate text-[0.5625rem] text-scene-ink/40">
                   {year.count} doc{year.count === 1 ? "" : "s"}
                 </span>
               </div>
@@ -141,7 +141,7 @@ export function KnowledgeTimeline({
                         // Capped so a year with one month does not become a
                         // single bar the width of the screen.
                         "flex min-w-0 max-w-10 flex-1 flex-col items-center gap-0.5 rounded-sm py-0.5 transition-colors",
-                        active ? "bg-white/15" : !empty && "hover:bg-white/8",
+                        active ? "bg-scene-ink/15" : !empty && "hover:bg-scene-ink/8",
                         empty && "cursor-default",
                       )}
                     >
@@ -153,15 +153,15 @@ export function KnowledgeTimeline({
                         style={{
                           height: empty ? 2 : 4 + (month.events.length / year.peak) * 18,
                           background: empty
-                            ? "rgba(255,255,255,0.12)"
+                            ? "color-mix(in srgb, var(--color-scene-ink) 12%, transparent)"
                             : colorFor(month.events[0].category),
                           opacity: empty || related || active ? 1 : 0.6,
                         }}
                       />
-                      <span className="text-[0.5rem] tabular-nums text-white/55">
+                      <span className="text-[0.5rem] tabular-nums text-scene-ink/55">
                         {empty ? "" : month.events.length}
                       </span>
-                      <span className="truncate text-[0.5rem] text-white/35">
+                      <span className="truncate text-[0.5rem] text-scene-ink/35">
                         {month.short.slice(0, 1)}
                       </span>
                     </button>
@@ -186,20 +186,20 @@ export function KnowledgeTimeline({
                 className={cn(
                   "flex h-full w-44 flex-col gap-1.5 rounded-md border p-1.5 text-left transition-colors",
                   active
-                    ? "border-white/35 bg-white/10"
-                    : "border-white/10 hover:border-white/20 hover:bg-white/5",
+                    ? "border-scene-ink/35 bg-scene-ink/10"
+                    : "border-scene-ink/10 hover:border-scene-ink/20 hover:bg-scene-ink/5",
                 )}
               >
                 <DocumentPreview event={event} />
                 <span className="min-w-0">
-                  <span className="block text-[0.625rem] tabular-nums text-white/50">
+                  <span className="block text-[0.625rem] tabular-nums text-scene-ink/50">
                     {event.date}
                     {event.basis === "registered_at" && " · registered"}
                   </span>
-                  <span className="block truncate text-[0.8125rem] font-medium text-white">
+                  <span className="block truncate text-[0.8125rem] font-medium text-scene-ink">
                     {event.title}
                   </span>
-                  <span className="block truncate text-[0.6875rem] text-white/50">
+                  <span className="block truncate text-[0.6875rem] text-scene-ink/50">
                     {event.category}
                   </span>
                 </span>
@@ -226,7 +226,7 @@ function DocumentPreview({ event }: { event: CerebroTimelineEvent }) {
   return (
     <span
       aria-hidden="true"
-      className="relative block min-h-0 flex-1 overflow-hidden rounded-sm border border-white/10 bg-white/95 p-1.5"
+      className="relative block min-h-0 flex-1 overflow-hidden rounded-sm border border-scene-ink/10 bg-paper/95 p-1.5"
     >
       <span
         className="absolute inset-x-0 top-0 h-1"
@@ -244,7 +244,7 @@ function DocumentPreview({ event }: { event: CerebroTimelineEvent }) {
         </span>
       )}
       <span
-        className="absolute bottom-1 right-1 rounded px-1 py-0.5 text-[0.5rem] font-semibold text-white"
+        className="absolute bottom-1 right-1 rounded px-1 py-0.5 text-[0.5rem] font-semibold text-scene-ink"
         style={{ background: tint }}
       >
         {extensionOf(event.filename)}

@@ -8,6 +8,12 @@ import { api } from "@/lib/api";
 import type { CerebroGalaxy, GraphEdge, GraphNode } from "@/lib/api";
 import { cn } from "@/lib/cn";
 
+// Scene colours come from tokens, so the canvas follows the light and dark theme with the page.
+const INK = "var(--color-scene-ink)";
+const OUTSIDE = "var(--color-ink-subtle)";
+const LABEL = "color-mix(in srgb, var(--color-scene-ink) 90%, transparent)";
+const LABEL_MUTED = "color-mix(in srgb, var(--color-scene-ink) 65%, transparent)";
+
 interface GalaxyCanvasProps {
   graph: CerebroGalaxy;
   selectedId: string | null;
@@ -175,7 +181,7 @@ export function GalaxyCanvas({
   const hoveredPoint = hovered ? positions.get(hovered) : undefined;
 
   return (
-    <div className="relative size-full overflow-hidden bg-[#070b14]">
+    <div className="relative size-full overflow-hidden bg-scene">
       {/* A still backdrop rather than an animated starfield: atmosphere
           without a compositing loop running behind every interaction. */}
       <div
@@ -183,9 +189,9 @@ export function GalaxyCanvas({
         className="pointer-events-none absolute inset-0 opacity-70"
         style={{
           background:
-            "radial-gradient(60% 55% at 50% 45%, rgba(56,110,190,0.22), transparent 70%)," +
-            "radial-gradient(40% 40% at 18% 70%, rgba(24,150,130,0.16), transparent 70%)," +
-            "radial-gradient(35% 40% at 82% 28%, rgba(140,90,210,0.16), transparent 70%)",
+            "radial-gradient(60% 55% at 50% 45%, var(--scene-glow-1), transparent 70%)," +
+            "radial-gradient(40% 40% at 18% 70%, var(--scene-glow-2), transparent 70%)," +
+            "radial-gradient(35% 40% at 82% 28%, var(--scene-glow-3), transparent 70%)",
         }}
       />
 
@@ -354,7 +360,7 @@ export function GalaxyCanvas({
                     unless the user is doing something. */}
                 <circle
                   r={radius * 2.6}
-                  fill={outside ? "#64748b" : `url(#${gradientId(node.id)})`}
+                  style={{ fill: outside ? OUTSIDE : `url(#${gradientId(node.id)})` }}
                   opacity={isSelected ? 0.45 : outside ? 0.1 : 0.22}
                   className={isSelected && !answerMap ? "animate-pulse" : undefined}
                 />
@@ -363,20 +369,14 @@ export function GalaxyCanvas({
                     was built from. */}
                 <circle
                   r={radius}
-                  fill={outside ? "#64748b" : `url(#${gradientId(node.id)})`}
+                  style={{ fill: outside ? OUTSIDE : `url(#${gradientId(node.id)})` }}
                 />
                 <circle
                   r={radius}
                   fill="none"
-                  stroke={
-                    isSelected
-                      ? "#ffffff"
-                      : cited
-                        ? "#ffffff"
-                        : outside
-                          ? "#94a3b8"
-                          : colorFor(node.category, 78)
-                  }
+                  style={{
+                    stroke: isSelected || cited ? INK : outside ? OUTSIDE : colorFor(node.category, 78),
+                  }}
                   strokeWidth={isSelected || cited ? 1.6 : 0.7}
                   opacity={isSelected || cited ? 0.95 : outside ? 0.35 : 0.5}
                 />
@@ -388,7 +388,7 @@ export function GalaxyCanvas({
                     style={{
                       fontSize: node.type === "cluster" ? 13 : 9,
                       fontWeight: node.type === "cluster" ? 600 : 400,
-                      fill: node.type === "cluster" ? "#e9ecf1" : "#aab3c0",
+                      fill: node.type === "cluster" ? LABEL : LABEL_MUTED,
                     }}
                   >
                     {node.label.length > 34 ? `${node.label.slice(0, 33)}…` : node.label}
@@ -503,40 +503,40 @@ function HoverCard({
       // has to be able to travel into it without dismissing it.
       onPointerEnter={onKeepOpen}
       onPointerLeave={onDismiss}
-      className="absolute z-20 w-64 rounded-lg border border-white/12 bg-[#101725]/95 p-3 shadow-xl backdrop-blur"
+      className="absolute z-20 w-64 rounded-lg border border-scene-ink/12 bg-scene-raised/95 p-3 shadow-xl backdrop-blur"
       style={{
         // Kept inside the viewport rather than clipped at an edge.
         left: `${Math.min(62, Math.max(2, left * 100 + 3))}%`,
         top: `${Math.min(62, Math.max(2, top * 100 + 6))}%`,
       }}
     >
-      <p className="text-sm font-semibold text-white">{node.label}</p>
-      <p className="mt-0.5 text-[0.6875rem] text-white/60">
+      <p className="text-sm font-semibold text-scene-ink">{node.label}</p>
+      <p className="mt-0.5 text-[0.6875rem] text-scene-ink/60">
         {node.type === "cluster" ? "Knowledge Cluster" : "Knowledge Fragment"} ·{" "}
         {node.category}
       </p>
-      <p className="mt-2 text-[0.6875rem] text-white/75">
+      <p className="mt-2 text-[0.6875rem] text-scene-ink/75">
         Found in {node.document_count} document{node.document_count === 1 ? "" : "s"}
         {node.type === "cluster" && (
           <> · {node.fragment_count} fragment{node.fragment_count === 1 ? "" : "s"}</>
         )}
       </p>
       {node.excerpt && (
-        <p className="mt-2 line-clamp-3 text-[0.6875rem] leading-relaxed text-white/60">
+        <p className="mt-2 line-clamp-3 text-[0.6875rem] leading-relaxed text-scene-ink/60">
           {node.excerpt}
         </p>
       )}
       {node.source_filename && (
-        <p className="mt-2 border-t border-white/10 pt-2 text-[0.625rem] text-white/50">
+        <p className="mt-2 border-t border-scene-ink/10 pt-2 text-[0.625rem] text-scene-ink/50">
           Source: {node.source_filename}
           {node.source_location?.page ? ` · page ${node.source_location.page}` : ""}
         </p>
       )}
-      <div className="mt-2.5 flex flex-wrap gap-2 border-t border-white/10 pt-2.5">
+      <div className="mt-2.5 flex flex-wrap gap-2 border-t border-scene-ink/10 pt-2.5">
         <button
           type="button"
           onClick={onOpen}
-          className="rounded-md bg-white/10 px-2 py-1 text-[0.6875rem] font-medium text-white transition-colors hover:bg-white/20"
+          className="rounded-md bg-scene-ink/10 px-2 py-1 text-[0.6875rem] font-medium text-scene-ink transition-colors hover:bg-scene-ink/20"
         >
           Explore
         </button>
@@ -545,7 +545,7 @@ function HoverCard({
             href={api.artifactContentUrl(node.source_artifact_id)}
             target="_blank"
             rel="noopener noreferrer"
-            className="rounded-md bg-white/10 px-2 py-1 text-[0.6875rem] font-medium text-sky-300 transition-colors hover:bg-white/20"
+            className="rounded-md bg-scene-ink/10 px-2 py-1 text-[0.6875rem] font-medium text-sky-300 transition-colors hover:bg-scene-ink/20"
           >
             Open source
           </a>
@@ -565,16 +565,16 @@ function Legend({ graph }: { graph: CerebroGalaxy }) {
       // rotation hint made it taller, and a taller legend began swallowing
       // clicks on the nodes beneath it — a caption that steals a gesture
       // from the thing it is captioning.
-      className="pointer-events-none absolute bottom-4 left-4 flex max-w-[52%] flex-wrap gap-x-4 gap-y-1.5 rounded-lg border border-white/10 bg-[#101725]/80 px-3 py-2 backdrop-blur">
+      className="pointer-events-none absolute bottom-4 left-4 flex max-w-[52%] flex-wrap gap-x-4 gap-y-1.5 rounded-lg border border-scene-ink/10 bg-scene-raised/80 px-3 py-2 backdrop-blur">
       {categories.map((category) => (
-        <span key={category} className="flex items-center gap-1.5 text-[0.6875rem] text-white/70">
+        <span key={category} className="flex items-center gap-1.5 text-[0.6875rem] text-scene-ink/70">
           <span className="size-2 rounded-full" style={{ background: colorFor(category) }} />
           {category}
         </span>
       ))}
       {/* Rotation is not discoverable by itself, so it is said once here
           rather than hidden behind a tooltip on a button. */}
-      <span className="w-full text-[0.625rem] text-white/35">
+      <span className="w-full text-[0.625rem] text-scene-ink/35">
         Drag to move · shift-drag to rotate
       </span>
     </div>
@@ -595,7 +595,7 @@ function ViewButton({
       type="button"
       onClick={onClick}
       aria-label={label}
-      className="grid size-8 place-items-center rounded-md border border-white/12 bg-[#101725]/85 text-sm text-white/80 backdrop-blur transition-colors hover:bg-[#1a2334]"
+      className="grid size-8 place-items-center rounded-md border border-scene-ink/12 bg-scene-raised/85 text-sm text-scene-ink/80 backdrop-blur transition-colors hover:bg-scene-hover"
     >
       {children}
     </button>
@@ -626,21 +626,21 @@ function EdgeCard({ edge, graph }: { edge: GraphEdge; graph: CerebroGalaxy }) {
     <div
       role="tooltip"
       data-testid="edge-card"
-      className="pointer-events-none absolute left-4 top-4 z-30 max-w-xs rounded-lg border border-white/15 bg-[#0e1522]/97 p-3 text-xs shadow-2xl"
+      className="pointer-events-none absolute left-4 top-4 z-30 max-w-xs rounded-lg border border-scene-ink/15 bg-scene-overlay/97 p-3 text-xs shadow-2xl"
     >
       <Field label="Relationship">{RELATIONSHIP[edge.kind] ?? edge.kind}</Field>
       <Field label="Source">{label(edge.source)}</Field>
       <Field label="Target">{label(edge.target)}</Field>
-      <p className="mt-2 border-t border-white/10 pt-2 text-white/70">{edge.explanation}</p>
+      <p className="mt-2 border-t border-scene-ink/10 pt-2 text-scene-ink/70">{edge.explanation}</p>
       {edge.evidence.length > 0 && (
-        <p className="mt-1.5 text-[0.6875rem] text-white/45">
+        <p className="mt-1.5 text-[0.6875rem] text-scene-ink/45">
           From {edge.evidence.join(", ")}
           {edge.evidence_count > edge.evidence.length
             ? ` and ${edge.evidence_count - edge.evidence.length} more`
             : ""}
         </p>
       )}
-      <div className="mt-2 flex items-center justify-between border-t border-white/10 pt-2 text-[0.6875rem] text-white/45">
+      <div className="mt-2 flex items-center justify-between border-t border-scene-ink/10 pt-2 text-[0.6875rem] text-scene-ink/45">
         <span>{edge.confidence}</span>
         <span>{edge.status === "registered" ? "Approved knowledge" : edge.status}</span>
       </div>
@@ -658,8 +658,8 @@ const RELATIONSHIP: Record<string, string> = {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <span className="text-[0.6875rem] text-white/40">{label}</span>
-      <span className="text-right text-[0.75rem] text-white/85">{children}</span>
+      <span className="text-[0.6875rem] text-scene-ink/40">{label}</span>
+      <span className="text-right text-[0.75rem] text-scene-ink/85">{children}</span>
     </div>
   );
 }

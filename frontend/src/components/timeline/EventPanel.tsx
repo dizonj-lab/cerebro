@@ -45,10 +45,10 @@ export function EventPanel({
 
   if (!event) {
     return (
-      <aside className="hidden w-[19rem] shrink-0 flex-col rounded-xl border border-white/10 bg-[#0b111c] p-4 text-xs text-white/50 xl:flex">
+      <aside className="hidden w-[19rem] shrink-0 flex-col rounded-xl border border-scene-ink/10 bg-scene-sunken p-4 text-xs text-scene-ink/50 xl:flex">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-white/80">Event details</span>
-          <button type="button" onClick={onClose} aria-label="Hide event details" className="text-white/40">
+          <span className="text-sm font-medium text-scene-ink/80">Event details</span>
+          <button type="button" onClick={onClose} aria-label="Hide event details" className="text-scene-ink/40">
             ✕
           </button>
         </div>
@@ -63,22 +63,22 @@ export function EventPanel({
   return (
     <aside
       data-testid="event-panel"
-      className="flex w-[19rem] shrink-0 flex-col overflow-hidden rounded-xl border border-white/10 bg-[#0b111c]"
+      className="flex w-[19rem] shrink-0 flex-col overflow-hidden rounded-xl border border-scene-ink/10 bg-scene-sunken"
     >
-      <header className="flex items-start gap-2 border-b border-white/10 p-3">
+      <header className="flex items-start gap-2 border-b border-scene-ink/10 p-3">
         <span className="mt-1.5 size-2.5 shrink-0 rounded-full" style={{ background: color }} />
         <div className="min-w-0 flex-1">
-          <h2 className="text-sm font-semibold text-white">{event.title}</h2>
-          <p className="text-[0.7rem] text-white/50">
+          <h2 className="text-sm font-semibold text-scene-ink">{event.title}</h2>
+          <p className="text-[0.7rem] text-scene-ink/50">
             {event.event_type} · {formatEventDate(event)}
           </p>
         </div>
-        <button type="button" onClick={onClear} aria-label="Clear selection" className="text-white/40">
+        <button type="button" onClick={onClear} aria-label="Clear selection" className="text-scene-ink/40">
           ✕
         </button>
       </header>
 
-      <div className="flex shrink-0 border-b border-white/10 text-[0.7rem]">
+      <div className="flex shrink-0 border-b border-scene-ink/10 text-[0.7rem]">
         {(["Overview", "Related", "Sources"] as const).map((name) => (
           <button
             key={name}
@@ -87,7 +87,7 @@ export function EventPanel({
             aria-pressed={tab === name}
             className={cn(
               "flex-1 px-2 py-2 transition-colors",
-              tab === name ? "border-b-2 border-sky-400 text-white" : "text-white/45 hover:text-white/70",
+              tab === name ? "border-b-2 border-sky-400 text-scene-ink" : "text-scene-ink/45 hover:text-scene-ink/70",
             )}
           >
             {name}
@@ -102,13 +102,13 @@ export function EventPanel({
             <Field label="Category">
               <span style={{ color }}>{event.category}</span>
               {event.category_basis && (
-                <span className="text-white/35"> · matched “{event.category_basis}”</span>
+                <span className="text-scene-ink/35"> · matched “{event.category_basis}”</span>
               )}
             </Field>
             <Field label="Type">{event.event_type}</Field>
             <Field label="Date">
               {formatEventDate(event)}
-              <span className="text-white/35"> · {event.precision} precision</span>
+              <span className="text-scene-ink/35"> · {event.precision} precision</span>
             </Field>
             <Field label="Stated as">“{event.expression}”</Field>
             <Field label="Source">{event.filename}</Field>
@@ -123,16 +123,16 @@ export function EventPanel({
 
         {tab === "Related" && (
           <ul className="flex flex-col gap-2">
-            {related.length === 0 && <li className="text-white/45">Nothing shares an entity or a source with this event.</li>}
+            {related.length === 0 && <li className="text-scene-ink/45">Nothing shares an entity or a source with this event.</li>}
             {related.map((other) => (
               <li key={other.id}>
                 <button
                   type="button"
                   onClick={() => onSelect(other)}
-                  className="w-full rounded-md border border-white/10 p-2 text-left transition-colors hover:border-white/25"
+                  className="w-full rounded-md border border-scene-ink/10 p-2 text-left transition-colors hover:border-scene-ink/25"
                 >
-                  <span className="block truncate font-medium text-white">{other.title}</span>
-                  <span className="block text-[0.65rem] text-white/45">
+                  <span className="block truncate font-medium text-scene-ink">{other.title}</span>
+                  <span className="block text-[0.65rem] text-scene-ink/45">
                     {formatEventDate(other)} · {other.category}
                   </span>
                   {/* Why, not an assertion that they are connected. */}
@@ -146,8 +146,8 @@ export function EventPanel({
         {tab === "Sources" && (
           <div className="flex flex-col gap-3">
             <div>
-              <p className="text-white/45">Supporting evidence</p>
-              <p className="mt-1 rounded-md border border-white/10 bg-white/[0.04] p-2 leading-relaxed text-white/80">
+              <p className="text-scene-ink/45">Supporting evidence</p>
+              <p className="mt-1 rounded-md border border-scene-ink/10 bg-scene-ink/[0.04] p-2 leading-relaxed text-scene-ink/80">
                 “{event.evidence}”
               </p>
             </div>
@@ -158,13 +158,13 @@ export function EventPanel({
                 href={api.artifactContentUrl(event.artifact_id)}
                 target="_blank"
                 rel="noreferrer"
-                className="rounded-md border border-white/15 px-2 py-1 text-sky-300"
+                className="rounded-md border border-scene-ink/15 px-2 py-1 text-sky-300"
               >
                 Open original
               </a>
               <Link
                 href={`/construct/ingest?artifact=${event.artifact_id}`}
-                className="rounded-md border border-white/15 px-2 py-1 text-white/70"
+                className="rounded-md border border-scene-ink/15 px-2 py-1 text-scene-ink/70"
               >
                 Open in Library
               </Link>
@@ -176,9 +176,9 @@ export function EventPanel({
       {/* The contextual Galaxy: this event and what it shares something with,
           drawn from the same related set rather than the whole graph. */}
       {related.length > 0 && (
-        <div className="shrink-0 border-t border-white/10 p-3">
+        <div className="shrink-0 border-t border-scene-ink/10 p-3">
           <div className="flex items-center justify-between text-[0.7rem]">
-            <span className="text-white/45">Galaxy view</span>
+            <span className="text-scene-ink/45">Galaxy view</span>
             {/* Carries the subject across: the Galaxy selects it on arrival. */}
             <Link
               href={`/construct/galaxy?focus=${encodeURIComponent(galaxyFocus(event))}`}
@@ -194,7 +194,13 @@ export function EventPanel({
               const y = 55 + Math.sin(angle) * 36;
               return (
                 <g key={other.id}>
-                  <line x1="100" y1="55" x2={x} y2={y} stroke="rgba(255,255,255,0.18)" />
+                  <line
+                    x1="100"
+                    y1="55"
+                    x2={x}
+                    y2={y}
+                    style={{ stroke: "color-mix(in srgb, var(--color-scene-ink) 18%, transparent)" }}
+                  />
                   <circle cx={x} cy={y} r="5" fill={LANE_COLOR[other.category] ?? LANE_COLOR.Other}>
                     <title>{other.title}</title>
                   </circle>
@@ -202,7 +208,7 @@ export function EventPanel({
               );
             })}
             <circle cx="100" cy="55" r="9" fill={color} />
-            <text x="100" y="78" textAnchor="middle" className="fill-white/60" fontSize="7">
+            <text x="100" y="78" textAnchor="middle" className="fill-scene-ink/60" fontSize="7">
               {event.title.slice(0, 26)}
             </text>
           </svg>
@@ -229,8 +235,8 @@ function galaxyFocus(event: CerebroTimelineEventDetail): string {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex gap-2">
-      <dt className="w-20 shrink-0 capitalize text-white/40">{label}</dt>
-      <dd className="min-w-0 flex-1 text-white/80">{children}</dd>
+      <dt className="w-20 shrink-0 capitalize text-scene-ink/40">{label}</dt>
+      <dd className="min-w-0 flex-1 text-scene-ink/80">{children}</dd>
     </div>
   );
 }

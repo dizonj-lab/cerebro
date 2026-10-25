@@ -206,7 +206,7 @@ export function GalaxyView() {
         single border and divide with hairlines, so the workspace reads as a
         continuous instrument rather than a stack of panels with gutters.
       */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-white/10 bg-[#070b14]">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-scene-ink/10 bg-scene">
         <div className="flex min-h-0 flex-1 flex-col xl:flex-row">
           <div className="relative min-h-0 min-w-0 flex-1">
             <GalaxyCanvas
@@ -222,14 +222,14 @@ export function GalaxyView() {
             {answerMap && (
               <div
                 data-testid="answer-map"
-                className="pointer-events-auto absolute left-4 top-4 z-30 flex max-w-sm items-start gap-3 rounded-lg border border-white/15 bg-[#0e1522]/95 px-3 py-2 text-xs shadow-xl backdrop-blur"
+                className="pointer-events-auto absolute left-4 top-4 z-30 flex max-w-sm items-start gap-3 rounded-lg border border-scene-ink/15 bg-scene-overlay/95 px-3 py-2 text-xs shadow-xl backdrop-blur"
               >
                 <div className="min-w-0">
-                  <p className="truncate font-medium text-white">
+                  <p className="truncate font-medium text-scene-ink">
                     Mapped: {answerMap.question}
                   </p>
-                  <p className="mt-0.5 text-white/55">
-                    <span className="text-white">{answerMap.cited.size} quoted</span>
+                  <p className="mt-0.5 text-scene-ink/55">
+                    <span className="text-scene-ink">{answerMap.cited.size} quoted</span>
                     {" · "}
                     {answerMap.retrieved.size} found but not quoted · the rest is not
                     part of this answer
@@ -239,7 +239,7 @@ export function GalaxyView() {
                   type="button"
                   data-testid="reset-map"
                   onClick={() => setAnswerMap(null)}
-                  className="shrink-0 rounded-md border border-white/20 px-2 py-1 font-medium text-white/80 transition-colors hover:bg-white/10"
+                  className="shrink-0 rounded-md border border-scene-ink/20 px-2 py-1 font-medium text-scene-ink/80 transition-colors hover:bg-scene-ink/10"
                 >
                   Reset
                 </button>
@@ -274,13 +274,13 @@ export function GalaxyView() {
           </div>
 
           {panelOpen ? (
-            <div className="flex min-h-0 shrink-0 border-t border-white/10 xl:border-l xl:border-t-0">
+            <div className="flex min-h-0 shrink-0 border-t border-scene-ink/10 xl:border-l xl:border-t-0">
               <button
                 type="button"
                 onClick={() => setPanelOpen(false)}
                 aria-label="Collapse details panel"
                 title="Collapse details panel"
-                className="hidden w-7 shrink-0 items-start justify-center border-r border-white/10 bg-[#101725] pt-3 text-white/50 transition-colors hover:text-white xl:flex"
+                className="hidden w-7 shrink-0 items-start justify-center border-r border-scene-ink/10 bg-scene-raised pt-3 text-scene-ink/50 transition-colors hover:text-scene-ink xl:flex"
               >
                 <svg viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
                   <path d="M8 5.5 12.5 10 8 14.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -297,14 +297,14 @@ export function GalaxyView() {
                   onSelectRelated={(id) => void openNode(id)}
                 />
               ) : (
-                <aside className="w-full shrink-0 bg-[#101725] p-4 xl:w-[20rem]">
-                  <h2 className="text-sm font-semibold text-white">Node Details</h2>
-                  <p className="mt-2 text-[0.8125rem] leading-relaxed text-white/55">
+                <aside className="w-full shrink-0 bg-scene-raised p-4 xl:w-[20rem]">
+                  <h2 className="text-sm font-semibold text-scene-ink">Node Details</h2>
+                  <p className="mt-2 text-[0.8125rem] leading-relaxed text-scene-ink/55">
                     Select a cluster to see what it is built from — the documents behind
                     it, how it connects, and where each fragment came from.
                   </p>
                   {graph.truncated && (
-                    <p className="mt-4 border-t border-white/10 pt-3 text-[0.6875rem] text-white/40">
+                    <p className="mt-4 border-t border-scene-ink/10 pt-3 text-[0.6875rem] text-scene-ink/40">
                       Showing your {graph.nodes.length} largest clusters.
                     </p>
                   )}
@@ -312,13 +312,13 @@ export function GalaxyView() {
               )}
             </div>
           ) : (
-            <aside className="hidden shrink-0 flex-col items-center gap-2 border-l border-white/10 bg-[#101725] px-1.5 py-3 xl:flex">
+            <aside className="hidden shrink-0 flex-col items-center gap-2 border-l border-scene-ink/10 bg-scene-raised px-1.5 py-3 xl:flex">
               <button
                 type="button"
                 onClick={() => setPanelOpen(true)}
                 aria-label="Expand details panel"
                 title="Node details"
-                className="rounded p-1.5 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+                className="rounded p-1.5 text-scene-ink/70 transition-colors hover:bg-scene-ink/10 hover:text-scene-ink"
               >
                 <svg viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
                   <path d="M12 5.5 7.5 10l4.5 4.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -326,7 +326,7 @@ export function GalaxyView() {
               </button>
               <span
                 className="size-1.5 rounded-full"
-                style={{ background: selectedId ? "#7fa9e2" : "transparent" }}
+                style={{ background: selectedId ? "var(--color-accent)" : "transparent" }}
                 aria-hidden="true"
               />
             </aside>
@@ -342,10 +342,10 @@ export function GalaxyView() {
           onPointerUp={() => {
             resize.current = null;
           }}
-          className="group relative h-px shrink-0 cursor-row-resize bg-white/10"
+          className="group relative h-px shrink-0 cursor-row-resize bg-scene-ink/10"
         >
           <span className="absolute inset-x-0 -top-1 h-3" />
-          <span className="absolute left-1/2 top-1/2 h-0.5 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/15 transition-colors group-hover:bg-accent" />
+          <span className="absolute left-1/2 top-1/2 h-0.5 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full bg-scene-ink/15 transition-colors group-hover:bg-accent" />
         </div>
 
         <div

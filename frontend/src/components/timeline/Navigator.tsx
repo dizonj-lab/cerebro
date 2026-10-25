@@ -90,7 +90,7 @@ export function Navigator({
   }
 
   return (
-    <div className="shrink-0 border-t border-white/10 px-3 py-2" data-testid="timeline-navigator">
+    <div className="shrink-0 border-t border-scene-ink/10 px-3 py-2" data-testid="timeline-navigator">
       <div
         ref={track}
         onPointerDown={(event) => {
@@ -99,7 +99,7 @@ export function Navigator({
           const half = (window_.to - window_.from) / 2;
           onChange({ from: middle - half, to: middle + half });
         }}
-        className="relative flex h-14 items-end gap-px overflow-hidden rounded-md bg-white/[0.03]"
+        className="relative flex h-14 items-end gap-px overflow-hidden rounded-md bg-scene-ink/[0.03]"
       >
         {histogram.map((bucket) => {
           // Largest category at the base, so the stack does not reshuffle
@@ -134,7 +134,7 @@ export function Navigator({
                 ))
               ) : (
                 // A month with events but no category still has presence.
-                <span className="size-full rounded-sm bg-white/15" />
+                <span className="size-full rounded-sm bg-scene-ink/15" />
               )}
             </span>
           );
@@ -144,7 +144,7 @@ export function Navigator({
           onPointerDown={(event) => begin(event, "move")}
           data-testid="navigator-window"
           style={{ left: `${left}%`, width: `${Math.max(width, 2)}%` }}
-          className="absolute inset-y-0 cursor-grab rounded-md border border-white/60 bg-white/10 active:cursor-grabbing"
+          className="absolute inset-y-0 cursor-grab rounded-md border border-scene-ink/60 bg-scene-ink/10 active:cursor-grabbing"
         >
           <span
             onPointerDown={(event) => begin(event, "start")}
@@ -154,7 +154,7 @@ export function Navigator({
             aria-valuenow={Math.round(left)}
             aria-valuemin={0}
             aria-valuemax={100}
-            className="absolute -left-1 bottom-0 top-0 w-2 cursor-ew-resize rounded-full bg-white/80"
+            className="absolute -left-1 bottom-0 top-0 w-2 cursor-ew-resize rounded-full bg-scene-ink/80"
           />
           <span
             onPointerDown={(event) => begin(event, "end")}
@@ -164,15 +164,15 @@ export function Navigator({
             aria-valuenow={Math.round(left + width)}
             aria-valuemin={0}
             aria-valuemax={100}
-            className="absolute -right-1 bottom-0 top-0 w-2 cursor-ew-resize rounded-full bg-white/80"
+            className="absolute -right-1 bottom-0 top-0 w-2 cursor-ew-resize rounded-full bg-scene-ink/80"
           />
         </div>
       </div>
 
-      <div className="mt-1 flex items-baseline justify-between text-[0.65rem] text-white/40">
+      <div className="mt-1 flex items-baseline justify-between text-[0.65rem] text-scene-ink/40">
         <span>{range.earliest ?? "—"}</span>
         {/* Said once, because a bar's height is not the obvious quantity. */}
-        <span className="text-white/30">Height is pages of document</span>
+        <span className="text-scene-ink/30">Height is pages of document</span>
         <span>{range.latest ?? "—"}</span>
       </div>
     </div>
