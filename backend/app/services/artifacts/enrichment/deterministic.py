@@ -11,6 +11,7 @@ authority:
 None of it is generative, so none of it can invent. A field it cannot ground
 is left out.
 """
+
 from __future__ import annotations
 
 import re
@@ -57,8 +58,7 @@ def _detect_language(text: str) -> str | None:
 
     counts = Counter(words)
     hits = {
-        code: sum(counts[w] for w in markers) / len(words)
-        for code, markers in _MARKERS.items()
+        code: sum(counts[w] for w in markers) / len(words) for code, markers in _MARKERS.items()
     }
     ranked = sorted(hits.items(), key=lambda pair: -pair[1])
     best, best_rate = ranked[0]
@@ -107,9 +107,43 @@ HEADING_LINES = 6
 _HEADING_WORDS = (2, 14)
 _NOT_A_HEADING = re.compile(
     r"©|\bcopyright\b|all rights reserved|https?://|www\.|@|^\W*$|"
-    r"^(page|slide)\s*\d+|^\d+\s*(/|of)\s*\d+$",
+    r"^(page|slide)\s*\d+|^\d+\s*(/|of)\s*\d+$|"
+    # Session and navigation labels name a place in a course or deck, not its subject.
+    r"^(agenda|outline|contents|table of contents|overview|objectives|learning objectives|"
+    r"summary|references|q\s*&\s*a|questions|thank you)$|"
+    r"^(part|section|chapter|lecture|session|day|week|module|unit|topic)\s*[\divx]+[a-z]?$",
     re.IGNORECASE,
 )
+
+
+# A heading line that ends on one of these words has wrapped onto the next line: "SENSE MAKING
+# FROM" is the first half of "SENSE MAKING FROM SENSOR DATA", not a title of its own.
+_DANGLING = re.compile(
+    r"\b(from|of|and|or|for|to|with|in|on|at|using|via|the|a|an|by|towards|into|vs)$|[&:,–—-]$",
+    re.IGNORECASE,
+)
+# Lines read past the first heading line when rejoining one that wrapped.
+MAX_WRAPPED_LINES = 2
+# A subtitle set in capitals under a title in capitals: "SENSE MAKING FROM SENSORY DATA" over
+# "MULTIMODAL MACHINE LEARNING" is one title in two parts.
+SUBTITLE_WORDS = (2, 6)
+
+
+def _capitals(line: str) -> bool:
+    letters = [c for c in line if c.isalpha()]
+    return len(letters) >= 4 and all(c.isupper() for c in letters)
+
+
+def _presenter(line: str) -> bool:
+    """A line naming who gives the talk, which sits where a subtitle would."""
+    return bool(byline._INTRO.match(line) or byline._HONORIFIC.match(line))  # noqa: SLF001
+
+
+def _title_shaped(line: str, filename: str | None) -> bool:
+    if not line or _NOT_A_HEADING.search(line) or not re.search(r"[A-Za-z]{3}", line):
+        return False
+    # A sentence is not a heading, and headings do not end with a full stop.
+    return not line.endswith(".") and not is_placeholder_title(line, filename)
 
 
 def first_heading(text: str, filename: str | None = None) -> str | None:
@@ -118,25 +152,49 @@ def first_heading(text: str, filename: str | None = None) -> str | None:
     The first short line of the text that reads like a title: two to fourteen
     words, not a sentence, not a copyright notice, page counter or address,
     and not the filename or a file code. A slide deck's first slide title and
-    a report's cover line both qualify. Taken from the document's own words,
-    so it is a candidate a reviewer can check against page one, and a local
-    model, when one runs, may replace it with a better reading.
+    a report's cover line both qualify. A title the layout wrapped onto a
+    second line is rejoined: a line ending on "from", "of", "and" and the
+    like continues on the next, and a subtitle in capitals under a title in
+    capitals is joined after a colon. Taken from the document's own words, so
+    it is a candidate a reviewer can check against page one, and a local model,
+    when one runs, may replace it with a better reading. Casing is applied
+    afterwards, to every suggested title alike.
     """
-    for raw in text.splitlines()[: HEADING_LINES * 4]:
-        line = " ".join(raw.split()).strip(" -–—:|•")
-        if not line:
+    lines = [
+        " ".join(raw.split()).strip(" -–—|•") for raw in text.splitlines()[: HEADING_LINES * 4]
+    ]
+    lines = [line for line in lines if line]
+    for i, line in enumerate(lines):
+        if not _title_shaped(line.rstrip(":"), filename):
             continue
-        words = line.split()
-        if not (_HEADING_WORDS[0] <= len(words) <= _HEADING_WORDS[1]):
+        title, last = line, i
+        for j in range(i + 1, min(len(lines), i + 1 + MAX_WRAPPED_LINES)):
+            nxt = lines[j]
+            # Continue only while the title is visibly unfinished.
+            if not _DANGLING.search(title) or not _title_shaped(nxt, None):
+                break
+            title, last = f"{title} {nxt}", j
+        # Still ending on "from" or "of": half a title whose other half did not follow.
+        if re.search(r"[A-Za-z]$", title) and _DANGLING.search(title):
             continue
-        if _NOT_A_HEADING.search(line) or not re.search(r"[A-Za-z]{3}", line):
-            continue
-        # A sentence is not a heading, and headings do not end with a full stop.
-        if line.endswith("."):
-            continue
-        if is_placeholder_title(line, filename):
-            continue
-        return line[:200]
+        title = title.rstrip(" :,&–—-")
+        # A capitals subtitle straight under a capitals title joins it after a colon. A line
+        # naming the presenter ("Dr …", "Presented by …") sits there too and is not a subtitle.
+        sub = lines[last + 1] if last + 1 < len(lines) else None
+        if (
+            sub
+            and _capitals(title)
+            and _capitals(sub)
+            and SUBTITLE_WORDS[0] <= len(sub.split()) <= SUBTITLE_WORDS[1]
+            and len(title.split()) + len(sub.split()) <= _HEADING_WORDS[1]
+            and not _presenter(sub)
+            and _title_shaped(sub, None)
+        ):
+            title = f"{title}: {sub}"
+        if _HEADING_WORDS[0] <= len(title.split()) <= _HEADING_WORDS[1] and _title_shaped(
+            title, filename
+        ):
+            return title[:200]
     return None
 
 
@@ -151,9 +209,7 @@ class DeterministicEnricher:
     ai_used = False
     local = True
 
-    def enrich(
-        self, *, text: str, properties: dict, filename: str, on_progress=None
-    ) -> Enrichment:
+    def enrich(self, *, text: str, properties: dict, filename: str, on_progress=None) -> Enrichment:
         """Both phases together. Used directly in tests and when no model runs."""
         return self.from_properties(properties=properties, filename=filename).merge(
             self.from_statistics(text=text, properties=properties, filename=filename)
@@ -207,9 +263,7 @@ class DeterministicEnricher:
         suggestions: dict = {}
         methods: dict = {}
         document_tags = (
-            _keywords_from_properties(properties["keywords"])
-            if properties.get("keywords")
-            else []
+            _keywords_from_properties(properties["keywords"]) if properties.get("keywords") else []
         )
         # The line a byline was printed on, shown at review so the value can
         # be checked rather than taken on trust.

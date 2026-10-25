@@ -136,3 +136,90 @@ def test_a_model_suggestion_replaces_a_heading_title_but_not_a_stated_one(
     assert headed_row.field_methods["title"] == "ai_suggested"
     assert stated_row.artifact_metadata["title"] == "Introduction to Pattern Recognition"
     assert stated_row.field_methods["title"] == "document_metadata"
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        ("SENSE MAKING FROM\nSENSOR DATA\nDr. Someone", "SENSE MAKING FROM SENSOR DATA"),
+        (
+            "Introduction to Pattern Recognition and\nmachine learning systems\nmore",
+            "Introduction to Pattern Recognition and machine learning systems",
+        ),
+        ("Deep Learning:\nConvolutional Networks\nx", "Deep Learning: Convolutional Networks"),
+        (
+            "SENSE MAKING FROM\nThe sensor network produces noisy readings daily.\nSensing Systems",
+            "Sensing Systems",
+        ),
+        ("Agenda\nPart 1\nLecture 3\nRecurrent Neural Networks", "Recurrent Neural Networks"),
+        (
+            "Day 2A\nSignal Processing Using Machine Learning",
+            "Signal Processing Using Machine Learning",
+        ),
+    ],
+)
+def test_a_wrapped_heading_is_rejoined_and_session_labels_skipped(text, expected):
+    assert first_heading(text, "01-PRS-SM-DAY1A.pdf") == expected
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        (
+            "SENSE MAKING FROM SENSORY DATA\nMULTIMODAL MACHINE LEARNING\nDR TAN WEI MING",
+            "SENSE MAKING FROM SENSORY DATA: MULTIMODAL MACHINE LEARNING",
+        ),
+        (
+            "SENSE MAKING FROM\nSENSORY DATA\nMULTIMODAL MACHINE LEARNING",
+            "SENSE MAKING FROM SENSORY DATA: MULTIMODAL MACHINE LEARNING",
+        ),
+        ("DEEP LEARNING SYSTEMS\nDR ZHU FANGMING\nIntro", "DEEP LEARNING SYSTEMS"),
+        ("DEEP LEARNING SYSTEMS\nPRESENTED BY JOHN TAN\nIntro", "DEEP LEARNING SYSTEMS"),
+        ("Neural Network Basics\nPATTERN RECOGNITION SYSTEMS", "Neural Network Basics"),
+    ],
+)
+def test_a_capitals_subtitle_joins_its_title_but_a_presenter_does_not(text, expected):
+    assert first_heading(text, "20-PRS-SM-DAY2.pdf") == expected
+
+
+@pytest.mark.parametrize(
+    "title, body, expected",
+    [
+        (
+            "SENSE MAKING FROM SENSORY DATA: MULTIMODAL MACHINE LEARNING",
+            "",
+            "Sense Making from Sensory Data: Multimodal Machine Learning",
+        ),
+        ("DEEP LEARNING WITH LSTM AND RNN MODELS", "", "Deep Learning with LSTM and RNN Models"),
+        ("AI IN HEALTHCARE: A REVIEW", "", "AI in Healthcare: A Review"),
+        ("UI DESIGN FOR IT TEAMS", "Our IT team owns this.", "UI Design for IT Teams"),
+        (
+            "Deep neural networks and  deep learning systems",
+            "",
+            "Deep Neural Networks and Deep Learning Systems",
+        ),
+        (
+            "real-time sensing with GPT-4 and PostgreSQL",
+            "",
+            "Real-Time Sensing with GPT-4 and PostgreSQL",
+        ),
+        ("the art of war", "", "The Art of War"),
+        ("WHAT IS ML?", "", "What Is ML?"),
+    ],
+)
+def test_titles_are_title_cased_keeping_acronyms_and_brand_spellings(title, body, expected):
+    from app.services.artifacts.enrichment.casing import title_case
+
+    assert title_case(title, body) == expected
+
+
+def test_an_upload_in_capitals_is_titled_in_title_case(client, signed_in):
+    pdf = make_pdf(
+        ["SENSE MAKING FROM\nSENSORY DATA\nMULTIMODAL MACHINE LEARNING\nWe fuse audio and video."],
+        title="20-PRS-SM-DAY2",
+    )
+    a = client.post(
+        "/api/artifacts", files={"file": ("20-PRS-SM-DAY2.pdf", pdf, "application/pdf")}
+    ).json()
+    assert a["metadata"]["title"] == "Sense Making from Sensory Data: Multimodal Machine Learning"
+    assert a["field_methods"]["title"] == "first_heading"

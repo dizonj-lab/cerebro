@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from app.core.config import get_settings
 from app.services.artifacts.enrichment.base import Enrichment, EnrichmentEngine
+from app.services.artifacts.enrichment.casing import title_case
 from app.services.artifacts.enrichment.deterministic import DeterministicEnricher
 from app.services.artifacts.enrichment.llm import OllamaEnricher
 from app.services.artifacts.enrichment.significance import filter_concepts
@@ -112,6 +113,10 @@ def enrich(
     merged = result.merge(
         deterministic.from_statistics(text=text, properties=properties, filename=filename)
     )
+    # Every suggested title in one style, whichever stage proposed it. Only the case changes;
+    # the method still says where the words came from.
+    if isinstance(merged.suggestions.get("title"), str):
+        merged.suggestions["title"] = title_case(merged.suggestions["title"], text)
     return _significant(merged)
 
 
