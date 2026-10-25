@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.core.storage import get_object_store
 from app.models.artifact import Artifact
+from app.services.artifacts import boilerplate
 from app.services.artifacts.enrichment import enrich
 from app.services.artifacts.extraction import (
     SUPPORTED_EXTENSIONS,
@@ -214,6 +215,11 @@ def process(
         artifact.inspection = {**artifact.inspection, "rejected_reason": str(exc)}
         db.flush()
         return artifact
+
+    # Page furniture out before anything reads the text: a footer repeated on every slide would
+    # otherwise be proposed as a topic, drawn as a cluster and carried in every fragment's vector.
+    # What was removed is kept in the extraction's structure, so it can be checked.
+    extracted, _ = boilerplate.strip(extracted)
 
     md = extract_text_metadata(
         filename=artifact.filename, text=extracted.text, sha256=artifact.sha256
@@ -541,6 +547,9 @@ def suggest_with_model(
                 None,
                 "not_established",
                 "filename_stem",
+                # A heading is a guess about which line names the document; a model that has read
+                # the whole of it may give a better one.
+                "first_heading",
                 "ai_suggested",
             ):
                 current[field] = value

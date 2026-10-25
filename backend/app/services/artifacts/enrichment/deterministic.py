@@ -18,9 +18,9 @@ from collections import Counter
 from pathlib import Path
 
 from app.services.artifacts.enrichment import byline
-from app.services.artifacts.enrichment.significance import is_placeholder_title
 from app.services.artifacts.enrichment.base import Enrichment
 from app.services.artifacts.enrichment.keyphrases import extract as extract_keyphrases
+from app.services.artifacts.enrichment.significance import is_placeholder_title
 
 DESCRIPTION_CHARS = 320
 
@@ -102,6 +102,44 @@ def _opening(text: str) -> str | None:
     return cleaned[:DESCRIPTION_CHARS].rsplit(" ", 1)[0] + "…"
 
 
+# The opening lines searched for a heading, and the shape a heading has.
+HEADING_LINES = 6
+_HEADING_WORDS = (2, 14)
+_NOT_A_HEADING = re.compile(
+    r"©|\bcopyright\b|all rights reserved|https?://|www\.|@|^\W*$|"
+    r"^(page|slide)\s*\d+|^\d+\s*(/|of)\s*\d+$",
+    re.IGNORECASE,
+)
+
+
+def first_heading(text: str, filename: str | None = None) -> str | None:
+    """The document's own opening heading, verbatim, if it has one.
+
+    The first short line of the text that reads like a title: two to fourteen
+    words, not a sentence, not a copyright notice, page counter or address,
+    and not the filename or a file code. A slide deck's first slide title and
+    a report's cover line both qualify. Taken from the document's own words,
+    so it is a candidate a reviewer can check against page one, and a local
+    model, when one runs, may replace it with a better reading.
+    """
+    for raw in text.splitlines()[: HEADING_LINES * 4]:
+        line = " ".join(raw.split()).strip(" -–—:|•")
+        if not line:
+            continue
+        words = line.split()
+        if not (_HEADING_WORDS[0] <= len(words) <= _HEADING_WORDS[1]):
+            continue
+        if _NOT_A_HEADING.search(line) or not re.search(r"[A-Za-z]{3}", line):
+            continue
+        # A sentence is not a heading, and headings do not end with a full stop.
+        if line.endswith("."):
+            continue
+        if is_placeholder_title(line, filename):
+            continue
+        return line[:200]
+    return None
+
+
 def _keywords_from_properties(raw: str) -> list[str]:
     """A document's own keyword field, however it chose to delimit them."""
     parts = re.split(r"[,;|]", raw)
@@ -117,11 +155,11 @@ class DeterministicEnricher:
         self, *, text: str, properties: dict, filename: str, on_progress=None
     ) -> Enrichment:
         """Both phases together. Used directly in tests and when no model runs."""
-        return self.from_properties(properties=properties).merge(
+        return self.from_properties(properties=properties, filename=filename).merge(
             self.from_statistics(text=text, properties=properties, filename=filename)
         )
 
-    def from_properties(self, *, properties: dict) -> Enrichment:
+    def from_properties(self, *, properties: dict, filename: str | None = None) -> Enrichment:
         """Phase one: only what the document asserts about itself.
 
         Separated from the statistical phase so a language model can be
@@ -143,8 +181,11 @@ class DeterministicEnricher:
         # then puts that on the review screen as the document's name. It
         # says which program made the file, not what the file is about, so
         # it is left out and a better candidate is allowed through.
+        # The same goes for a title that is only the file's own name or a file code: exporting
+        # a deck often writes "01-PRS-ML-DAY2A" into /Title, and kept as document metadata it
+        # would outrank every reading of the document for good.
         title = properties.get("title")
-        if title and not is_placeholder_title(title):
+        if title and not is_placeholder_title(title, filename):
             propose("title", title, "document_metadata")
 
         # Author and creation date come from here and nowhere else.
@@ -201,6 +242,11 @@ class DeterministicEnricher:
             propose("tags", merged[:12], "document_metadata+keyphrase_extraction")
         else:
             propose("tags", tags, "keyphrase_extraction")
+
+        # Better than the filename stem the metadata step starts from: the heading the document
+        # opens with. Only fills a title nothing with more authority has proposed, and a local
+        # model's reading of the whole document replaces it when one runs.
+        propose("title", first_heading(text, filename), "first_heading")
 
         propose("language", _detect_language(text), "language_detection")
         # A verbatim quote of the opening, offered only where nothing with

@@ -33,12 +33,14 @@ import re
 import time
 
 from app.services import ollama
-from app.services.ollama import ENRICHMENT_TIMEOUT_SECONDS
 from app.services.artifacts.enrichment.base import Enrichment
+from app.services.artifacts.enrichment.significance import is_placeholder_title
+from app.services.ollama import ENRICHMENT_TIMEOUT_SECONDS
 
 _TIMEOUT_SECONDS = 120
 # Enough to characterise a document without sending all of a long one.
 MAX_PROMPT_CHARS = 6000
+MAX_TITLE_CHARS = 160
 
 _INSTRUCTION = """You are given the text of a document. Reply with JSON only, \
 no prose, no code fences, matching exactly this shape:
@@ -50,9 +52,12 @@ no prose, no code fences, matching exactly this shape:
 "concepts": array of strings}
 
 Rules:
-- title: the document's actual subject, as its own heading states it. A
-  lecture deck is named by its topic, not by "PowerPoint Presentation" or
-  the file it was exported from. Null if the text does not make it clear.
+- title: a short, specific title for what this document covers, 3 to 12
+  words, in title case. Use the document's own main heading when it names the
+  subject; otherwise write one from what the text is about. Never a filename,
+  a file or course code (such as "01-PRS-ML-DAY2A"), a date, a session label
+  (such as "Day 2" or "Lecture 3"), "PowerPoint Presentation", or a copyright
+  line. Null if the text is too short or unclear to tell what it covers.
 - description: at most two sentences describing what the document is about.
 - topics: up to 6 subjects, each a phrase that appears in the text verbatim.
 - tags: up to 8 single keywords, each a word that appears in the text.
@@ -171,10 +176,16 @@ class OllamaEnricher:
                 "cover only what was read."
             )
 
+        # A model asked for a title can still answer with the file's own name or a code; that is
+        # what the title field is being rescued from, so it is set aside, and said so.
         title = _clean_text(body.get("title"))
-        if title:
-            suggestions["title"] = title
+        if title and len(title) <= MAX_TITLE_CHARS and not is_placeholder_title(title, filename):
+            suggestions["title"] = title.strip(' "\'')
             methods["title"] = "ai_suggested"
+        elif title:
+            notes.append(
+                f"Set aside the suggested title {title[:80]!r}: it names the file, not the subject."
+            )
 
         description = _clean_text(body.get("description"))
         if description:

@@ -163,3 +163,34 @@ def test_another_owner_sees_nothing_and_the_report_writes_nothing(client, owner,
     assert not db.dirty and not db.new and not db.deleted
     db.commit()
     assert db.execute(snapshot).one() == before
+
+
+def test_a_footer_from_before_the_fix_is_reported_and_its_topic_flagged(
+    client, owner, db, monkeypatch
+):
+    from app.services.artifacts import boilerplate
+    from tests.fixtures import make_pdf
+
+    footer = "Copyright 2026 National University of Singapore. All Rights Reserved"
+    pdf = make_pdf(
+        [
+            f"Recurrent networks, session {i}\nGate {i} controls memory.\n{footer}"
+            for i in range(1, 5)
+        ]
+    )
+    # Registered as it would have been before repeated lines were removed at ingestion.
+    monkeypatch.setattr(boilerplate, "strip", lambda result: (result, None))
+    a = client.post("/api/artifacts", files={"file": ("rnn.pdf", pdf, "application/pdf")}).json()
+    meta = {**a["metadata"], "topics": ["Rights Reserved", "Recurrent Networks"]}
+    assert (
+        client.patch(
+            f"/api/artifacts/{a['id']}", json={"metadata": meta, "approve": True}
+        ).status_code
+        == 200
+    )
+
+    r = library_health.report(db, owner.id)
+    assert [f["line"] for f in r["repeated_lines"]] == [footer]
+    flagged = {x["topic"]: x["reason"] for x in r["topics"]["suspect_topics"]}
+    assert "header or footer" in flagged["Rights Reserved"]
+    assert "Recurrent Networks" not in flagged

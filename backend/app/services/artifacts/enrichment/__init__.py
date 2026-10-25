@@ -84,7 +84,7 @@ def enrich(
     for it at review.
     """
     deterministic = DeterministicEnricher()
-    result = deterministic.from_properties(properties=properties)
+    result = deterministic.from_properties(properties=properties, filename=filename)
 
     if use_llm:
         engine = _llm_engine()

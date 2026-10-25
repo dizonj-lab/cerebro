@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session
 from app.models.artifact import Artifact
 from app.models.fragment import FragmentEmbedding, KnowledgeFragment
 from app.services import ingest_settings
+from app.services.artifacts import boilerplate
 from app.services.artifacts.enrichment.significance import canonical, is_generic
 from app.services.graph import MAX_CLUSTERS, STRONG_EDGE_WEIGHT
 
@@ -116,10 +117,59 @@ def _registered(db: Session, owner_id: uuid.UUID) -> list[_Doc]:
     return out
 
 
+# ---------------------------------------------------------------- repeated lines
+
+
+def repeated_lines(db: Session, owner_id: uuid.UUID) -> list[dict]:
+    """Lines registered documents repeat on most of their pages or slides: headers and footers.
+
+    Read from the stored fragments with the same rule ingestion now applies before fragments are
+    made, so documents registered before that rule existed show what it would have removed.
+    """
+    rows = db.execute(
+        select(
+            KnowledgeFragment.artifact_id,
+            KnowledgeFragment.content,
+            KnowledgeFragment.source_location,
+        )
+        .join(Artifact, Artifact.id == KnowledgeFragment.artifact_id)
+        .where(KnowledgeFragment.owner_id == owner_id, Artifact.status == "registered")
+    ).all()
+    units: dict[uuid.UUID, dict] = defaultdict(lambda: defaultdict(list))
+    for artifact_id, content, location in rows:
+        location = location or {}
+        unit = location.get("slide") or location.get("page")
+        if unit is None:
+            continue
+        units[artifact_id][unit].extend((content or "").splitlines())
+
+    found: dict[str, dict] = {}
+    for artifact_id, by_unit in units.items():
+        for key in boilerplate.repeated_lines(by_unit):
+            entry = found.setdefault(key, {"line": None, "documents": set()})
+            entry["documents"].add(artifact_id)
+            if entry["line"] is None:
+                entry["line"] = next(
+                    (
+                        ln.strip()
+                        for ls in by_unit.values()
+                        for ln in ls
+                        if boilerplate.normalise(ln) == key
+                    ),
+                    key,
+                )
+    out = [{"line": e["line"], "documents": len(e["documents"])} for e in found.values()]
+    return sorted(out, key=lambda e: (-e["documents"], e["line"]))
+
+
+def _words(text: str) -> set[str]:
+    return set(canonical(text).split())
+
+
 # ---------------------------------------------------------------- topics
 
 
-def topic_health(db: Session, owner_id: uuid.UUID) -> dict:
+def topic_health(db: Session, owner_id: uuid.UUID, furniture: list[dict] | None = None) -> dict:
     """How the confirmed topics are distributed, and what the Galaxy would draw from them today."""
     docs = _registered(db, owner_id)
     per_key: dict[str, set[uuid.UUID]] = defaultdict(set)
@@ -144,12 +194,17 @@ def topic_health(db: Session, owner_id: uuid.UUID) -> dict:
     # mistake: a topic that is also confirmed as an entity on any document is a name, wherever it
     # appears.
     entities = {canonical(v) for d in docs for v in d.entities}
+    if furniture is None:
+        furniture = repeated_lines(db, owner_id)
+    furniture_words = [_words(f["line"]) for f in furniture]
     for t in topics:
-        t["suspect"] = (
-            ("noise", "a generic term naming the medium")
-            if t["generic"]
-            else suspect_reason(t["topic"], entities)
-        )
+        words = _words(t["topic"])
+        if t["generic"]:
+            t["suspect"] = ("noise", "a generic term naming the medium")
+        elif words and any(words <= line for line in furniture_words):
+            t["suspect"] = ("noise", "taken from a header or footer repeated on every page")
+        else:
+            t["suspect"] = suspect_reason(t["topic"], entities)
 
     # What graph.galaxy does today: the most frequent raw labels, and pairs that share documents.
     raw = Counter(t for doc in docs for t in doc.topics)
@@ -418,8 +473,10 @@ def similar_documents(db: Session, owner_id: uuid.UUID, neighbours: int = NEIGHB
 
 
 def report(db: Session, owner_id: uuid.UUID) -> dict:
+    furniture = repeated_lines(db, owner_id)
     return {
-        "topics": topic_health(db, owner_id),
+        "repeated_lines": furniture,
+        "topics": topic_health(db, owner_id, furniture),
         "embeddings": embedding_health(db, owner_id),
         "stated_links": stated_links(db, owner_id),
         "similar_documents": similar_documents(db, owner_id),

@@ -192,14 +192,28 @@ _TOOL_PREFIX = re.compile(
     re.I,
 )
 _SLIDE_LIKE = re.compile(r"^(slide|page|sheet|chart|figure|document|presentation)\s*\d*$", re.I)
+# One token mixing letters and digits, joined by an underscore or by at least two hyphens: how
+# files are named ("01-PRS-ML-DAY2A", "IMG_2041"), not how subjects are. "GPT-4" stays a title.
+_FILE_CODE = re.compile(
+    r"^(?=\S*\d)(?=\S*[A-Za-z])"
+    r"(?:[A-Za-z0-9]+(?:_[A-Za-z0-9]+)+|[A-Za-z0-9]+(?:-[A-Za-z0-9]+){2,})$"
+)
 
 
-def is_placeholder_title(title: str) -> bool:
-    """True when a title names the tool that made the file, not its subject.
+def is_placeholder_title(title: str, filename: str | None = None) -> bool:
+    """True when a title names the tool or the file that made the document, not its subject.
 
     Deliberately narrow. A real title is only rejected if it survives
     stripping a known tool prefix and still says nothing — "Microsoft Word -
     Q3 Revenue" keeps "Q3 Revenue", because the subject is right there.
+
+    Two filename shapes are placeholders too, because exporting a deck often
+    writes its filename into /Title, and the rule that document metadata
+    outranks a model then keeps "01-PRS-ML-DAY2A" as the name for ever:
+
+    * the title is this document's own filename stem, punctuation aside;
+    * the title is a file code: one token mixing letters and digits, joined by
+      an underscore or by two or more hyphens ("01-PRS-ML-DAY2A", "IMG_2041").
     """
     cleaned = _TOOL_PREFIX.sub("", " ".join((title or "").split())).strip()
     if not cleaned:
@@ -208,5 +222,11 @@ def is_placeholder_title(title: str) -> bool:
     stem = re.sub(r"\.(pdf|docx?|pptx?|xlsx?|txt|md)$", "", cleaned, flags=re.I)
     folded = canonical(stem)
     if not folded:
+        return True
+    if filename:
+        own = re.sub(r"\.[A-Za-z0-9]+$", "", filename.rsplit("/", 1)[-1])
+        if canonical(own) == folded:
+            return True
+    if _FILE_CODE.match(stem.strip()):
         return True
     return folded in _PLACEHOLDER_TITLES or bool(_SLIDE_LIKE.match(stem.strip()))

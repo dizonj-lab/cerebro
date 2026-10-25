@@ -102,7 +102,18 @@ docs/                                               architecture, contracts, sta
   unless they appear in the document verbatim.
 - A title the authoring tool wrote is not the document's title. "PowerPoint
   Presentation" and "Microsoft Word - Document1" are dropped so a better
-  candidate can through; a real title behind a tool prefix is kept.
+  candidate can through; a real title behind a tool prefix is kept. So is a
+  title that is the file's own name or a file code ("01-PRS-ML-DAY2A"):
+  exporting a deck writes its filename into /Title. Title precedence is
+  document metadata → local model → the document's first heading
+  (`first_heading`) → filename stem; a model may replace a heading, never a
+  real title the file states.
+- Lines a document repeats on most of its pages or slides (footers, headers,
+  page counters) are removed right after extraction, in
+  `services/artifacts/boilerplate.py`, keeping the first printing. Left in, a
+  copyright footer became the Galaxy's biggest cluster and sat in every
+  fragment's vector. Documents ingested before this keep their footers until
+  re-uploaded; `python -m app.tools.library_report` shows which.
 - There is **no cloud AI engine**. A failing local engine falls back to
   deterministic enrichment, never to a remote service. Say "CEREBRO
   environment", not "your device", and never claim data never leaves it.

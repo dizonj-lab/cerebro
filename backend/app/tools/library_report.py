@@ -24,6 +24,15 @@ def _section(title: str) -> None:
 
 def _print(r: dict, top: int) -> None:
     t, e, links, similar = r["topics"], r["embeddings"], r["stated_links"], r["similar_documents"]
+    furniture = r["repeated_lines"]
+
+    _section(f"Repeated lines ({len(furniture)})")
+    print("Lines a document repeats on most of its pages or slides: headers and footers.")
+    for f in furniture[:top]:
+        print(f"  in {f['documents']:>3} document(s): {f['line'][:120]}")
+    if furniture:
+        print("Documents uploaded from now on have these removed before fragments are made;")
+        print("re-upload these documents to clean their fragments, topics and vectors.")
 
     _section("Topics")
     print(f"{t['documents']} registered documents, {t['distinct_topics']} distinct topics")
