@@ -1,0 +1,3284 @@
+{
+ "generated_by": "demo/scripts/build_corpus.py",
+ "note": "Illustrative sample document for the CEREBRO demo.",
+ "owner": "Joselito Dizon",
+ "artifacts": [
+  {
+   "id": "ART-0001",
+   "type": "pdf",
+   "title": "NUS-ISS Practice Module Brief: Intelligent Reasoning Systems",
+   "short": "Practice Module Brief",
+   "date": "2026-07-06",
+   "kind": "Brief",
+   "project": "Coursework",
+   "authors": [
+    "NUS-ISS teaching team"
+   ],
+   "summary": "Course brief for the Intelligent Reasoning Systems practice module: a group-built reasoning system with a report, a runnable demo and a short video.",
+   "file": "files/ART-0001-practice-module-brief.pdf",
+   "size_bytes": 3058,
+   "sha256": "c3d4402417c0699eecf3c6d8d022f2c00a36d24ac9f29c2969d23b2c41e74b59",
+   "pages": 1,
+   "concepts": [
+    "Retrieval-augmented generation",
+    "Privacy",
+    "Provenance",
+    "Grounding",
+    "Ground truth evaluation"
+   ],
+   "entities": [],
+   "fragment_count": 8,
+   "pipeline": [
+    {
+     "step": "Uploaded",
+     "at": "2026-07-06T09:00:00",
+     "detail": "ART-0001-practice-module-brief.pdf · 3 KB"
+    },
+    {
+     "step": "File inspected",
+     "at": "2026-07-06T09:01:00",
+     "detail": "SHA-256 c3d4402417c0… · 1 page(s)"
+    },
+    {
+     "step": "Metadata extracted",
+     "at": "2026-07-06T09:02:00",
+     "detail": "Title, author, date and headings read from the file"
+    },
+    {
+     "step": "AI enrichment",
+     "at": "2026-07-06T09:04:00",
+     "detail": "Local model suggested topics: Retrieval-augmented generation, Privacy, Provenance"
+    },
+    {
+     "step": "Human review",
+     "at": "2026-07-06T09:30:00",
+     "detail": "Approved by Joselito Dizon"
+    },
+    {
+     "step": "Registered",
+     "at": "2026-07-06T09:31:00",
+     "detail": "ART-0001 registered"
+    },
+    {
+     "step": "Fragmented",
+     "at": "2026-07-06T09:32:00",
+     "detail": "8 knowledge fragments, deterministic segmentation"
+    }
+   ]
+  },
+  {
+   "id": "ART-0002",
+   "type": "docx",
+   "title": "CEREBRO Vision and Concept Note",
+   "short": "Vision and Concept Note",
+   "date": "2026-07-14",
+   "kind": "Concept note",
+   "project": "CEREBRO",
+   "authors": [
+    "Joselito Dizon"
+   ],
+   "summary": "Why CEREBRO exists: a private digital twin of personal knowledge that learns, connects, reasons and recalls, always with provenance.",
+   "file": "files/ART-0002-vision-and-concept-note.docx",
+   "size_bytes": 37495,
+   "sha256": "730b88f1dd591643b5f3b4313ad7761944a9204f87c751b4aa1934e86a8511d4",
+   "pages": null,
+   "concepts": [
+    "Provenance",
+    "Privacy",
+    "Grounding",
+    "Knowledge fragments",
+    "Knowledge graph",
+    "Safety and consent",
+    "Human review"
+   ],
+   "entities": [
+    "CEREBRO"
+   ],
+   "fragment_count": 9,
+   "pipeline": [
+    {
+     "step": "Uploaded",
+     "at": "2026-07-14T09:00:00",
+     "detail": "ART-0002-vision-and-concept-note.docx · 37 KB"
+    },
+    {
+     "step": "File inspected",
+     "at": "2026-07-14T09:01:00",
+     "detail": "SHA-256 730b88f1dd59… · Word document"
+    },
+    {
+     "step": "Metadata extracted",
+     "at": "2026-07-14T09:02:00",
+     "detail": "Title, author, date and headings read from the file"
+    },
+    {
+     "step": "AI enrichment",
+     "at": "2026-07-14T09:04:00",
+     "detail": "Local model suggested topics: Provenance, Privacy, Grounding"
+    },
+    {
+     "step": "Human review",
+     "at": "2026-07-14T09:30:00",
+     "detail": "Approved by Joselito Dizon"
+    },
+    {
+     "step": "Registered",
+     "at": "2026-07-14T09:31:00",
+     "detail": "ART-0002 registered"
+    },
+    {
+     "step": "Fragmented",
+     "at": "2026-07-14T09:32:00",
+     "detail": "9 knowledge fragments, deterministic segmentation"
+    }
+   ]
+  },
+  {
+   "id": "ART-0003",
+   "type": "pdf",
+   "title": "CEREBRO Solution Architecture",
+   "short": "CEREBRO Solution Architecture",
+   "date": "2026-08-02",
+   "kind": "Architecture",
+   "project": "CEREBRO",
+   "authors": [
+    "Joselito Dizon"
+   ],
+   "summary": "Containers, data stores and the staged plan from authentication to knowledge graph, reasoning and visualisation.",
+   "file": "files/ART-0003-cerebro-solution-architecture.pdf",
+   "size_bytes": 3929,
+   "sha256": "2c1a159aad79d3749643aaf512a0e713853c69eb64d2e22fff224ca58b86d5e1",
+   "pages": 2,
+   "concepts": [
+    "Knowledge graph",
+    "Knowledge fragments",
+    "Deployment",
+    "Retrieval-augmented generation",
+    "Embeddings",
+    "Local LLM",
+    "Human review",
+    "Provenance",
+    "Pipeline telemetry"
+   ],
+   "entities": [
+    "PostgreSQL",
+    "FastAPI",
+    "Ollama",
+    "CEREBRO"
+   ],
+   "fragment_count": 11,
+   "pipeline": [
+    {
+     "step": "Uploaded",
+     "at": "2026-08-02T09:00:00",
+     "detail": "ART-0003-cerebro-solution-architecture.pdf · 4 KB"
+    },
+    {
+     "step": "File inspected",
+     "at": "2026-08-02T09:01:00",
+     "detail": "SHA-256 2c1a159aad79… · 2 page(s)"
+    },
+    {
+     "step": "Metadata extracted",
+     "at": "2026-08-02T09:02:00",
+     "detail": "Title, author, date and headings read from the file"
+    },
+    {
+     "step": "AI enrichment",
+     "at": "2026-08-02T09:04:00",
+     "detail": "Local model suggested topics: Knowledge graph, Knowledge fragments, Deployment"
+    },
+    {
+     "step": "Human review",
+     "at": "2026-08-02T09:30:00",
+     "detail": "Approved by Joselito Dizon"
+    },
+    {
+     "step": "Registered",
+     "at": "2026-08-02T09:31:00",
+     "detail": "ART-0003 registered"
+    },
+    {
+     "step": "Fragmented",
+     "at": "2026-08-02T09:32:00",
+     "detail": "11 knowledge fragments, deterministic segmentation"
+    }
+   ]
+  },
+  {
+   "id": "ART-0004",
+   "type": "pdf",
+   "title": "Lecture Notes: Knowledge Graphs and Retrieval-Augmented Generation",
+   "short": "Knowledge Graphs and RAG lecture notes",
+   "date": "2026-07-21",
+   "kind": "Lecture notes",
+   "project": "Coursework",
+   "authors": [
+    "Joselito Dizon"
+   ],
+   "summary": "Notes on entity and relationship extraction, graph stores, embeddings, hybrid retrieval and grounding LLM answers in cited evidence.",
+   "file": "files/ART-0004-knowledge-graphs-and-rag-lecture-notes.pdf",
+   "size_bytes": 3000,
+   "sha256": "e47c81efdfba59fd8833dd26e74134e44eb78750e57e32a1e3583a2b75c25760",
+   "pages": 1,
+   "concepts": [
+    "Retrieval-augmented generation",
+    "Grounding",
+    "Knowledge graph",
+    "Local LLM",
+    "Embeddings",
+    "Ground truth evaluation"
+   ],
+   "entities": [],
+   "fragment_count": 8,
+   "pipeline": [
+    {
+     "step": "Uploaded",
+     "at": "2026-07-21T09:00:00",
+     "detail": "ART-0004-knowledge-graphs-and-rag-lecture-notes.pdf · 3 KB"
+    },
+    {
+     "step": "File inspected",
+     "at": "2026-07-21T09:01:00",
+     "detail": "SHA-256 e47c81efdfba… · 1 page(s)"
+    },
+    {
+     "step": "Metadata extracted",
+     "at": "2026-07-21T09:02:00",
+     "detail": "Title, author, date and headings read from the file"
+    },
+    {
+     "step": "AI enrichment",
+     "at": "2026-07-21T09:04:00",
+     "detail": "Local model suggested topics: Retrieval-augmented generation, Grounding, Knowledge graph"
+    },
+    {
+     "step": "Human review",
+     "at": "2026-07-21T09:30:00",
+     "detail": "Approved by Joselito Dizon"
+    },
+    {
+     "step": "Registered",
+     "at": "2026-07-21T09:31:00",
+     "detail": "ART-0004 registered"
+    },
+    {
+     "step": "Fragmented",
+     "at": "2026-07-21T09:32:00",
+     "detail": "8 knowledge fragments, deterministic segmentation"
+    }
+   ]
+  },
+  {
+   "id": "ART-0005",
+   "type": "pdf",
+   "title": "CEREBRO Ground Truth Benchmark (CEREBRO-GT v0.1)",
+   "short": "Ground Truth Benchmark",
+   "date": "2026-09-05",
+   "kind": "Benchmark",
+   "project": "CEREBRO",
+   "authors": [
+    "Joselito Dizon"
+   ],
+   "summary": "A frozen, annotated benchmark for measuring the knowledge pipeline: expected fragments, concepts and provenance for each source.",
+   "file": "files/ART-0005-ground-truth-benchmark.pdf",
+   "size_bytes": 2846,
+   "sha256": "cf78335628df51eab04a4a9c0b238ec3ebe4ba797a2c095dbd21baae92507710",
+   "pages": 1,
+   "concepts": [
+    "Provenance",
+    "Ground truth evaluation",
+    "Knowledge fragments"
+   ],
+   "entities": [
+    "CEREBRO"
+   ],
+   "fragment_count": 7,
+   "pipeline": [
+    {
+     "step": "Uploaded",
+     "at": "2026-09-05T09:00:00",
+     "detail": "ART-0005-ground-truth-benchmark.pdf · 3 KB"
+    },
+    {
+     "step": "File inspected",
+     "at": "2026-09-05T09:01:00",
+     "detail": "SHA-256 cf78335628df… · 1 page(s)"
+    },
+    {
+     "step": "Metadata extracted",
+     "at": "2026-09-05T09:02:00",
+     "detail": "Title, author, date and headings read from the file"
+    },
+    {
+     "step": "AI enrichment",
+     "at": "2026-09-05T09:04:00",
+     "detail": "Local model suggested topics: Provenance, Ground truth evaluation, Knowledge fragments"
+    },
+    {
+     "step": "Human review",
+     "at": "2026-09-05T09:30:00",
+     "detail": "Approved by Joselito Dizon"
+    },
+    {
+     "step": "Registered",
+     "at": "2026-09-05T09:31:00",
+     "detail": "ART-0005 registered"
+    },
+    {
+     "step": "Fragmented",
+     "at": "2026-09-05T09:32:00",
+     "detail": "7 knowledge fragments, deterministic segmentation"
+    }
+   ]
+  },
+  {
+   "id": "ART-0006",
+   "type": "docx",
+   "title": "Knowledge Pipeline Proof of Concept: Results",
+   "short": "Knowledge Pipeline PoC",
+   "date": "2026-09-24",
+   "kind": "Results",
+   "project": "CEREBRO",
+   "authors": [
+    "Joselito Dizon"
+   ],
+   "summary": "Steps 01 to 06 of the knowledge pipeline proof of concept, from ground truth to an integrated knowledge experience.",
+   "file": "files/ART-0006-knowledge-pipeline-poc.docx",
+   "size_bytes": 37444,
+   "sha256": "6627df7bc54e7d5d1eef5e00d5109fa66fd881997eb180b6114549f54c06f451",
+   "pages": null,
+   "concepts": [
+    "Ground truth evaluation",
+    "Human review",
+    "Knowledge fragments",
+    "Provenance",
+    "Local LLM",
+    "Embeddings"
+   ],
+   "entities": [
+    "CEREBRO",
+    "Group 7"
+   ],
+   "fragment_count": 10,
+   "pipeline": [
+    {
+     "step": "Uploaded",
+     "at": "2026-09-24T09:00:00",
+     "detail": "ART-0006-knowledge-pipeline-poc.docx · 37 KB"
+    },
+    {
+     "step": "File inspected",
+     "at": "2026-09-24T09:01:00",
+     "detail": "SHA-256 6627df7bc54e… · Word document"
+    },
+    {
+     "step": "Metadata extracted",
+     "at": "2026-09-24T09:02:00",
+     "detail": "Title, author, date and headings read from the file"
+    },
+    {
+     "step": "AI enrichment",
+     "at": "2026-09-24T09:04:00",
+     "detail": "Local model suggested topics: Ground truth evaluation, Human review, Knowledge fragments"
+    },
+    {
+     "step": "Human review",
+     "at": "2026-09-24T09:30:00",
+     "detail": "Approved by Joselito Dizon"
+    },
+    {
+     "step": "Registered",
+     "at": "2026-09-24T09:31:00",
+     "detail": "ART-0006 registered"
+    },
+    {
+     "step": "Fragmented",
+     "at": "2026-09-24T09:32:00",
+     "detail": "10 knowledge fragments, deterministic segmentation"
+    }
+   ]
+  },
+  {
+   "id": "ART-0007",
+   "type": "docx",
+   "title": "Meeting Minutes: Group 7, 12 September 2026",
+   "short": "Group 7 meeting minutes",
+   "date": "2026-09-12",
+   "kind": "Minutes",
+   "project": "CEREBRO",
+   "authors": [
+    "Joselito Dizon"
+   ],
+   "summary": "Decisions on the benchmark, mandatory human review, and reusing the pipeline telemetry pattern across projects.",
+   "file": "files/ART-0007-group-7-meeting-minutes.docx",
+   "size_bytes": 37293,
+   "sha256": "3e784f386da7eae1300edaf5e88c851a10b53aac15c4e78e7abb6da47ab413fb",
+   "pages": null,
+   "concepts": [
+    "Human review",
+    "Ground truth evaluation",
+    "Pipeline telemetry",
+    "Deployment"
+   ],
+   "entities": [
+    "Joselito Dizon",
+    "Group 7",
+    "CEREBRO",
+    "MealSenseAI",
+    "Buddy (home server)"
+   ],
+   "fragment_count": 7,
+   "pipeline": [
+    {
+     "step": "Uploaded",
+     "at": "2026-09-12T09:00:00",
+     "detail": "ART-0007-group-7-meeting-minutes.docx · 36 KB"
+    },
+    {
+     "step": "File inspected",
+     "at": "2026-09-12T09:01:00",
+     "detail": "SHA-256 3e784f386da7… · Word document"
+    },
+    {
+     "step": "Metadata extracted",
+     "at": "2026-09-12T09:02:00",
+     "detail": "Title, author, date and headings read from the file"
+    },
+    {
+     "step": "AI enrichment",
+     "at": "2026-09-12T09:04:00",
+     "detail": "Local model suggested topics: Human review, Ground truth evaluation, Pipeline telemetry"
+    },
+    {
+     "step": "Human review",
+     "at": "2026-09-12T09:30:00",
+     "detail": "Approved by Joselito Dizon"
+    },
+    {
+     "step": "Registered",
+     "at": "2026-09-12T09:31:00",
+     "detail": "ART-0007 registered"
+    },
+    {
+     "step": "Fragmented",
+     "at": "2026-09-12T09:32:00",
+     "detail": "7 knowledge fragments, deterministic segmentation"
+    }
+   ]
+  },
+  {
+   "id": "ART-0008",
+   "type": "pdf",
+   "title": "MealSenseAI Project Proposal",
+   "short": "MealSenseAI Project Proposal",
+   "date": "2026-06-20",
+   "kind": "Proposal",
+   "project": "MealSenseAI",
+   "authors": [
+    "Joselito Dizon"
+   ],
+   "summary": "A photo-based meal logger that recognises foods, estimates nutrition and explains its confidence, aimed at people managing their diet.",
+   "file": "files/ART-0008-mealsenseai-project-proposal.pdf",
+   "size_bytes": 2871,
+   "sha256": "240e571783831073d8bec6fd55de2970d21a849d354b4d1edb857fe1df2b0af7",
+   "pages": 1,
+   "concepts": [
+    "Nutrition estimation",
+    "Food recognition",
+    "Safety and consent",
+    "Grounding"
+   ],
+   "entities": [
+    "MealSenseAI",
+    "Food-101",
+    "FoodSG-233"
+   ],
+   "fragment_count": 8,
+   "pipeline": [
+    {
+     "step": "Uploaded",
+     "at": "2026-06-20T09:00:00",
+     "detail": "ART-0008-mealsenseai-project-proposal.pdf · 3 KB"
+    },
+    {
+     "step": "File inspected",
+     "at": "2026-06-20T09:01:00",
+     "detail": "SHA-256 240e57178383… · 1 page(s)"
+    },
+    {
+     "step": "Metadata extracted",
+     "at": "2026-06-20T09:02:00",
+     "detail": "Title, author, date and headings read from the file"
+    },
+    {
+     "step": "AI enrichment",
+     "at": "2026-06-20T09:04:00",
+     "detail": "Local model suggested topics: Nutrition estimation, Food recognition, Safety and consent"
+    },
+    {
+     "step": "Human review",
+     "at": "2026-06-20T09:30:00",
+     "detail": "Approved by Joselito Dizon"
+    },
+    {
+     "step": "Registered",
+     "at": "2026-06-20T09:31:00",
+     "detail": "ART-0008 registered"
+    },
+    {
+     "step": "Fragmented",
+     "at": "2026-06-20T09:32:00",
+     "detail": "8 knowledge fragments, deterministic segmentation"
+    }
+   ]
+  },
+  {
+   "id": "ART-0009",
+   "type": "docx",
+   "title": "MealSenseAI Solution Architecture",
+   "short": "MealSenseAI Solution Architecture",
+   "date": "2026-07-10",
+   "kind": "Architecture",
+   "project": "MealSenseAI",
+   "authors": [
+    "Joselito Dizon"
+   ],
+   "summary": "FastAPI, React and PostgreSQL around an ONNX food classifier, YOLO11n-seg plate segmentation and an optional local LLM.",
+   "file": "files/ART-0009-mealsenseai-solution-architecture.docx",
+   "size_bytes": 37424,
+   "sha256": "660a616e2fdccc7817556e260a9c4935a951c6694093d08e00d9080e12648252",
+   "pages": null,
+   "concepts": [
+    "Grounding",
+    "Food recognition",
+    "Local LLM",
+    "Knowledge graph",
+    "Retrieval-augmented generation",
+    "Pipeline telemetry"
+   ],
+   "entities": [
+    "YOLO11n-seg",
+    "PostgreSQL",
+    "FastAPI",
+    "MealSenseAI",
+    "EXP-002",
+    "Ollama",
+    "CEREBRO"
+   ],
+   "fragment_count": 8,
+   "pipeline": [
+    {
+     "step": "Uploaded",
+     "at": "2026-07-10T09:00:00",
+     "detail": "ART-0009-mealsenseai-solution-architecture.docx · 37 KB"
+    },
+    {
+     "step": "File inspected",
+     "at": "2026-07-10T09:01:00",
+     "detail": "SHA-256 660a616e2fdc… · Word document"
+    },
+    {
+     "step": "Metadata extracted",
+     "at": "2026-07-10T09:02:00",
+     "detail": "Title, author, date and headings read from the file"
+    },
+    {
+     "step": "AI enrichment",
+     "at": "2026-07-10T09:04:00",
+     "detail": "Local model suggested topics: Grounding, Food recognition, Local LLM"
+    },
+    {
+     "step": "Human review",
+     "at": "2026-07-10T09:30:00",
+     "detail": "Approved by Joselito Dizon"
+    },
+    {
+     "step": "Registered",
+     "at": "2026-07-10T09:31:00",
+     "detail": "ART-0009 registered"
+    },
+    {
+     "step": "Fragmented",
+     "at": "2026-07-10T09:32:00",
+     "detail": "8 knowledge fragments, deterministic segmentation"
+    }
+   ]
+  },
+  {
+   "id": "ART-0010",
+   "type": "pdf",
+   "title": "Dataset Notes: Food-101",
+   "short": "Food-101 dataset notes",
+   "date": "2026-06-15",
+   "kind": "Dataset notes",
+   "project": "MealSenseAI",
+   "authors": [
+    "Joselito Dizon"
+   ],
+   "summary": "Reading notes on Food-101 (Bossard, Guillaumin and Van Gool, ECCV 2014): 101 classes, 101,000 images.",
+   "file": "files/ART-0010-food-101-dataset-notes.pdf",
+   "size_bytes": 2654,
+   "sha256": "5468a930383c72071f857094683f1b7ae8433781a9466286e5994ebc77dfc53d",
+   "pages": 1,
+   "concepts": [
+    "Food recognition"
+   ],
+   "entities": [
+    "Food-101",
+    "FoodSG-233",
+    "MealSenseAI"
+   ],
+   "fragment_count": 6,
+   "pipeline": [
+    {
+     "step": "Uploaded",
+     "at": "2026-06-15T09:00:00",
+     "detail": "ART-0010-food-101-dataset-notes.pdf · 3 KB"
+    },
+    {
+     "step": "File inspected",
+     "at": "2026-06-15T09:01:00",
+     "detail": "SHA-256 5468a930383c… · 1 page(s)"
+    },
+    {
+     "step": "Metadata extracted",
+     "at": "2026-06-15T09:02:00",
+     "detail": "Title, author, date and headings read from the file"
+    },
+    {
+     "step": "AI enrichment",
+     "at": "2026-06-15T09:04:00",
+     "detail": "Local model suggested topics: Food recognition"
+    },
+    {
+     "step": "Human review",
+     "at": "2026-06-15T09:30:00",
+     "detail": "Approved by Joselito Dizon"
+    },
+    {
+     "step": "Registered",
+     "at": "2026-06-15T09:31:00",
+     "detail": "ART-0010 registered"
+    },
+    {
+     "step": "Fragmented",
+     "at": "2026-06-15T09:32:00",
+     "detail": "6 knowledge fragments, deterministic segmentation"
+    }
+   ]
+  },
+  {
+   "id": "ART-0011",
+   "type": "docx",
+   "title": "Dataset Notes: FoodSG-233",
+   "short": "FoodSG-233 dataset notes",
+   "date": "2026-06-16",
+   "kind": "Dataset notes",
+   "project": "MealSenseAI",
+   "authors": [
+    "Joselito Dizon"
+   ],
+   "summary": "Reading notes on FoodSG-233, a dataset of 233 local Singapore dishes, and how it complements Food-101.",
+   "file": "files/ART-0011-foodsg-233-dataset-notes.docx",
+   "size_bytes": 37163,
+   "sha256": "fb4e1461e16f24217e328135d760bf84e285bf750a0f5ae96c81a9c4e4a6e267",
+   "pages": null,
+   "concepts": [
+    "Nutrition estimation"
+   ],
+   "entities": [
+    "Food-101",
+    "FoodSG-233",
+    "MealSenseAI"
+   ],
+   "fragment_count": 5,
+   "pipeline": [
+    {
+     "step": "Uploaded",
+     "at": "2026-06-16T09:00:00",
+     "detail": "ART-0011-foodsg-233-dataset-notes.docx · 36 KB"
+    },
+    {
+     "step": "File inspected",
+     "at": "2026-06-16T09:01:00",
+     "detail": "SHA-256 fb4e1461e16f… · Word document"
+    },
+    {
+     "step": "Metadata extracted",
+     "at": "2026-06-16T09:02:00",
+     "detail": "Title, author, date and headings read from the file"
+    },
+    {
+     "step": "AI enrichment",
+     "at": "2026-06-16T09:04:00",
+     "detail": "Local model suggested topics: Nutrition estimation"
+    },
+    {
+     "step": "Human review",
+     "at": "2026-06-16T09:30:00",
+     "detail": "Approved by Joselito Dizon"
+    },
+    {
+     "step": "Registered",
+     "at": "2026-06-16T09:31:00",
+     "detail": "ART-0011 registered"
+    },
+    {
+     "step": "Fragmented",
+     "at": "2026-06-16T09:32:00",
+     "detail": "5 knowledge fragments, deterministic segmentation"
+    }
+   ]
+  },
+  {
+   "id": "ART-0012",
+   "type": "pdf",
+   "title": "EXP-002 Model Evaluation Report",
+   "short": "EXP-002 Model Evaluation Report",
+   "date": "2026-08-18",
+   "kind": "Evaluation",
+   "project": "MealSenseAI",
+   "authors": [
+    "Joselito Dizon"
+   ],
+   "summary": "Developer-reported accuracy of the EXP-002 food classifier and the ONNX runtime parity check.",
+   "file": "files/ART-0012-exp-002-model-evaluation-report.pdf",
+   "size_bytes": 2685,
+   "sha256": "7294b0120eb96d1f44000993169e9fd45f9d9f2fdcb4537df74e614e218b79b0",
+   "pages": 1,
+   "concepts": [
+    "Food recognition"
+   ],
+   "entities": [
+    "EXP-002",
+    "MealSenseAI",
+    "Food-101",
+    "FoodSG-233"
+   ],
+   "fragment_count": 6,
+   "pipeline": [
+    {
+     "step": "Uploaded",
+     "at": "2026-08-18T09:00:00",
+     "detail": "ART-0012-exp-002-model-evaluation-report.pdf · 3 KB"
+    },
+    {
+     "step": "File inspected",
+     "at": "2026-08-18T09:01:00",
+     "detail": "SHA-256 7294b0120eb9… · 1 page(s)"
+    },
+    {
+     "step": "Metadata extracted",
+     "at": "2026-08-18T09:02:00",
+     "detail": "Title, author, date and headings read from the file"
+    },
+    {
+     "step": "AI enrichment",
+     "at": "2026-08-18T09:04:00",
+     "detail": "Local model suggested topics: Food recognition"
+    },
+    {
+     "step": "Human review",
+     "at": "2026-08-18T09:30:00",
+     "detail": "Approved by Joselito Dizon"
+    },
+    {
+     "step": "Registered",
+     "at": "2026-08-18T09:31:00",
+     "detail": "ART-0012 registered"
+    },
+    {
+     "step": "Fragmented",
+     "at": "2026-08-18T09:32:00",
+     "detail": "6 knowledge fragments, deterministic segmentation"
+    }
+   ]
+  },
+  {
+   "id": "ART-0013",
+   "type": "docx",
+   "title": "Design Memo: Glucose Estimates in mmol/L",
+   "short": "Glucose estimate design memo",
+   "date": "2026-10-24",
+   "kind": "Design memo",
+   "project": "MealSenseAI",
+   "authors": [
+    "Joselito Dizon"
+   ],
+   "summary": "Replacing the relative glucose index with mmol/L: pre-meal reading plus an estimated rise, a wide band, and personal calibration.",
+   "file": "files/ART-0013-glucose-estimate-design-memo.docx",
+   "size_bytes": 37341,
+   "sha256": "1ebe60669a7bb1b4d4ba7de7b807af84b5cbad4b69d8ea5109ce05510d9743b3",
+   "pages": null,
+   "concepts": [
+    "Glycaemic index",
+    "Safety and consent"
+   ],
+   "entities": [
+    "MealSenseAI"
+   ],
+   "fragment_count": 7,
+   "pipeline": [
+    {
+     "step": "Uploaded",
+     "at": "2026-10-24T09:00:00",
+     "detail": "ART-0013-glucose-estimate-design-memo.docx · 36 KB"
+    },
+    {
+     "step": "File inspected",
+     "at": "2026-10-24T09:01:00",
+     "detail": "SHA-256 1ebe60669a7b… · Word document"
+    },
+    {
+     "step": "Metadata extracted",
+     "at": "2026-10-24T09:02:00",
+     "detail": "Title, author, date and headings read from the file"
+    },
+    {
+     "step": "AI enrichment",
+     "at": "2026-10-24T09:04:00",
+     "detail": "Local model suggested topics: Glycaemic index, Safety and consent"
+    },
+    {
+     "step": "Human review",
+     "at": "2026-10-24T09:30:00",
+     "detail": "Approved by Joselito Dizon"
+    },
+    {
+     "step": "Registered",
+     "at": "2026-10-24T09:31:00",
+     "detail": "ART-0013 registered"
+    },
+    {
+     "step": "Fragmented",
+     "at": "2026-10-24T09:32:00",
+     "detail": "7 knowledge fragments, deterministic segmentation"
+    }
+   ]
+  },
+  {
+   "id": "ART-0014",
+   "type": "pdf",
+   "title": "Guidance Notes: Glycaemic Index and Glycaemic Load",
+   "short": "glycaemic index and load guidance notes",
+   "date": "2026-07-30",
+   "kind": "Guidance notes",
+   "project": "MealSenseAI",
+   "authors": [
+    "Joselito Dizon"
+   ],
+   "summary": "Educational notes on glycaemic index and load, drawn from the international GI tables and diabetes care standards.",
+   "file": "files/ART-0014-glycaemic-index-and-load-guidance-notes.pdf",
+   "size_bytes": 2765,
+   "sha256": "f7b42c7d876529cc83dc17f982a8e02d0cd9b8981055fde40752cb5d4670163d",
+   "pages": 1,
+   "concepts": [
+    "Glycaemic index",
+    "Nutrition estimation"
+   ],
+   "entities": [
+    "MealSenseAI"
+   ],
+   "fragment_count": 7,
+   "pipeline": [
+    {
+     "step": "Uploaded",
+     "at": "2026-07-30T09:00:00",
+     "detail": "ART-0014-glycaemic-index-and-load-guidance-notes.pdf · 3 KB"
+    },
+    {
+     "step": "File inspected",
+     "at": "2026-07-30T09:01:00",
+     "detail": "SHA-256 f7b42c7d8765… · 1 page(s)"
+    },
+    {
+     "step": "Metadata extracted",
+     "at": "2026-07-30T09:02:00",
+     "detail": "Title, author, date and headings read from the file"
+    },
+    {
+     "step": "AI enrichment",
+     "at": "2026-07-30T09:04:00",
+     "detail": "Local model suggested topics: Glycaemic index, Nutrition estimation"
+    },
+    {
+     "step": "Human review",
+     "at": "2026-07-30T09:30:00",
+     "detail": "Approved by Joselito Dizon"
+    },
+    {
+     "step": "Registered",
+     "at": "2026-07-30T09:31:00",
+     "detail": "ART-0014 registered"
+    },
+    {
+     "step": "Fragmented",
+     "at": "2026-07-30T09:32:00",
+     "detail": "7 knowledge fragments, deterministic segmentation"
+    }
+   ]
+  },
+  {
+   "id": "ART-0015",
+   "type": "docx",
+   "title": "Home Server Runbook: Buddy",
+   "short": "Buddy runbook",
+   "date": "2026-10-05",
+   "kind": "Runbook",
+   "project": "Infrastructure",
+   "authors": [
+    "Joselito Dizon"
+   ],
+   "summary": "How the Ubuntu home server hosts MealSenseAI and CEREBRO with Docker Compose, an NVIDIA GPU, Ollama and a Cloudflare Tunnel.",
+   "file": "files/ART-0015-buddy-runbook.docx",
+   "size_bytes": 37360,
+   "sha256": "2e216b2003d0afaf3c8fdf0af3806b89c730cf03421039a02398a09c63e34d97",
+   "pages": null,
+   "concepts": [
+    "Deployment",
+    "Local LLM"
+   ],
+   "entities": [
+    "Ollama",
+    "CEREBRO",
+    "MealSenseAI",
+    "Cloudflare Tunnel",
+    "Buddy (home server)",
+    "PostgreSQL"
+   ],
+   "fragment_count": 8,
+   "pipeline": [
+    {
+     "step": "Uploaded",
+     "at": "2026-10-05T09:00:00",
+     "detail": "ART-0015-buddy-runbook.docx · 36 KB"
+    },
+    {
+     "step": "File inspected",
+     "at": "2026-10-05T09:01:00",
+     "detail": "SHA-256 2e216b2003d0… · Word document"
+    },
+    {
+     "step": "Metadata extracted",
+     "at": "2026-10-05T09:02:00",
+     "detail": "Title, author, date and headings read from the file"
+    },
+    {
+     "step": "AI enrichment",
+     "at": "2026-10-05T09:04:00",
+     "detail": "Local model suggested topics: Deployment, Local LLM"
+    },
+    {
+     "step": "Human review",
+     "at": "2026-10-05T09:30:00",
+     "detail": "Approved by Joselito Dizon"
+    },
+    {
+     "step": "Registered",
+     "at": "2026-10-05T09:31:00",
+     "detail": "ART-0015 registered"
+    },
+    {
+     "step": "Fragmented",
+     "at": "2026-10-05T09:32:00",
+     "detail": "8 knowledge fragments, deterministic segmentation"
+    }
+   ]
+  },
+  {
+   "id": "ART-0016",
+   "type": "pdf",
+   "title": "Local LLM Evaluation Plan",
+   "short": "Local LLM Evaluation Plan",
+   "date": "2026-09-28",
+   "kind": "Plan",
+   "project": "Infrastructure",
+   "authors": [
+    "Joselito Dizon"
+   ],
+   "summary": "How small local models will be compared for grounded answering in both projects; measurements are still to be run on Buddy.",
+   "file": "files/ART-0016-local-llm-evaluation-plan.pdf",
+   "size_bytes": 2742,
+   "sha256": "40b37ee534a4a2d55f755a6c2904fe613c21c9a12724bfd61099a560bb2daeab",
+   "pages": 1,
+   "concepts": [
+    "Local LLM",
+    "Grounding",
+    "Ground truth evaluation",
+    "Privacy",
+    "Knowledge graph",
+    "Retrieval-augmented generation",
+    "Deployment"
+   ],
+   "entities": [
+    "Buddy (home server)",
+    "CEREBRO",
+    "MealSenseAI",
+    "Ollama"
+   ],
+   "fragment_count": 6,
+   "pipeline": [
+    {
+     "step": "Uploaded",
+     "at": "2026-09-28T09:00:00",
+     "detail": "ART-0016-local-llm-evaluation-plan.pdf · 3 KB"
+    },
+    {
+     "step": "File inspected",
+     "at": "2026-09-28T09:01:00",
+     "detail": "SHA-256 40b37ee534a4… · 1 page(s)"
+    },
+    {
+     "step": "Metadata extracted",
+     "at": "2026-09-28T09:02:00",
+     "detail": "Title, author, date and headings read from the file"
+    },
+    {
+     "step": "AI enrichment",
+     "at": "2026-09-28T09:04:00",
+     "detail": "Local model suggested topics: Local LLM, Grounding, Ground truth evaluation"
+    },
+    {
+     "step": "Human review",
+     "at": "2026-09-28T09:30:00",
+     "detail": "Approved by Joselito Dizon"
+    },
+    {
+     "step": "Registered",
+     "at": "2026-09-28T09:31:00",
+     "detail": "ART-0016 registered"
+    },
+    {
+     "step": "Fragmented",
+     "at": "2026-09-28T09:32:00",
+     "detail": "6 knowledge fragments, deterministic segmentation"
+    }
+   ]
+  }
+ ],
+ "fragments": [
+  {
+   "id": "ART-0001-F01",
+   "artifact_id": "ART-0001",
+   "section": "Summary",
+   "text": "Course brief for the Intelligent Reasoning Systems practice module: a group-built reasoning system with a report, a runnable demo and a short video.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [],
+   "entities": []
+  },
+  {
+   "id": "ART-0001-F02",
+   "artifact_id": "ART-0001",
+   "section": "Purpose",
+   "text": "The practice module asks each group to design and build an intelligent reasoning system that solves a real problem for a real user.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [],
+   "entities": []
+  },
+  {
+   "id": "ART-0001-F03",
+   "artifact_id": "ART-0001",
+   "section": "Purpose",
+   "text": "Systems should combine at least two reasoning techniques, such as knowledge representation, search, machine learning or retrieval, and explain how they work together.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Retrieval-augmented generation"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0001-F04",
+   "artifact_id": "ART-0001",
+   "section": "Deliverables",
+   "text": "Each group submits a project report, a runnable demo web app and a recorded video of no more than ten minutes.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [],
+   "entities": []
+  },
+  {
+   "id": "ART-0001-F05",
+   "artifact_id": "ART-0001",
+   "section": "Deliverables",
+   "text": "The runnable demo must start with documented commands on a clean machine, and markers must be able to explore it without private credentials.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Privacy"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0001-F06",
+   "artifact_id": "ART-0001",
+   "section": "Deliverables",
+   "text": "Provenance matters: every answer a system gives should be traceable back to the evidence it used.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Provenance",
+    "Grounding"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0001-F07",
+   "artifact_id": "ART-0001",
+   "section": "Assessment",
+   "text": "Marks are awarded for problem framing, technical depth, the quality of the reasoning, evaluation against ground truth, and the clarity of the demo.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Ground truth evaluation"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0001-F08",
+   "artifact_id": "ART-0001",
+   "section": "Assessment",
+   "text": "Groups are encouraged to keep architecture decisions in a written log and to show how evaluation shaped the design.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [],
+   "entities": []
+  },
+  {
+   "id": "ART-0002-F01",
+   "artifact_id": "ART-0002",
+   "section": "Summary",
+   "text": "Why CEREBRO exists: a private digital twin of personal knowledge that learns, connects, reasons and recalls, always with provenance.",
+   "location": {
+    "paragraph": 3
+   },
+   "concepts": [
+    "Provenance",
+    "Privacy"
+   ],
+   "entities": [
+    "CEREBRO"
+   ]
+  },
+  {
+   "id": "ART-0002-F02",
+   "artifact_id": "ART-0002",
+   "section": "The problem",
+   "text": "Personal knowledge is scattered across PDFs, notes, slides and messages, and the links between them live only in our heads.",
+   "location": {
+    "paragraph": 5
+   },
+   "concepts": [],
+   "entities": []
+  },
+  {
+   "id": "ART-0002-F03",
+   "artifact_id": "ART-0002",
+   "section": "The problem",
+   "text": "When we need to recall why a decision was made, the evidence is rarely where we expect it.",
+   "location": {
+    "paragraph": 6
+   },
+   "concepts": [
+    "Grounding"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0002-F04",
+   "artifact_id": "ART-0002",
+   "section": "The idea",
+   "text": "CEREBRO is an Adaptive Knowledge and Reasoning Digital Twin: a private store that turns documents into connected knowledge fragments.",
+   "location": {
+    "paragraph": 8
+   },
+   "concepts": [
+    "Knowledge fragments",
+    "Privacy"
+   ],
+   "entities": [
+    "CEREBRO"
+   ]
+  },
+  {
+   "id": "ART-0002-F05",
+   "artifact_id": "ART-0002",
+   "section": "The idea",
+   "text": "It follows four pillars: Learn from new artifacts, Connect them into a knowledge graph, Reason over that graph, and Recall answers with their sources.",
+   "location": {
+    "paragraph": 9
+   },
+   "concepts": [
+    "Knowledge graph"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0002-F06",
+   "artifact_id": "ART-0002",
+   "section": "The idea",
+   "text": "This concept note responds to the Practice Module Brief, which asks for a reasoning system whose answers are traceable to evidence.",
+   "location": {
+    "paragraph": 10
+   },
+   "concepts": [
+    "Provenance",
+    "Grounding"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0002-F07",
+   "artifact_id": "ART-0002",
+   "section": "Principles",
+   "text": "Provenance first: every fragment keeps a pointer to its source artifact, page and character range.",
+   "location": {
+    "paragraph": 12
+   },
+   "concepts": [
+    "Provenance",
+    "Knowledge fragments"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0002-F08",
+   "artifact_id": "ART-0002",
+   "section": "Principles",
+   "text": "Private by default: processing runs locally, and any cloud model requires explicit consent.",
+   "location": {
+    "paragraph": 13
+   },
+   "concepts": [
+    "Safety and consent",
+    "Privacy"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0002-F09",
+   "artifact_id": "ART-0002",
+   "section": "Principles",
+   "text": "Human in the loop: AI-suggested metadata is reviewed and approved before an artifact is registered.",
+   "location": {
+    "paragraph": 14
+   },
+   "concepts": [
+    "Human review"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0003-F01",
+   "artifact_id": "ART-0003",
+   "section": "Summary",
+   "text": "Containers, data stores and the staged plan from authentication to knowledge graph, reasoning and visualisation.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Knowledge graph"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0003-F02",
+   "artifact_id": "ART-0003",
+   "section": "Context",
+   "text": "This architecture extends the Vision and Concept Note into a buildable system.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [],
+   "entities": []
+  },
+  {
+   "id": "ART-0003-F03",
+   "artifact_id": "ART-0003",
+   "section": "Context",
+   "text": "It applies the retrieval and graph patterns covered in the Knowledge Graphs and RAG lecture notes.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Knowledge graph",
+    "Retrieval-augmented generation"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0003-F04",
+   "artifact_id": "ART-0003",
+   "section": "Containers",
+   "text": "The web tier is Next.js with React; the API is FastAPI with SQLAlchemy; PostgreSQL holds users, artifacts and fragments.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Knowledge fragments"
+   ],
+   "entities": [
+    "PostgreSQL",
+    "FastAPI"
+   ]
+  },
+  {
+   "id": "ART-0003-F05",
+   "artifact_id": "ART-0003",
+   "section": "Containers",
+   "text": "React never connects to PostgreSQL directly: all data access goes through the API, and the web pod proxies requests under one origin.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [],
+   "entities": [
+    "PostgreSQL"
+   ]
+  },
+  {
+   "id": "ART-0003-F06",
+   "artifact_id": "ART-0003",
+   "section": "Containers",
+   "text": "Later stages add an object store for originals, a vector store for embeddings, a graph store for entities and relationships, and a local LLM served by Ollama.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Knowledge graph",
+    "Embeddings",
+    "Local LLM"
+   ],
+   "entities": [
+    "Ollama"
+   ]
+  },
+  {
+   "id": "ART-0003-F07",
+   "artifact_id": "ART-0003",
+   "section": "Pipeline",
+   "text": "An artifact moves through upload, file inspection, metadata extraction, AI enrichment, human review and registration.",
+   "location": {
+    "page": 2
+   },
+   "concepts": [
+    "Human review"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0003-F08",
+   "artifact_id": "ART-0003",
+   "section": "Pipeline",
+   "text": "Registered artifacts are segmented into knowledge fragments, each carrying concepts, entities, temporal fields and provenance.",
+   "location": {
+    "page": 2
+   },
+   "concepts": [
+    "Provenance",
+    "Knowledge fragments"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0003-F09",
+   "artifact_id": "ART-0003",
+   "section": "Pipeline",
+   "text": "Every pipeline step emits telemetry so the user can see which stage is running and how long it took.",
+   "location": {
+    "page": 2
+   },
+   "concepts": [
+    "Pipeline telemetry"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0003-F10",
+   "artifact_id": "ART-0003",
+   "section": "Deployment",
+   "text": "Kubernetes in a dedicated cerebro namespace is the primary target, with Docker Compose as the simpler fallback.",
+   "location": {
+    "page": 2
+   },
+   "concepts": [
+    "Deployment"
+   ],
+   "entities": [
+    "CEREBRO"
+   ]
+  },
+  {
+   "id": "ART-0003-F11",
+   "artifact_id": "ART-0003",
+   "section": "Deployment",
+   "text": "Host ports are configurable because ports 3000, 8000 and 5432 are often taken on a shared machine.",
+   "location": {
+    "page": 2
+   },
+   "concepts": [
+    "Deployment"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0004-F01",
+   "artifact_id": "ART-0004",
+   "section": "Summary",
+   "text": "Notes on entity and relationship extraction, graph stores, embeddings, hybrid retrieval and grounding LLM answers in cited evidence.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Knowledge graph",
+    "Retrieval-augmented generation",
+    "Grounding",
+    "Embeddings",
+    "Local LLM"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0004-F02",
+   "artifact_id": "ART-0004",
+   "section": "Knowledge graphs",
+   "text": "A knowledge graph stores entities as nodes and typed relationships as edges, which makes multi-hop questions answerable.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Knowledge graph"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0004-F03",
+   "artifact_id": "ART-0004",
+   "section": "Knowledge graphs",
+   "text": "Typical relationship types in a document graph include cites, extends, implements, evaluates and supersedes.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Knowledge graph"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0004-F04",
+   "artifact_id": "ART-0004",
+   "section": "Retrieval-augmented generation",
+   "text": "Retrieval-augmented generation first retrieves relevant passages, then asks a language model to answer using only those passages.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Retrieval-augmented generation",
+    "Local LLM"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0004-F05",
+   "artifact_id": "ART-0004",
+   "section": "Retrieval-augmented generation",
+   "text": "Hybrid retrieval combines keyword scoring such as BM25 with embedding similarity, which helps with both exact terms and paraphrases.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Retrieval-augmented generation",
+    "Embeddings"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0004-F06",
+   "artifact_id": "ART-0004",
+   "section": "Retrieval-augmented generation",
+   "text": "Grounding means every claim in the answer can be traced to a retrieved passage; unsupported claims should be rejected, not hidden.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Retrieval-augmented generation",
+    "Grounding"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0004-F07",
+   "artifact_id": "ART-0004",
+   "section": "Evaluation",
+   "text": "Retrieval quality is measured against a labelled ground truth, for example recall at k and the rate of unsupported claims.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Retrieval-augmented generation",
+    "Grounding",
+    "Ground truth evaluation"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0004-F08",
+   "artifact_id": "ART-0004",
+   "section": "Evaluation",
+   "text": "Small local models can phrase answers well, but the facts must come from the retrieved evidence.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Retrieval-augmented generation",
+    "Grounding",
+    "Local LLM"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0005-F01",
+   "artifact_id": "ART-0005",
+   "section": "Summary",
+   "text": "A frozen, annotated benchmark for measuring the knowledge pipeline: expected fragments, concepts and provenance for each source.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Provenance",
+    "Ground truth evaluation",
+    "Knowledge fragments"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0005-F02",
+   "artifact_id": "ART-0005",
+   "section": "Why a benchmark",
+   "text": "The Practice Module Brief rewards evaluation against ground truth, so the pipeline needs a fixed reference before it is tuned.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Ground truth evaluation"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0005-F03",
+   "artifact_id": "ART-0005",
+   "section": "Why a benchmark",
+   "text": "This benchmark evaluates the pipeline described in the CEREBRO Solution Architecture.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Ground truth evaluation"
+   ],
+   "entities": [
+    "CEREBRO"
+   ]
+  },
+  {
+   "id": "ART-0005-F04",
+   "artifact_id": "ART-0005",
+   "section": "Annotation schema",
+   "text": "Each benchmark item records the source artifact, its checksum, the expected fragments with character ranges, and the expected concepts.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Provenance",
+    "Ground truth evaluation",
+    "Knowledge fragments"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0005-F05",
+   "artifact_id": "ART-0005",
+   "section": "Annotation schema",
+   "text": "Annotations are frozen as version 0.1 and persisted with their own checksum, so later changes are visible.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Provenance"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0005-F06",
+   "artifact_id": "ART-0005",
+   "section": "Acceptance tests",
+   "text": "A pipeline run passes when every expected fragment is produced with the right source location and no fragment lacks provenance.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Provenance",
+    "Knowledge fragments"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0005-F07",
+   "artifact_id": "ART-0005",
+   "section": "Acceptance tests",
+   "text": "Concept extraction is scored separately, because wording can differ while meaning is preserved.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [],
+   "entities": []
+  },
+  {
+   "id": "ART-0006-F01",
+   "artifact_id": "ART-0006",
+   "section": "Summary",
+   "text": "Steps 01 to 06 of the knowledge pipeline proof of concept, from ground truth to an integrated knowledge experience.",
+   "location": {
+    "paragraph": 3
+   },
+   "concepts": [
+    "Ground truth evaluation"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0006-F02",
+   "artifact_id": "ART-0006",
+   "section": "Scope",
+   "text": "This proof of concept implements the pipeline from the CEREBRO Solution Architecture in notebooks before it moves into the product.",
+   "location": {
+    "paragraph": 5
+   },
+   "concepts": [],
+   "entities": [
+    "CEREBRO"
+   ]
+  },
+  {
+   "id": "ART-0006-F03",
+   "artifact_id": "ART-0006",
+   "section": "Scope",
+   "text": "Results are measured against the Ground Truth Benchmark.",
+   "location": {
+    "paragraph": 6
+   },
+   "concepts": [
+    "Ground truth evaluation"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0006-F04",
+   "artifact_id": "ART-0006",
+   "section": "What was built",
+   "text": "Step 02 inspects uploaded files, extracts deterministic metadata and asks a local model to suggest titles, topics and tags.",
+   "location": {
+    "paragraph": 8
+   },
+   "concepts": [
+    "Local LLM"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0006-F05",
+   "artifact_id": "ART-0006",
+   "section": "What was built",
+   "text": "A human review step approves or corrects the AI suggestions before the artifact is registered.",
+   "location": {
+    "paragraph": 9
+   },
+   "concepts": [
+    "Human review"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0006-F06",
+   "artifact_id": "ART-0006",
+   "section": "What was built",
+   "text": "Step 03 segments the text into knowledge fragments using deterministic sentence segmentation, each with a character range.",
+   "location": {
+    "paragraph": 10
+   },
+   "concepts": [
+    "Provenance",
+    "Knowledge fragments"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0006-F07",
+   "artifact_id": "ART-0006",
+   "section": "What was built",
+   "text": "Step 05 adds embedding similarity so related fragments across documents can be connected.",
+   "location": {
+    "paragraph": 11
+   },
+   "concepts": [
+    "Embeddings",
+    "Knowledge fragments"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0006-F08",
+   "artifact_id": "ART-0006",
+   "section": "Findings",
+   "text": "Deterministic segmentation reproduced every expected fragment and its source location in the benchmark.",
+   "location": {
+    "paragraph": 13
+   },
+   "concepts": [
+    "Provenance",
+    "Ground truth evaluation",
+    "Knowledge fragments"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0006-F09",
+   "artifact_id": "ART-0006",
+   "section": "Findings",
+   "text": "AI enrichment was useful for topics and tags but needed human review for titles and people.",
+   "location": {
+    "paragraph": 14
+   },
+   "concepts": [
+    "Human review"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0006-F10",
+   "artifact_id": "ART-0006",
+   "section": "Findings",
+   "text": "The decision to keep human review mandatory was recorded in the Group 7 meeting minutes.",
+   "location": {
+    "paragraph": 15
+   },
+   "concepts": [
+    "Human review"
+   ],
+   "entities": [
+    "Group 7"
+   ]
+  },
+  {
+   "id": "ART-0007-F01",
+   "artifact_id": "ART-0007",
+   "section": "Summary",
+   "text": "Decisions on the benchmark, mandatory human review, and reusing the pipeline telemetry pattern across projects.",
+   "location": {
+    "paragraph": 3
+   },
+   "concepts": [
+    "Human review",
+    "Ground truth evaluation",
+    "Pipeline telemetry"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0007-F02",
+   "artifact_id": "ART-0007",
+   "section": "Attendees",
+   "text": "Joselito Dizon (minutes) and Group 7 members.",
+   "location": {
+    "paragraph": 5
+   },
+   "concepts": [],
+   "entities": [
+    "Joselito Dizon",
+    "Group 7"
+   ]
+  },
+  {
+   "id": "ART-0007-F03",
+   "artifact_id": "ART-0007",
+   "section": "Decisions",
+   "text": "The group agreed to freeze the Ground Truth Benchmark as version 0.1 before tuning the Knowledge Pipeline PoC.",
+   "location": {
+    "paragraph": 7
+   },
+   "concepts": [
+    "Ground truth evaluation"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0007-F04",
+   "artifact_id": "ART-0007",
+   "section": "Decisions",
+   "text": "Human review of AI-suggested metadata stays mandatory; no artifact is registered on AI output alone.",
+   "location": {
+    "paragraph": 8
+   },
+   "concepts": [
+    "Human review"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0007-F05",
+   "artifact_id": "ART-0007",
+   "section": "Decisions",
+   "text": "The pipeline telemetry pattern from the CEREBRO Solution Architecture will also be reused in MealSenseAI's analysis drawer.",
+   "location": {
+    "paragraph": 9
+   },
+   "concepts": [
+    "Pipeline telemetry"
+   ],
+   "entities": [
+    "CEREBRO",
+    "MealSenseAI"
+   ]
+  },
+  {
+   "id": "ART-0007-F06",
+   "artifact_id": "ART-0007",
+   "section": "Actions",
+   "text": "Joselito to write up the PoC results and prepare the runnable demo required by the Practice Module Brief.",
+   "location": {
+    "paragraph": 11
+   },
+   "concepts": [],
+   "entities": [
+    "Joselito Dizon"
+   ]
+  },
+  {
+   "id": "ART-0007-F07",
+   "artifact_id": "ART-0007",
+   "section": "Actions",
+   "text": "Check that the home server can host both projects; see the Buddy runbook.",
+   "location": {
+    "paragraph": 12
+   },
+   "concepts": [
+    "Deployment"
+   ],
+   "entities": [
+    "Buddy (home server)"
+   ]
+  },
+  {
+   "id": "ART-0008-F01",
+   "artifact_id": "ART-0008",
+   "section": "Summary",
+   "text": "A photo-based meal logger that recognises foods, estimates nutrition and explains its confidence, aimed at people managing their diet.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Food recognition",
+    "Nutrition estimation"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0008-F02",
+   "artifact_id": "ART-0008",
+   "section": "Problem",
+   "text": "Logging meals by hand is tedious, and people managing diabetes or weight need nutrition estimates they can trust and understand.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Nutrition estimation"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0008-F03",
+   "artifact_id": "ART-0008",
+   "section": "Problem",
+   "text": "Local dishes in Singapore are poorly covered by generic food apps.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [],
+   "entities": []
+  },
+  {
+   "id": "ART-0008-F04",
+   "artifact_id": "ART-0008",
+   "section": "Proposed solution",
+   "text": "MealSenseAI recognises foods from a photo, segments multi-food plates, estimates portions and nutrients, and explains each result.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Food recognition",
+    "Nutrition estimation"
+   ],
+   "entities": [
+    "MealSenseAI"
+   ]
+  },
+  {
+   "id": "ART-0008-F05",
+   "artifact_id": "ART-0008",
+   "section": "Proposed solution",
+   "text": "Recognition is trained on Food-101 and FoodSG-233; see the Food-101 dataset notes and the FoodSG-233 dataset notes.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [],
+   "entities": [
+    "Food-101",
+    "FoodSG-233"
+   ]
+  },
+  {
+   "id": "ART-0008-F06",
+   "artifact_id": "ART-0008",
+   "section": "Proposed solution",
+   "text": "A grounded Meal Advisor answers questions using only the user's meals, the food table and approved guidance.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Grounding"
+   ],
+   "entities": [
+    "MealSenseAI"
+   ]
+  },
+  {
+   "id": "ART-0008-F07",
+   "artifact_id": "ART-0008",
+   "section": "Safety",
+   "text": "The app never gives medication or insulin advice, and every estimate is labelled as an estimate.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Safety and consent"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0008-F08",
+   "artifact_id": "ART-0008",
+   "section": "Safety",
+   "text": "Health information is used only with explicit consent.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Safety and consent"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0009-F01",
+   "artifact_id": "ART-0009",
+   "section": "Summary",
+   "text": "FastAPI, React and PostgreSQL around an ONNX food classifier, YOLO11n-seg plate segmentation and an optional local LLM.",
+   "location": {
+    "paragraph": 3
+   },
+   "concepts": [
+    "Food recognition",
+    "Local LLM"
+   ],
+   "entities": [
+    "YOLO11n-seg",
+    "PostgreSQL",
+    "FastAPI"
+   ]
+  },
+  {
+   "id": "ART-0009-F02",
+   "artifact_id": "ART-0009",
+   "section": "Overview",
+   "text": "This architecture implements the MealSenseAI Project Proposal as a FastAPI backend, a React frontend and PostgreSQL.",
+   "location": {
+    "paragraph": 5
+   },
+   "concepts": [],
+   "entities": [
+    "MealSenseAI",
+    "PostgreSQL",
+    "FastAPI"
+   ]
+  },
+  {
+   "id": "ART-0009-F03",
+   "artifact_id": "ART-0009",
+   "section": "Overview",
+   "text": "The food classifier is the EXP-002 model exported to ONNX; plates with several foods are split with YOLO11n-seg.",
+   "location": {
+    "paragraph": 6
+   },
+   "concepts": [
+    "Food recognition"
+   ],
+   "entities": [
+    "EXP-002",
+    "YOLO11n-seg"
+   ]
+  },
+  {
+   "id": "ART-0009-F04",
+   "artifact_id": "ART-0009",
+   "section": "Grounded advisor",
+   "text": "The Meal Advisor drafts every answer from evidence: the user's data, raw model scores, the food table and approved guidance.",
+   "location": {
+    "paragraph": 8
+   },
+   "concepts": [
+    "Grounding"
+   ],
+   "entities": [
+    "MealSenseAI"
+   ]
+  },
+  {
+   "id": "ART-0009-F05",
+   "artifact_id": "ART-0009",
+   "section": "Grounded advisor",
+   "text": "An optional local model served by Ollama may rephrase the draft, but a validator rejects any new number or food it introduces.",
+   "location": {
+    "paragraph": 9
+   },
+   "concepts": [
+    "Grounding",
+    "Local LLM"
+   ],
+   "entities": [
+    "Ollama"
+   ]
+  },
+  {
+   "id": "ART-0009-F06",
+   "artifact_id": "ART-0009",
+   "section": "Grounded advisor",
+   "text": "This follows the grounding approach in the Knowledge Graphs and RAG lecture notes.",
+   "location": {
+    "paragraph": 10
+   },
+   "concepts": [
+    "Knowledge graph",
+    "Retrieval-augmented generation",
+    "Grounding"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0009-F07",
+   "artifact_id": "ART-0009",
+   "section": "Explainability",
+   "text": "An analysis drawer shows each pipeline stage with progress and timing, reusing the telemetry pattern from the CEREBRO Solution Architecture.",
+   "location": {
+    "paragraph": 12
+   },
+   "concepts": [
+    "Pipeline telemetry"
+   ],
+   "entities": [
+    "CEREBRO"
+   ]
+  },
+  {
+   "id": "ART-0009-F08",
+   "artifact_id": "ART-0009",
+   "section": "Explainability",
+   "text": "Model accuracy and limitations are documented in the EXP-002 Model Evaluation Report.",
+   "location": {
+    "paragraph": 13
+   },
+   "concepts": [],
+   "entities": [
+    "EXP-002"
+   ]
+  },
+  {
+   "id": "ART-0010-F01",
+   "artifact_id": "ART-0010",
+   "section": "Summary",
+   "text": "Reading notes on Food-101 (Bossard, Guillaumin and Van Gool, ECCV 2014): 101 classes, 101,000 images.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [],
+   "entities": [
+    "Food-101"
+   ]
+  },
+  {
+   "id": "ART-0010-F02",
+   "artifact_id": "ART-0010",
+   "section": "Citation",
+   "text": "Bossard, L., Guillaumin, M. and Van Gool, L. Food-101: Mining Discriminative Components with Random Forests. ECCV 2014.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [],
+   "entities": [
+    "Food-101"
+   ]
+  },
+  {
+   "id": "ART-0010-F03",
+   "artifact_id": "ART-0010",
+   "section": "Contents",
+   "text": "Food-101 has 101 food categories with 1,000 images each: 750 for training and 250 for testing.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Food recognition"
+   ],
+   "entities": [
+    "Food-101"
+   ]
+  },
+  {
+   "id": "ART-0010-F04",
+   "artifact_id": "ART-0010",
+   "section": "Contents",
+   "text": "The training images were deliberately left uncleaned, so some label noise is expected.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [],
+   "entities": []
+  },
+  {
+   "id": "ART-0010-F05",
+   "artifact_id": "ART-0010",
+   "section": "Use in MealSenseAI",
+   "text": "Food-101 provides broad international coverage, but few Singapore hawker dishes, which is why FoodSG-233 is added.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [],
+   "entities": [
+    "Food-101",
+    "FoodSG-233"
+   ]
+  },
+  {
+   "id": "ART-0010-F06",
+   "artifact_id": "ART-0010",
+   "section": "Use in MealSenseAI",
+   "text": "Licence and citation requirements are recorded on the MealSenseAI About page.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [],
+   "entities": [
+    "MealSenseAI"
+   ]
+  },
+  {
+   "id": "ART-0011-F01",
+   "artifact_id": "ART-0011",
+   "section": "Summary",
+   "text": "Reading notes on FoodSG-233, a dataset of 233 local Singapore dishes, and how it complements Food-101.",
+   "location": {
+    "paragraph": 3
+   },
+   "concepts": [],
+   "entities": [
+    "Food-101",
+    "FoodSG-233"
+   ]
+  },
+  {
+   "id": "ART-0011-F02",
+   "artifact_id": "ART-0011",
+   "section": "Contents",
+   "text": "FoodSG-233 covers 233 dishes commonly eaten in Singapore, including hawker favourites such as chicken rice, laksa and nasi lemak.",
+   "location": {
+    "paragraph": 5
+   },
+   "concepts": [],
+   "entities": [
+    "FoodSG-233"
+   ]
+  },
+  {
+   "id": "ART-0011-F03",
+   "artifact_id": "ART-0011",
+   "section": "Contents",
+   "text": "It complements the Food-101 dataset notes by filling the local-cuisine gap.",
+   "location": {
+    "paragraph": 6
+   },
+   "concepts": [],
+   "entities": [
+    "Food-101"
+   ]
+  },
+  {
+   "id": "ART-0011-F04",
+   "artifact_id": "ART-0011",
+   "section": "Use in MealSenseAI",
+   "text": "Classes from both datasets are merged into one taxonomy and mapped to nutrition records.",
+   "location": {
+    "paragraph": 8
+   },
+   "concepts": [
+    "Nutrition estimation"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0011-F05",
+   "artifact_id": "ART-0011",
+   "section": "Use in MealSenseAI",
+   "text": "The dataset owners are credited on the About page, as required by the MealSenseAI Project Proposal.",
+   "location": {
+    "paragraph": 9
+   },
+   "concepts": [],
+   "entities": [
+    "MealSenseAI"
+   ]
+  },
+  {
+   "id": "ART-0012-F01",
+   "artifact_id": "ART-0012",
+   "section": "Summary",
+   "text": "Developer-reported accuracy of the EXP-002 food classifier and the ONNX runtime parity check.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Food recognition"
+   ],
+   "entities": [
+    "EXP-002"
+   ]
+  },
+  {
+   "id": "ART-0012-F02",
+   "artifact_id": "ART-0012",
+   "section": "Model",
+   "text": "EXP-002 is the food classifier used in the MealSenseAI Solution Architecture, trained on the merged Food-101 and FoodSG-233 taxonomy.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Food recognition"
+   ],
+   "entities": [
+    "MealSenseAI",
+    "Food-101",
+    "FoodSG-233",
+    "EXP-002"
+   ]
+  },
+  {
+   "id": "ART-0012-F03",
+   "artifact_id": "ART-0012",
+   "section": "Results",
+   "text": "Developer-reported results are 70.63% top-1 accuracy, 85.66% top-3 accuracy and 66.68% macro-F1.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Food recognition"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0012-F04",
+   "artifact_id": "ART-0012",
+   "section": "Results",
+   "text": "Roughly three in ten photos get a wrong top-1 class, which is why the app always shows alternatives and asks the user to confirm.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Food recognition"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0012-F05",
+   "artifact_id": "ART-0012",
+   "section": "Runtime parity",
+   "text": "The ONNX export was checked against PyTorch on 601 images: top-1 and top-3 agreement was 100%.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Food recognition"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0012-F06",
+   "artifact_id": "ART-0012",
+   "section": "Runtime parity",
+   "text": "Parity shows the runtime reproduces the checkpoint; it is not an accuracy measurement.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [],
+   "entities": []
+  },
+  {
+   "id": "ART-0013-F01",
+   "artifact_id": "ART-0013",
+   "section": "Summary",
+   "text": "Replacing the relative glucose index with mmol/L: pre-meal reading plus an estimated rise, a wide band, and personal calibration.",
+   "location": {
+    "paragraph": 3
+   },
+   "concepts": [
+    "Glycaemic index"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0013-F02",
+   "artifact_id": "ART-0013",
+   "section": "Decision",
+   "text": "The forecast chart will show glucose in mmol/L as the user's pre-meal reading plus the estimated rise from the meal.",
+   "location": {
+    "paragraph": 5
+   },
+   "concepts": [
+    "Glycaemic index"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0013-F03",
+   "artifact_id": "ART-0013",
+   "section": "Decision",
+   "text": "This memo extends the MealSenseAI Solution Architecture, which previously showed only a relative index.",
+   "location": {
+    "paragraph": 6
+   },
+   "concepts": [],
+   "entities": [
+    "MealSenseAI"
+   ]
+  },
+  {
+   "id": "ART-0013-F04",
+   "artifact_id": "ART-0013",
+   "section": "Calibration",
+   "text": "Without readings, the rise is anchored to typical glucose tolerance test responses, with a band of plus or minus fifty percent.",
+   "location": {
+    "paragraph": 8
+   },
+   "concepts": [
+    "Glycaemic index"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0013-F05",
+   "artifact_id": "ART-0013",
+   "section": "Calibration",
+   "text": "After three meals with readings before and after eating, the estimate is calibrated to the user's own response.",
+   "location": {
+    "paragraph": 9
+   },
+   "concepts": [],
+   "entities": []
+  },
+  {
+   "id": "ART-0013-F06",
+   "artifact_id": "ART-0013",
+   "section": "Calibration",
+   "text": "Glycaemic index and load assumptions follow the glycaemic index and load guidance notes.",
+   "location": {
+    "paragraph": 10
+   },
+   "concepts": [
+    "Glycaemic index"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0013-F07",
+   "artifact_id": "ART-0013",
+   "section": "Safety",
+   "text": "The curve is always labelled an estimate, even when it starts from a measured reading, and it must never be used to adjust insulin or medication.",
+   "location": {
+    "paragraph": 12
+   },
+   "concepts": [
+    "Safety and consent"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0014-F01",
+   "artifact_id": "ART-0014",
+   "section": "Summary",
+   "text": "Educational notes on glycaemic index and load, drawn from the international GI tables and diabetes care standards.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Glycaemic index"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0014-F02",
+   "artifact_id": "ART-0014",
+   "section": "Definitions",
+   "text": "Glycaemic index ranks carbohydrate foods by how quickly they raise blood glucose compared with a reference.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Glycaemic index"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0014-F03",
+   "artifact_id": "ART-0014",
+   "section": "Definitions",
+   "text": "Glycaemic load multiplies the index by the grams of available carbohydrate in a portion, so portion size matters.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Nutrition estimation",
+    "Glycaemic index"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0014-F04",
+   "artifact_id": "ART-0014",
+   "section": "Sources",
+   "text": "Values come from the international tables of glycaemic index and glycaemic load values (Atkinson and colleagues, 2021).",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Glycaemic index"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0014-F05",
+   "artifact_id": "ART-0014",
+   "section": "Sources",
+   "text": "General dietary guidance follows the American Diabetes Association Standards of Care.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [],
+   "entities": []
+  },
+  {
+   "id": "ART-0014-F06",
+   "artifact_id": "ART-0014",
+   "section": "Use in MealSenseAI",
+   "text": "Foods without a published index use an assumed value, and the app says so.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [],
+   "entities": []
+  },
+  {
+   "id": "ART-0014-F07",
+   "artifact_id": "ART-0014",
+   "section": "Use in MealSenseAI",
+   "text": "These notes inform the forecast described in the MealSenseAI Solution Architecture.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [],
+   "entities": [
+    "MealSenseAI"
+   ]
+  },
+  {
+   "id": "ART-0015-F01",
+   "artifact_id": "ART-0015",
+   "section": "Summary",
+   "text": "How the Ubuntu home server hosts MealSenseAI and CEREBRO with Docker Compose, an NVIDIA GPU, Ollama and a Cloudflare Tunnel.",
+   "location": {
+    "paragraph": 3
+   },
+   "concepts": [
+    "Local LLM",
+    "Deployment"
+   ],
+   "entities": [
+    "CEREBRO",
+    "MealSenseAI",
+    "Ollama",
+    "Cloudflare Tunnel"
+   ]
+  },
+  {
+   "id": "ART-0015-F02",
+   "artifact_id": "ART-0015",
+   "section": "Host",
+   "text": "Buddy is an Ubuntu server with an NVIDIA GPU, running Docker Compose and Ollama.",
+   "location": {
+    "paragraph": 5
+   },
+   "concepts": [
+    "Local LLM",
+    "Deployment"
+   ],
+   "entities": [
+    "Ollama",
+    "Buddy (home server)"
+   ]
+  },
+  {
+   "id": "ART-0015-F03",
+   "artifact_id": "ART-0015",
+   "section": "Host",
+   "text": "Public access goes through a Cloudflare Tunnel, so no router ports are opened.",
+   "location": {
+    "paragraph": 6
+   },
+   "concepts": [
+    "Deployment"
+   ],
+   "entities": [
+    "Cloudflare Tunnel"
+   ]
+  },
+  {
+   "id": "ART-0015-F04",
+   "artifact_id": "ART-0015",
+   "section": "Services",
+   "text": "MealSenseAI runs as backend, frontend, PostgreSQL and Redis containers, deployed as described in the MealSenseAI Solution Architecture.",
+   "location": {
+    "paragraph": 8
+   },
+   "concepts": [
+    "Deployment"
+   ],
+   "entities": [
+    "MealSenseAI",
+    "PostgreSQL"
+   ]
+  },
+  {
+   "id": "ART-0015-F05",
+   "artifact_id": "ART-0015",
+   "section": "Services",
+   "text": "CEREBRO runs as a separate Compose project on its own port, following the deployment section of the CEREBRO Solution Architecture.",
+   "location": {
+    "paragraph": 9
+   },
+   "concepts": [
+    "Deployment"
+   ],
+   "entities": [
+    "CEREBRO"
+   ]
+  },
+  {
+   "id": "ART-0015-F06",
+   "artifact_id": "ART-0015",
+   "section": "Services",
+   "text": "Both projects share the local Ollama service, sized according to the Local LLM Evaluation Plan.",
+   "location": {
+    "paragraph": 10
+   },
+   "concepts": [
+    "Local LLM"
+   ],
+   "entities": [
+    "Ollama"
+   ]
+  },
+  {
+   "id": "ART-0015-F07",
+   "artifact_id": "ART-0015",
+   "section": "Rules",
+   "text": "Never run destructive volume-removal commands, and back up each database before a deployment.",
+   "location": {
+    "paragraph": 12
+   },
+   "concepts": [
+    "Deployment"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0015-F08",
+   "artifact_id": "ART-0015",
+   "section": "Rules",
+   "text": "Deploy only after explicit approval, and keep a rollback commit for every release.",
+   "location": {
+    "paragraph": 13
+   },
+   "concepts": [
+    "Deployment"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0016-F01",
+   "artifact_id": "ART-0016",
+   "section": "Summary",
+   "text": "How small local models will be compared for grounded answering in both projects; measurements are still to be run on Buddy.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Grounding",
+    "Local LLM"
+   ],
+   "entities": [
+    "Buddy (home server)"
+   ]
+  },
+  {
+   "id": "ART-0016-F02",
+   "artifact_id": "ART-0016",
+   "section": "Goal",
+   "text": "Choose a local model for answer phrasing in the MealSenseAI Meal Advisor and for the reasoning stage in the CEREBRO Solution Architecture.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Local LLM"
+   ],
+   "entities": [
+    "CEREBRO",
+    "MealSenseAI"
+   ]
+  },
+  {
+   "id": "ART-0016-F03",
+   "artifact_id": "ART-0016",
+   "section": "Goal",
+   "text": "No external LLM API is used; every candidate runs on Buddy through Ollama.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Local LLM",
+    "Privacy"
+   ],
+   "entities": [
+    "Ollama",
+    "Buddy (home server)"
+   ]
+  },
+  {
+   "id": "ART-0016-F04",
+   "artifact_id": "ART-0016",
+   "section": "Method",
+   "text": "Each candidate phrases answers over a labelled set; a validator counts unsupported numbers and entities, following the Knowledge Graphs and RAG lecture notes.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Knowledge graph",
+    "Retrieval-augmented generation",
+    "Grounding",
+    "Ground truth evaluation"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0016-F05",
+   "artifact_id": "ART-0016",
+   "section": "Method",
+   "text": "Latency, tokens per second and GPU memory will be measured on the server, not estimated.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Deployment"
+   ],
+   "entities": []
+  },
+  {
+   "id": "ART-0016-F06",
+   "artifact_id": "ART-0016",
+   "section": "Status",
+   "text": "The labelled sets exist; the measurements on Buddy have not been run yet, so no results are reported here.",
+   "location": {
+    "page": 1
+   },
+   "concepts": [
+    "Ground truth evaluation"
+   ],
+   "entities": [
+    "Buddy (home server)"
+   ]
+  }
+ ],
+ "links": [
+  {
+   "source": "ART-0002",
+   "target": "ART-0001",
+   "type": "responds to",
+   "origin": "authored",
+   "evidence": "ART-0002-F06"
+  },
+  {
+   "source": "ART-0003",
+   "target": "ART-0002",
+   "type": "extends",
+   "origin": "authored",
+   "evidence": "ART-0003-F02"
+  },
+  {
+   "source": "ART-0003",
+   "target": "ART-0004",
+   "type": "applies",
+   "origin": "authored",
+   "evidence": "ART-0003-F03"
+  },
+  {
+   "source": "ART-0005",
+   "target": "ART-0001",
+   "type": "responds to",
+   "origin": "authored",
+   "evidence": "ART-0005-F02"
+  },
+  {
+   "source": "ART-0005",
+   "target": "ART-0003",
+   "type": "evaluates",
+   "origin": "authored",
+   "evidence": "ART-0005-F03"
+  },
+  {
+   "source": "ART-0006",
+   "target": "ART-0003",
+   "type": "implements",
+   "origin": "authored",
+   "evidence": "ART-0006-F02"
+  },
+  {
+   "source": "ART-0006",
+   "target": "ART-0005",
+   "type": "measured against",
+   "origin": "authored",
+   "evidence": "ART-0006-F03"
+  },
+  {
+   "source": "ART-0006",
+   "target": "ART-0007",
+   "type": "decision recorded in",
+   "origin": "authored",
+   "evidence": "ART-0006-F10"
+  },
+  {
+   "source": "ART-0007",
+   "target": "ART-0005",
+   "type": "decides on",
+   "origin": "authored",
+   "evidence": "ART-0007-F03"
+  },
+  {
+   "source": "ART-0007",
+   "target": "ART-0003",
+   "type": "reuses pattern from",
+   "origin": "authored",
+   "evidence": "ART-0007-F05"
+  },
+  {
+   "source": "ART-0007",
+   "target": "ART-0001",
+   "type": "actions for",
+   "origin": "authored",
+   "evidence": "ART-0007-F06"
+  },
+  {
+   "source": "ART-0007",
+   "target": "ART-0015",
+   "type": "refers to",
+   "origin": "authored",
+   "evidence": "ART-0007-F07"
+  },
+  {
+   "source": "ART-0008",
+   "target": "ART-0010",
+   "type": "cites",
+   "origin": "authored",
+   "evidence": "ART-0008-F05"
+  },
+  {
+   "source": "ART-0008",
+   "target": "ART-0011",
+   "type": "cites",
+   "origin": "authored",
+   "evidence": "ART-0008-F05"
+  },
+  {
+   "source": "ART-0009",
+   "target": "ART-0008",
+   "type": "implements",
+   "origin": "authored",
+   "evidence": "ART-0009-F02"
+  },
+  {
+   "source": "ART-0009",
+   "target": "ART-0004",
+   "type": "applies",
+   "origin": "authored",
+   "evidence": "ART-0009-F06"
+  },
+  {
+   "source": "ART-0009",
+   "target": "ART-0003",
+   "type": "reuses pattern from",
+   "origin": "authored",
+   "evidence": "ART-0009-F07"
+  },
+  {
+   "source": "ART-0009",
+   "target": "ART-0012",
+   "type": "documented in",
+   "origin": "authored",
+   "evidence": "ART-0009-F08"
+  },
+  {
+   "source": "ART-0011",
+   "target": "ART-0010",
+   "type": "complements",
+   "origin": "authored",
+   "evidence": "ART-0011-F03"
+  },
+  {
+   "source": "ART-0011",
+   "target": "ART-0008",
+   "type": "required by",
+   "origin": "authored",
+   "evidence": "ART-0011-F05"
+  },
+  {
+   "source": "ART-0012",
+   "target": "ART-0009",
+   "type": "evaluates",
+   "origin": "authored",
+   "evidence": "ART-0012-F02"
+  },
+  {
+   "source": "ART-0013",
+   "target": "ART-0009",
+   "type": "extends",
+   "origin": "authored",
+   "evidence": "ART-0013-F03"
+  },
+  {
+   "source": "ART-0013",
+   "target": "ART-0014",
+   "type": "cites",
+   "origin": "authored",
+   "evidence": "ART-0013-F06"
+  },
+  {
+   "source": "ART-0014",
+   "target": "ART-0009",
+   "type": "informs",
+   "origin": "authored",
+   "evidence": "ART-0014-F07"
+  },
+  {
+   "source": "ART-0015",
+   "target": "ART-0009",
+   "type": "deploys",
+   "origin": "authored",
+   "evidence": "ART-0015-F04"
+  },
+  {
+   "source": "ART-0015",
+   "target": "ART-0003",
+   "type": "deploys",
+   "origin": "authored",
+   "evidence": "ART-0015-F05"
+  },
+  {
+   "source": "ART-0015",
+   "target": "ART-0016",
+   "type": "sized by",
+   "origin": "authored",
+   "evidence": "ART-0015-F06"
+  },
+  {
+   "source": "ART-0016",
+   "target": "ART-0003",
+   "type": "informs",
+   "origin": "authored",
+   "evidence": "ART-0016-F02"
+  },
+  {
+   "source": "ART-0016",
+   "target": "ART-0004",
+   "type": "applies",
+   "origin": "authored",
+   "evidence": "ART-0016-F04"
+  },
+  {
+   "source": "ART-0002",
+   "target": "ART-0006",
+   "type": "similar to",
+   "origin": "semantic",
+   "score": 0.104,
+   "shared": [
+    "Human review",
+    "Knowledge fragments",
+    "Provenance"
+   ]
+  },
+  {
+   "source": "ART-0009",
+   "target": "ART-0016",
+   "type": "similar to",
+   "origin": "semantic",
+   "score": 0.089,
+   "shared": [
+    "Grounding",
+    "Knowledge graph",
+    "Local LLM",
+    "Retrieval-augmented generation"
+   ]
+  },
+  {
+   "source": "ART-0002",
+   "target": "ART-0005",
+   "type": "similar to",
+   "origin": "semantic",
+   "score": 0.086,
+   "shared": [
+    "Knowledge fragments",
+    "Provenance"
+   ]
+  },
+  {
+   "source": "ART-0007",
+   "target": "ART-0009",
+   "type": "similar to",
+   "origin": "semantic",
+   "score": 0.085,
+   "shared": [
+    "Pipeline telemetry"
+   ]
+  },
+  {
+   "source": "ART-0008",
+   "target": "ART-0013",
+   "type": "similar to",
+   "origin": "semantic",
+   "score": 0.083,
+   "shared": [
+    "Safety and consent"
+   ]
+  }
+ ],
+ "concepts": [
+  {
+   "name": "Provenance",
+   "artifacts": [
+    "ART-0001",
+    "ART-0002",
+    "ART-0003",
+    "ART-0005",
+    "ART-0006"
+   ],
+   "fragments": 11
+  },
+  {
+   "name": "Knowledge graph",
+   "artifacts": [
+    "ART-0002",
+    "ART-0003",
+    "ART-0004",
+    "ART-0009",
+    "ART-0016"
+   ],
+   "fragments": 9
+  },
+  {
+   "name": "Retrieval-augmented generation",
+   "artifacts": [
+    "ART-0001",
+    "ART-0003",
+    "ART-0004",
+    "ART-0009",
+    "ART-0016"
+   ],
+   "fragments": 10
+  },
+  {
+   "name": "Grounding",
+   "artifacts": [
+    "ART-0001",
+    "ART-0002",
+    "ART-0004",
+    "ART-0008",
+    "ART-0009",
+    "ART-0016"
+   ],
+   "fragments": 13
+  },
+  {
+   "name": "Embeddings",
+   "artifacts": [
+    "ART-0003",
+    "ART-0004",
+    "ART-0006"
+   ],
+   "fragments": 4
+  },
+  {
+   "name": "Human review",
+   "artifacts": [
+    "ART-0002",
+    "ART-0003",
+    "ART-0006",
+    "ART-0007"
+   ],
+   "fragments": 7
+  },
+  {
+   "name": "Ground truth evaluation",
+   "artifacts": [
+    "ART-0001",
+    "ART-0004",
+    "ART-0005",
+    "ART-0006",
+    "ART-0007",
+    "ART-0016"
+   ],
+   "fragments": 13
+  },
+  {
+   "name": "Knowledge fragments",
+   "artifacts": [
+    "ART-0002",
+    "ART-0003",
+    "ART-0005",
+    "ART-0006"
+   ],
+   "fragments": 10
+  },
+  {
+   "name": "Pipeline telemetry",
+   "artifacts": [
+    "ART-0003",
+    "ART-0007",
+    "ART-0009"
+   ],
+   "fragments": 4
+  },
+  {
+   "name": "Food recognition",
+   "artifacts": [
+    "ART-0008",
+    "ART-0009",
+    "ART-0010",
+    "ART-0012"
+   ],
+   "fragments": 10
+  },
+  {
+   "name": "Nutrition estimation",
+   "artifacts": [
+    "ART-0008",
+    "ART-0011",
+    "ART-0014"
+   ],
+   "fragments": 5
+  },
+  {
+   "name": "Glycaemic index",
+   "artifacts": [
+    "ART-0013",
+    "ART-0014"
+   ],
+   "fragments": 8
+  },
+  {
+   "name": "Safety and consent",
+   "artifacts": [
+    "ART-0002",
+    "ART-0008",
+    "ART-0013"
+   ],
+   "fragments": 4
+  },
+  {
+   "name": "Local LLM",
+   "artifacts": [
+    "ART-0003",
+    "ART-0004",
+    "ART-0006",
+    "ART-0009",
+    "ART-0015",
+    "ART-0016"
+   ],
+   "fragments": 13
+  },
+  {
+   "name": "Deployment",
+   "artifacts": [
+    "ART-0003",
+    "ART-0007",
+    "ART-0015",
+    "ART-0016"
+   ],
+   "fragments": 11
+  },
+  {
+   "name": "Privacy",
+   "artifacts": [
+    "ART-0001",
+    "ART-0002",
+    "ART-0016"
+   ],
+   "fragments": 5
+  }
+ ],
+ "entities": [
+  {
+   "name": "Joselito Dizon",
+   "kind": "person",
+   "artifacts": [
+    "ART-0007"
+   ]
+  },
+  {
+   "name": "Group 7",
+   "kind": "organisation",
+   "artifacts": [
+    "ART-0006",
+    "ART-0007"
+   ]
+  },
+  {
+   "name": "CEREBRO",
+   "kind": "project",
+   "artifacts": [
+    "ART-0002",
+    "ART-0003",
+    "ART-0005",
+    "ART-0006",
+    "ART-0007",
+    "ART-0009",
+    "ART-0015",
+    "ART-0016"
+   ]
+  },
+  {
+   "name": "MealSenseAI",
+   "kind": "project",
+   "artifacts": [
+    "ART-0007",
+    "ART-0008",
+    "ART-0009",
+    "ART-0010",
+    "ART-0011",
+    "ART-0012",
+    "ART-0013",
+    "ART-0014",
+    "ART-0015",
+    "ART-0016"
+   ]
+  },
+  {
+   "name": "Food-101",
+   "kind": "dataset",
+   "artifacts": [
+    "ART-0008",
+    "ART-0010",
+    "ART-0011",
+    "ART-0012"
+   ]
+  },
+  {
+   "name": "FoodSG-233",
+   "kind": "dataset",
+   "artifacts": [
+    "ART-0008",
+    "ART-0010",
+    "ART-0011",
+    "ART-0012"
+   ]
+  },
+  {
+   "name": "EXP-002",
+   "kind": "model",
+   "artifacts": [
+    "ART-0009",
+    "ART-0012"
+   ]
+  },
+  {
+   "name": "YOLO11n-seg",
+   "kind": "model",
+   "artifacts": [
+    "ART-0009"
+   ]
+  },
+  {
+   "name": "Ollama",
+   "kind": "tool",
+   "artifacts": [
+    "ART-0003",
+    "ART-0009",
+    "ART-0015",
+    "ART-0016"
+   ]
+  },
+  {
+   "name": "PostgreSQL",
+   "kind": "tool",
+   "artifacts": [
+    "ART-0003",
+    "ART-0009",
+    "ART-0015"
+   ]
+  },
+  {
+   "name": "FastAPI",
+   "kind": "tool",
+   "artifacts": [
+    "ART-0003",
+    "ART-0009"
+   ]
+  },
+  {
+   "name": "Buddy (home server)",
+   "kind": "system",
+   "artifacts": [
+    "ART-0007",
+    "ART-0015",
+    "ART-0016"
+   ]
+  },
+  {
+   "name": "Cloudflare Tunnel",
+   "kind": "tool",
+   "artifacts": [
+    "ART-0015"
+   ]
+  }
+ ]
+}
