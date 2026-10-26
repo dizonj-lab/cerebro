@@ -7,7 +7,13 @@ knowledge. The graph loads progressively: the galaxy route returns clusters,
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.api.deps import CurrentUser, DbSession
-from app.schemas.graph import GalaxyResponse, NodeDetails, TimelineResponse
+from app.schemas.graph import (
+    GalaxyResponse,
+    LensRequest,
+    LensResponse,
+    NodeDetails,
+    TimelineResponse,
+)
 from app.services import graph
 
 router = APIRouter(prefix="/api/graph", tags=["graph"])
@@ -26,6 +32,22 @@ def expand(
 ) -> GalaxyResponse:
     """One cluster's fragments. Called when a cluster is opened, not before."""
     return GalaxyResponse(**graph.expand(db, current_user.id, topic))
+
+
+@router.post("/lens", response_model=LensResponse)
+def lens(current_user: CurrentUser, db: DbSession, body: LensRequest) -> LensResponse:
+    """Where a piece of text would sit in the library: a what-if, nothing stored.
+
+    Embedded with the owner's own model and compared with every topic and
+    passage, so the answer is in the same space as the Galaxy itself.
+    """
+    try:
+        return LensResponse(**graph.lens(db, current_user.id, body.text.strip()))
+    except graph.LensUnavailable as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="The embedding model could not be reached, so the text cannot be placed.",
+        ) from exc
 
 
 @router.get("/node", response_model=NodeDetails)

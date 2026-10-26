@@ -38,7 +38,14 @@ def register(client, artifact, topics, **extra):
 
 def test_an_empty_galaxy_is_empty_not_invented(client, signed_in):
     body = client.get("/api/graph").json()
-    assert body == {"nodes": [], "edges": [], "clusters": [], "truncated": False}
+    assert body == {
+        "nodes": [],
+        "edges": [],
+        "clusters": [],
+        "truncated": False,
+        # Nothing to measure, so no yardstick either.
+        "similarity": None,
+    }
 
 
 def test_an_unapproved_artifact_never_reaches_the_galaxy(client, signed_in):

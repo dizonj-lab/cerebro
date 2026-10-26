@@ -10,6 +10,11 @@ graph proper:
 * **Topic–topic edges** are co-occurrence: a registered artifact carries both.
 * **Topic–fragment edges** are containment: the fragment came from an
   artifact carrying that topic.
+* **Similarity edges** are measured: the cosine similarity of stored
+  embeddings, between two topics' passages or between one passage and
+  another topic. They say how alike the text is, as a percentage, and are
+  drawn only where it is above this library's typical similarity (see
+  `services/similarity.py`).
 
 No edge here is a verified semantic relationship, and none is presented as
 one. Every edge carries `kind` and `relevance` so the interface can say what
@@ -31,6 +36,9 @@ from app.models.artifact import Artifact
 from app.models.fragment import KnowledgeFragment
 from app.services.artifacts.enrichment import CONCEPT_FIELDS
 from app.services.artifacts.enrichment.significance import filter_concepts
+from app.services import similarity
+from app.services.embeddings import EmbeddingFailed, provider_for
+from app.services import ingest_settings
 
 # Progressive disclosure: the Galaxy opens on the clusters, and fragments
 # arrive when a cluster is expanded. These caps are what keep an SVG scene
@@ -112,7 +120,47 @@ def _edge(
         # implied.
         "status": "registered",
         "strong": weight >= STRONG_EDGE_WEIGHT,
+        "similarity": None,
+        "strength": None,
+        "discovered": False,
     }
+
+
+def _similarity_edge(
+    *, source: str, target: str, value: float, lib: similarity.Library, explanation: str,
+    discovered: bool = False,
+) -> dict:
+    """An edge that is a measurement: how alike, as a percentage, and how far above typical."""
+    strength = similarity.strength(value, lib)
+    return {
+        "id": f"{source}|{target}",
+        "source": source,
+        "target": target,
+        "kind": "similar_meaning" if lib.space.learned else "similar_words",
+        "weight": 1,
+        "relevance": similarity.strength_word(strength),
+        "explanation": explanation,
+        "evidence": [],
+        "evidence_count": 0,
+        "confidence": f"{similarity.percent(value)}% similar · {lib.space.model}",
+        "status": "registered",
+        "strong": strength >= 0.33,
+        "similarity": round(value, 4),
+        "strength": strength,
+        "discovered": discovered,
+    }
+
+
+def _kept_topics(artifacts: list[_Registered]) -> list[str]:
+    """The clusters the Galaxy draws: the most-used confirmed topics."""
+    counts = Counter(t for a in artifacts for t in a.topics)
+    return [label for label, _ in counts.most_common(MAX_CLUSTERS)]
+
+
+def _library(db: Session, owner_id: uuid.UUID, artifacts: list[_Registered], keep: set[str]):
+    return similarity.library(
+        db, owner_id, {a.id: [t for t in a.topics if t in keep] for a in artifacts}
+    )
 
 
 @dataclass
@@ -155,7 +203,7 @@ def galaxy(db: Session, owner_id: uuid.UUID) -> dict:
     if not counts:
         return {"nodes": [], "edges": [], "clusters": [], "truncated": False}
 
-    keep = [label for label, _ in counts.most_common(MAX_CLUSTERS)]
+    keep = _kept_topics(artifacts)
     keep_set = set(keep)
 
     # Fragment counts per topic, so a cluster can show its weight without
@@ -226,11 +274,44 @@ def galaxy(db: Session, owner_id: uuid.UUID) -> dict:
         for (a, b), weight in pairs.most_common(MAX_EDGES)
     ]
 
+    # Measured similarity, alongside the observed co-occurrence. Where two
+    # topics already share a document, the measurement annotates that edge;
+    # where they never do, it is a new edge — a connection the documents
+    # alone would not have shown, marked as discovered.
+    lib = _library(db, owner_id, artifacts, keep_set)
+    by_pair = {(e["source"], e["target"]): e for e in edges}
+    for edge in edges:
+        a, b = edge["source"][6:], edge["target"][6:]
+        if a in lib.centroids and b in lib.centroids:
+            value = similarity._dot(lib.centroids[a], lib.centroids[b])
+            edge["similarity"] = round(value, 4)
+            edge["strength"] = similarity.strength(value, lib)
+    for a, b, value in similarity.topic_pairs(lib):
+        if (f"topic:{a}", f"topic:{b}") in by_pair:
+            continue
+        typical = similarity.percent(lib.typical or 0)
+        edges.append(
+            _similarity_edge(
+                source=f"topic:{a}",
+                target=f"topic:{b}",
+                value=value,
+                lib=lib,
+                discovered=True,
+                explanation=(
+                    f"Passages about “{a}” and “{b}” are {similarity.percent(value)}% alike in "
+                    f"{lib.space.measures}, well above the {typical}% two of your topics "
+                    "typically share — though no document carries both. Alike is not the same "
+                    "as related: this is what the text resembles, not a verified link."
+                ),
+            )
+        )
+
     return {
         "nodes": nodes + entity_nodes,
         "edges": edges + entity_edges,
         "clusters": keep,
         "truncated": len(counts) > len(keep),
+        "similarity": similarity.summary(lib),
     }
 
 
@@ -305,9 +386,13 @@ def expand(db: Session, owner_id: uuid.UUID, topic: str) -> dict:
     Fetched when a cluster is expanded rather than up front: the whole graph
     is never loaded.
     """
-    artifacts = [a for a in _registered_artifacts(db, owner_id) if topic in a.topics]
+    everything = _registered_artifacts(db, owner_id)
+    artifacts = [a for a in everything if topic in a.topics]
     if not artifacts:
         return {"nodes": [], "edges": []}
+    keep = set(_kept_topics(everything)) | {topic}
+    lib = _library(db, owner_id, everything, keep)
+    typical = similarity.percent(lib.typical or 0)
 
     by_artifact = {a.id: a for a in artifacts}
     rows = db.execute(
@@ -331,6 +416,7 @@ def expand(db: Session, owner_id: uuid.UUID, topic: str) -> dict:
     edges = []
     for fragment_id, artifact_id, content, location, kind, _ordinal in rows:
         artifact = by_artifact[artifact_id]
+        fit, alike = similarity.affinities(lib, fragment_id, topic)
         nodes.append(
             {
                 "id": f"fragment:{fragment_id}",
@@ -348,6 +434,11 @@ def expand(db: Session, owner_id: uuid.UUID, topic: str) -> dict:
                 "source_title": artifact.title,
                 "excerpt": content[:240],
                 "kind": kind,
+                # How well it fits its own topic, and — when it resembles no
+                # other topic — that it belongs drawn close around this one.
+                "similarity": None if fit is None else round(fit, 4),
+                "orbit": not alike,
+                "affinity": alike[0][0] if alike else None,
             }
         )
         edges.append(
@@ -356,13 +447,128 @@ def expand(db: Session, owner_id: uuid.UUID, topic: str) -> dict:
                 "source": f"topic:{topic}",
                 "target": f"fragment:{fragment_id}",
                 # Containment, not similarity: the fragment came from a
-                # document the user confirmed carries this topic.
+                # document the user confirmed carries this topic. The
+                # similarity rides along as a measurement of fit.
                 "kind": "contains",
                 "weight": 3,
                 "relevance": "Highly Related",
+                "explanation": (
+                    f"A passage from “{artifact.title or artifact.filename}”, a document about "
+                    f"“{topic}”."
+                    + (
+                        f" It is {similarity.percent(fit)}% alike in {lib.space.measures} to the "
+                        "topic's passages as a whole."
+                        if fit is not None
+                        else ""
+                    )
+                ),
+                "evidence": [artifact.title or artifact.filename],
+                "evidence_count": 1,
+                "similarity": None if fit is None else round(fit, 4),
+                "strength": None if fit is None else similarity.strength(fit, lib),
             }
         )
-    return {"nodes": nodes, "edges": edges}
+        for other, value in alike:
+            edges.append(
+                _similarity_edge(
+                    source=f"fragment:{fragment_id}",
+                    target=f"topic:{other}",
+                    value=value,
+                    lib=lib,
+                    explanation=(
+                        f"This passage from “{topic}” is {similarity.percent(value)}% alike in "
+                        f"{lib.space.measures} to passages about “{other}” — above the "
+                        f"{typical}% two of your topics typically share. A resemblance in the "
+                        "text, not a verified link."
+                    ),
+                )
+            )
+    return {"nodes": nodes, "edges": edges, "similarity": similarity.summary(lib)}
+
+
+class LensUnavailable(Exception):
+    """The text could not be embedded, so it cannot be placed."""
+
+
+def lens(db: Session, owner_id: uuid.UUID, text: str) -> dict:
+    """Where a piece of text would sit in this library — a what-if, nothing stored.
+
+    The text is embedded with the owner's own model (on the GPU, when the
+    local Ollama has one), the same model their passages were embedded with,
+    and compared with every topic and passage. Nothing is written: asking
+    "where would this go" does not add it.
+    """
+    artifacts = _registered_artifacts(db, owner_id)
+    keep = set(_kept_topics(artifacts))
+    lib = _library(db, owner_id, artifacts, keep)
+    try:
+        vector = provider_for(ingest_settings.for_user(db, owner_id)).embed([text])[0]
+    except EmbeddingFailed as exc:
+        raise LensUnavailable(str(exc)) from exc
+
+    topics, nearest = similarity.lens(lib, vector)
+    typical = lib.typical
+    placed = [
+        {
+            "id": f"topic:{topic}",
+            "label": topic,
+            "similarity": round(value, 4),
+            "strength": similarity.strength(value, lib),
+            "above_typical": typical is not None and value > typical,
+        }
+        for topic, value in topics
+    ]
+
+    passages = []
+    if nearest:
+        details = {
+            row[0]: row
+            for row in db.execute(
+                select(
+                    KnowledgeFragment.id,
+                    KnowledgeFragment.artifact_id,
+                    KnowledgeFragment.content,
+                    Artifact.filename,
+                    Artifact.artifact_metadata,
+                )
+                .join(Artifact, Artifact.id == KnowledgeFragment.artifact_id)
+                .where(
+                    KnowledgeFragment.owner_id == owner_id,
+                    KnowledgeFragment.id.in_([fid for fid, _ in nearest]),
+                )
+            ).all()
+        }
+        for fragment_id, value in nearest:
+            row = details.get(fragment_id)
+            if row is None:
+                continue
+            _, artifact_id, content, filename, meta = row
+            passages.append(
+                {
+                    "id": f"fragment:{fragment_id}",
+                    "artifact_id": str(artifact_id),
+                    "title": (meta or {}).get("title") or filename,
+                    "excerpt": content[:200],
+                    "similarity": round(value, 4),
+                }
+            )
+
+    close = [p for p in placed if p["above_typical"]][:3]
+    if close:
+        names = ", ".join(f"“{p['label']}” ({similarity.percent(p['similarity'])}%)" for p in close)
+        placement = f"It would sit closest to {names}."
+    else:
+        placement = (
+            "Nothing in your library is more alike than your topics typically are — "
+            "it would be new ground."
+        )
+    return {
+        "text": text,
+        "topics": placed,
+        "passages": passages,
+        "placement": placement,
+        "similarity": similarity.summary(lib),
+    }
 
 
 def node_details(db: Session, owner_id: uuid.UUID, node_id: str) -> dict | None:

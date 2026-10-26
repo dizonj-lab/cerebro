@@ -22,13 +22,21 @@ class GraphNode(BaseModel):
     source_title: str | None = None
     excerpt: str | None = None
     kind: str | None = None
+    # Fragments only: cosine similarity to their own topic's passages, and
+    # whether they resemble nothing else (drawn close around their topic) or
+    # which other topic they resemble most.
+    similarity: float | None = None
+    orbit: bool | None = None
+    affinity: str | None = None
 
 
 class GraphEdge(BaseModel):
     id: str
     source: str
     target: str
-    # "co_occurrence" or "contains". Never a verified semantic relationship.
+    # "co_occurrence", "named_in", "contains", or "similar_meaning" /
+    # "similar_words" — a measured resemblance between texts, never a
+    # verified semantic relationship.
     kind: str
     weight: int
     # Words, not a percentage: a number would read as a confidence the data
@@ -45,6 +53,29 @@ class GraphEdge(BaseModel):
     # False for an edge resting on a single document: real, but shown only
     # when one of its endpoints is selected.
     strong: bool = True
+    # A measurement, unlike the counts above: cosine similarity of the two
+    # ends' embeddings (0–1), and how far above the library's typical
+    # similarity it sits (0 at typical, 1 at its strongest pair).
+    similarity: float | None = None
+    strength: float | None = None
+    # A similarity link between topics no document carries together.
+    discovered: bool = False
+
+
+class SimilaritySpace(BaseModel):
+    """How similarity was measured for this response, and against what yardstick."""
+
+    provider: str
+    model: str
+    dimensions: int
+    learned: bool
+    # "meaning" for a learned model, "shared words" for the hashing embedder.
+    measures: str
+    typical: float | None = None
+    topic_threshold: float | None = None
+    ceiling: float | None = None
+    vectors: int = 0
+    topics_measured: int = 0
 
 
 class GalaxyResponse(BaseModel):
@@ -52,6 +83,35 @@ class GalaxyResponse(BaseModel):
     edges: list[GraphEdge] = Field(default_factory=list)
     clusters: list[str] = Field(default_factory=list)
     truncated: bool = False
+    similarity: SimilaritySpace | None = None
+
+
+class LensRequest(BaseModel):
+    text: str = Field(min_length=2, max_length=1000)
+
+
+class LensTopic(BaseModel):
+    id: str
+    label: str
+    similarity: float
+    strength: float
+    above_typical: bool
+
+
+class LensPassage(BaseModel):
+    id: str
+    artifact_id: str
+    title: str
+    excerpt: str
+    similarity: float
+
+
+class LensResponse(BaseModel):
+    text: str
+    topics: list[LensTopic] = Field(default_factory=list)
+    passages: list[LensPassage] = Field(default_factory=list)
+    placement: str
+    similarity: SimilaritySpace
 
 
 class RelatedNode(BaseModel):
