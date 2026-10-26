@@ -1,0 +1,25 @@
+# CEREBRO on the home server (Buddy), layered over docker-compose.yml. Run ./scripts/buddy-up.sh
+# rather than this file directly: it writes the .env values this file and the base file read.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.buddy.yml ...
+#
+# (buddy-up.sh saves that pair as COMPOSE_FILE in .env, so a plain `docker compose ps` works too.)
+#
+# What changes from a laptop run:
+# - The API runs as a deployment, not in development mode, so it refuses to start without a real
+#   CEREBRO_JWT_SECRET. The development default is public in this repository; on a machine others
+#   can reach, anyone could sign a session cookie with it.
+# - Every container restarts with the machine.
+# - Host ports come from .env with an address in front (192.168.1.25:3100, 127.0.0.1:15432), so the
+#   web app is reachable on the LAN only and the API and database from Buddy itself only. Docker
+#   publishes ports outside UFW, so an unqualified port would be open on every interface.
+services:
+  api:
+    environment:
+      CEREBRO_ENVIRONMENT: production
+      CEREBRO_JWT_SECRET: ${CEREBRO_JWT_SECRET:?run scripts/buddy-up.sh, which generates it}
+    restart: unless-stopped
+  web:
+    restart: unless-stopped
+  postgres:
+    restart: unless-stopped
