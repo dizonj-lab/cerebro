@@ -399,9 +399,11 @@ test("an edge explains itself and names the documents it rests on", async ({ pag
   const total = await edges.count();
   expect(total).toBeGreaterThan(0);
 
+  // Measured similarity edges are drawn too now, so it looks specifically
+  // for a co-occurrence edge — the claim here is about those.
   for (let index = 0; index < total; index += 1) {
     await edges.nth(index).hover({ force: true });
-    if (await card.isVisible()) break;
+    if ((await card.isVisible()) && (await card.textContent())?.includes("Appears in the same document")) break;
   }
 
   await expect(card).toBeVisible();
@@ -409,10 +411,12 @@ test("an edge explains itself and names the documents it rests on", async ({ pag
   await expect(card).toContainText("Appears in the same document");
   await expect(card).toContainText("Relationship");
   await expect(card).toContainText("From ");
-  // A count of documents, stated as a count. Never a bare percentage.
+  // A count of documents, stated as a count.
   await expect(card).toContainText(/\d+ documents?/);
   await expect(card).toContainText("Approved knowledge");
-  await expect(card).not.toContainText("%");
+  // A percentage appears only as the measured similarity, under its own name.
+  const text = (await card.textContent()) ?? "";
+  if (text.includes("%")) expect(text).toContain("Similarity");
 });
 
 test("a generic term never becomes a knowledge node", async ({ page }) => {
@@ -439,4 +443,111 @@ test("a generic term never becomes a knowledge node", async ({ page }) => {
   const suggested = (artifact.metadata.topics ?? []).concat(artifact.metadata.tags ?? []);
   expect(suggested.map((t: string) => t.toLowerCase())).not.toContain("pdf");
   expect(suggested.map((t: string) => t.toLowerCase())).not.toContain("https");
+});
+
+/**
+ * Measured similarity. These texts are chosen so the hashing embedder the
+ * suite runs with finds audio and speech alike, and gardening and accounting
+ * like nothing — not even a shared "the".
+ */
+const ALIKE: [string, string, string][] = [
+  ["audio.txt", "Audio", "Speech recognition turns audio signals into text. Spectrogram features of speech audio feed an acoustic model for recognition of spoken words.\n"],
+  ["speech.txt", "Speech", "Spoken words are recognised from speech audio. Acoustic models read spectrogram features of speech signals for recognition of spoken text.\n"],
+  ["garden.txt", "Gardening", "Tomatoes need compost, sunlight, regular watering. Prune vines, mulch beds early in summer to keep soil moist.\n"],
+  ["ledger.txt", "Accounting", "Quarterly invoices reconcile against ledgers; accounts payable closes books once auditors sign balance sheets.\n"],
+];
+
+async function openAlike(page: import("@playwright/test").Page, prefix: string) {
+  await signUp(page, makeAccount(prefix));
+  await page.waitForURL(/\/construct$/);
+  for (const [name, topic, text] of ALIKE) {
+    const created = await page.request.post("/api/artifacts", {
+      multipart: { file: { name, mimeType: "text/plain", buffer: Buffer.from(text) } },
+    });
+    const artifact = await created.json();
+    await page.request.patch(`/api/artifacts/${artifact.id}`, {
+      data: { metadata: { ...artifact.metadata, title: name, topics: [topic] }, approve: true },
+    });
+  }
+  await page.goto("/construct/galaxy");
+  await expect(page.getByRole("application", { name: "Knowledge Galaxy" })).toBeVisible();
+}
+
+test("the legend is pinned left and states this library's own yardstick", async ({ page }) => {
+  await openAlike(page, "g-legend");
+  const legend = page.getByTestId("galaxy-legend");
+
+  await expect(legend).toBeVisible();
+  const box = (await legend.boundingBox())!;
+  const canvas = (await page.getByRole("application", { name: "Knowledge Galaxy" }).boundingBox())!;
+  expect(box.x - canvas.x).toBeLessThan(24);
+  // The figures are this library's, and the model is named — including that
+  // the suite's embedder compares words, not meaning.
+  await expect(legend).toContainText(/\d+% is typical here/);
+  await expect(legend).toContainText("Measured with hashing");
+  await expect(legend).toContainText("shared words, not meaning");
+  await expect(legend).toContainText(/Discovered/);
+
+  // It folds away, and comes back.
+  await legend.getByRole("button", { name: "Reading the Galaxy" }).click();
+  await expect(legend).not.toContainText("typical here");
+  await legend.getByRole("button", { name: "Reading the Galaxy" }).click();
+  await expect(legend).toContainText("typical here");
+});
+
+test("topics that never share a document are linked when alike, with the figure on the line", async ({ page }) => {
+  await openAlike(page, "g-discovered");
+
+  const discovered = page.locator('path[data-kind="similar_words"]');
+  await expect(discovered.first()).toBeAttached();
+  await expect(page.getByTestId("edge-figure").first()).toBeVisible();
+  await expect(page.getByTestId("edge-figure").first()).toContainText(/^\d+%$/);
+});
+
+test("a passage reaches out to the topic it resembles, or orbits its own", async ({ page }) => {
+  await openAlike(page, "g-orbit");
+  const legend = page.getByTestId("galaxy-legend");
+
+  await page.getByRole("button", { name: "Audio, cluster" }).click();
+  await expect(legend).toContainText("1 reach out, 0 orbit");
+  // Faint or bold by strength, never hidden: the line is there with a strength.
+  const reaching = page.locator('path[data-kind="similar_words"][data-strength]');
+  await expect(reaching.first()).toBeAttached();
+
+  await page.getByRole("button", { name: "Gardening, cluster" }).click();
+  await expect(legend).toContainText("0 reach out, 1 orbit");
+});
+
+test("a similarity line explains its measurement on hover", async ({ page }) => {
+  await openAlike(page, "g-measure");
+  const edges = page.getByTestId("galaxy-edge");
+  const card = page.getByTestId("edge-card");
+
+  const total = await edges.count();
+  for (let index = 0; index < total; index += 1) {
+    await edges.nth(index).hover({ force: true });
+    if ((await card.isVisible()) && (await card.textContent())?.includes("Shares wording")) break;
+  }
+  await expect(card).toContainText("Shares wording");
+  await expect(card).toContainText(/Similarity\s*\d+%/);
+  await expect(card).toContainText("not a verified link");
+  await expect(card).toContainText("hashing");
+});
+
+test("what if: an idea is placed among the topics and nothing is stored", async ({ page }) => {
+  await openAlike(page, "g-lens");
+  const before = await (await page.request.get("/api/artifacts")).json();
+
+  await page.getByLabel("Place an idea in your Galaxy").fill("acoustic speech recognition of spoken audio");
+  await page.getByRole("button", { name: "Place", exact: true }).click();
+
+  const card = page.getByTestId("lens-card");
+  await expect(card).toContainText("closest to");
+  await expect(card).toContainText("Audio");
+  await expect(card).toContainText("nothing was stored");
+  await expect(page.getByTestId("lens-mark")).toBeAttached();
+  expect(await (await page.request.get("/api/artifacts")).json()).toEqual(before);
+
+  await page.getByRole("button", { name: "Clear", exact: true }).click();
+  await expect(card).toBeHidden();
 });

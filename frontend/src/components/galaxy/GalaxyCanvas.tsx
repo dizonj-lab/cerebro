@@ -5,7 +5,8 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { layout, VIEWBOX } from "@/components/galaxy/layout";
 import { colorFor, hueFor } from "@/components/galaxy/palette";
 import { api } from "@/lib/api";
-import type { CerebroGalaxy, GraphEdge, GraphNode } from "@/lib/api";
+import { ApiError } from "@/lib/api";
+import type { CerebroGalaxy, CerebroLens, GraphEdge, GraphNode, SimilaritySpace } from "@/lib/api";
 import { cn } from "@/lib/cn";
 
 // Scene colours come from tokens, so the canvas follows the light and dark theme with the page.
@@ -62,6 +63,27 @@ export function GalaxyCanvas({
   const [view, setView] = useState({ scale: 1, x: 0, y: 0, angle: 0 });
   const [hovered, setHovered] = useState<string | null>(null);
   const [hoveredEdge, setHoveredEdge] = useState<GraphEdge | null>(null);
+  // The what-if lens: a piece of text placed among the topics by the same
+  // model that embedded the library. Nothing is stored.
+  const [lens, setLens] = useState<CerebroLens | null>(null);
+  const [lensText, setLensText] = useState("");
+  const [lensBusy, setLensBusy] = useState(false);
+  const [lensError, setLensError] = useState<string | null>(null);
+
+  async function placeText(event: React.FormEvent) {
+    event.preventDefault();
+    const text = lensText.trim();
+    if (text.length < 2) return;
+    setLensBusy(true);
+    setLensError(null);
+    try {
+      setLens(await api.lens(text));
+    } catch (e) {
+      setLensError(e instanceof ApiError ? e.message : "Could not place that text.");
+    } finally {
+      setLensBusy(false);
+    }
+  }
   const drag = useRef<{
     mode: "pan" | "rotate";
     x: number;
@@ -100,11 +122,23 @@ export function GalaxyCanvas({
   // unconditionally drew an empty map and called that restraint. So the
   // threshold is relative: weak edges step aside when stronger ones exist,
   // and stand in for them when none do.
-  const hasStrongEdges = useMemo(() => graph.edges.some((edge) => edge.strong), [graph.edges]);
+  // Only documented edges count here: a strong similarity must not hide the
+  // one-document co-occurrences of a young library.
+  const hasStrongEdges = useMemo(
+    () => graph.edges.some((edge) => edge.strong && !isMeasured(edge)),
+    [graph.edges],
+  );
+  // The topics the lens text lands near: above typical, strongest first.
+  const lensTargets = useMemo(
+    () => (lens ? lens.topics.filter((t) => t.above_typical && positions.has(t.id)).slice(0, 3) : []),
+    [lens, positions],
+  );
   const connected = useMemo(() => {
     // A mapped answer takes over the dimming: the map is the point, and
     // hovering should not wash it away.
     if (answerMap) return new Set([...answerMap.cited, ...answerMap.retrieved]);
+    // So does the lens: what matters is where the text would land.
+    if (lens) return new Set(lensTargets.map((t) => t.id));
     if (!focus) return null;
     const set = new Set<string>([focus]);
     for (const edge of graph.edges) {
@@ -112,7 +146,7 @@ export function GalaxyCanvas({
       if (edge.target === focus) set.add(edge.source);
     }
     return set;
-  }, [focus, graph.edges, answerMap]);
+  }, [focus, graph.edges, answerMap, lens, lensTargets]);
 
   const reset = useCallback(() => {
     setView({ scale: 1, x: 0, y: 0, angle: 0 });
@@ -247,29 +281,83 @@ export function GalaxyCanvas({
             const b = positions.get(edge.target);
             if (!a || !b) return null;
             const touches = focus === edge.source || focus === edge.target;
+            // A measured edge is a cosine similarity; everything else is an
+            // observation about documents. The two are drawn differently so
+            // the eye never mistakes one for the other.
+            const measured = isMeasured(edge);
+            const strength = edge.strength ?? 0;
             // Progressive disclosure, but only where there is something to
             // disclose progressively: a weak edge is hidden when stronger
             // ones exist, and shown anyway when they do not. Either way it
             // reappears when one of its endpoints is in focus, which is when
-            // the user is asking about that node specifically.
-            if (!edge.strong && hasStrongEdges && !touches) return null;
+            // the user is asking about that node specifically. A measured
+            // edge is never hidden: a weak resemblance is drawn faint instead,
+            // which is what makes it a weak one.
+            if (!measured && !edge.strong && hasStrongEdges && !touches) return null;
             const lit = !connected || connected.has(edge.source) || connected.has(edge.target);
             // A gentle curve reads better than a straight chord on a radial
             // layout, and separates edges that share endpoints.
             const mx = (a.x + b.x) / 2;
             const my = (a.y + b.y) / 2 - Math.abs(a.x - b.x) * 0.07;
             const path = `M${a.x},${a.y} Q${mx},${my} ${b.x},${b.y}`;
+            // The curve's own midpoint, where its figure is written.
+            const lx = (a.x + 2 * mx + b.x) / 4;
+            const ly = (a.y + 2 * my + b.y) / 4;
+            const showFigure =
+              typeof edge.similarity === "number" &&
+              lit &&
+              ((measured && (edge.source.startsWith("fragment:") || edge.discovered)) || touches);
             return (
               <g key={edge.id}>
                 <path
                   d={path}
                   fill="none"
                   stroke={`url(#${gradientId(edge.id)})`}
-                  strokeWidth={0.6 + Math.min(edge.weight, 4) * 0.45}
-                  opacity={lit ? (edge.strong ? 0.55 : 0.3) : 0.08}
-                  strokeDasharray={edge.strong ? undefined : "4 3"}
+                  strokeWidth={measured ? 0.6 + strength * 1.8 : 0.6 + Math.min(edge.weight, 4) * 0.45}
+                  opacity={
+                    measured
+                      ? lit
+                        ? 0.14 + strength * 0.66
+                        : 0.05
+                      : lit
+                        ? edge.strong
+                          ? 0.55
+                          : 0.3
+                        : 0.08
+                  }
+                  strokeDasharray={
+                    measured ? (edge.discovered ? "1.5 3.5" : undefined) : edge.strong ? undefined : "4 3"
+                  }
+                  strokeLinecap="round"
+                  data-kind={edge.kind}
+                  data-strength={measured ? strength : undefined}
                   className="transition-opacity duration-200"
                 />
+                {showFigure && (
+                  <g
+                    transform={`translate(${lx} ${ly}) rotate(${-view.angle})`}
+                    className="pointer-events-none select-none"
+                    data-testid="edge-figure"
+                  >
+                    <rect
+                      x={-13}
+                      y={-6.5}
+                      width={26}
+                      height={13}
+                      rx={6.5}
+                      style={{ fill: "var(--color-scene)", stroke: LABEL_MUTED }}
+                      strokeWidth={0.5}
+                      opacity={0.92}
+                    />
+                    <text
+                      y={3}
+                      textAnchor="middle"
+                      style={{ fontSize: 8.5, fontWeight: 600, fill: LABEL }}
+                    >
+                      {Math.round((edge.similarity ?? 0) * 100)}%
+                    </text>
+                  </g>
+                )}
                 {/* A wide invisible companion: a 1px curve is far too thin
                     to hit with a pointer, and an edge nobody can hover is an
                     edge that cannot explain itself. */}
@@ -286,6 +374,8 @@ export function GalaxyCanvas({
               </g>
             );
           })}
+
+          {lens && <LensMark lens={lens} targets={lensTargets} positions={positions} angle={view.angle} />}
 
           {[...positions.values()].map(({ node, x, y, radius }) => {
             const lit = !connected || connected.has(node.id);
@@ -440,6 +530,160 @@ export function GalaxyCanvas({
       </div>
 
       <Legend graph={graph} />
+
+      {/* The what-if lens. Typed text is embedded by the library's own model
+          — on the GPU where the local Ollama serves it — and placed among
+          the topics. Nothing is stored. */}
+      <form
+        onSubmit={placeText}
+        className="absolute left-1/2 top-3 z-20 flex w-[min(28rem,60%)] -translate-x-1/2 items-center gap-1.5 rounded-full border border-scene-ink/15 bg-scene-raised/90 py-1 pl-3.5 pr-1 shadow-lg backdrop-blur"
+      >
+        <span aria-hidden="true" className="text-xs text-scene-ink/45">What if…</span>
+        <input
+          value={lensText}
+          onChange={(e) => setLensText(e.target.value)}
+          placeholder="type an idea to see where it would land"
+          aria-label="Place an idea in your Galaxy"
+          maxLength={1000}
+          className="min-w-0 flex-1 bg-transparent py-1 text-xs text-scene-ink outline-none placeholder:text-scene-ink/35"
+        />
+        {lens ? (
+          <button
+            type="button"
+            onClick={() => {
+              setLens(null);
+              setLensText("");
+            }}
+            className="rounded-full px-3 py-1 text-xs text-scene-ink/70 hover:text-scene-ink"
+          >
+            Clear
+          </button>
+        ) : (
+          <button
+            type="submit"
+            disabled={lensBusy || lensText.trim().length < 2}
+            className="rounded-full bg-scene-ink/10 px-3 py-1 text-xs font-medium text-scene-ink transition-colors hover:bg-scene-ink/20 disabled:opacity-40"
+          >
+            {lensBusy ? "Placing…" : "Place"}
+          </button>
+        )}
+      </form>
+      {lensError && (
+        <p className="absolute left-1/2 top-14 z-20 -translate-x-1/2 rounded-md bg-scene-raised/95 px-3 py-1.5 text-xs text-rose-400">
+          {lensError}
+        </p>
+      )}
+      {lens && <LensCard lens={lens} />}
+    </div>
+  );
+}
+
+/** Similarity edges are measurements; every other kind is an observation. */
+function isMeasured(edge: GraphEdge): boolean {
+  return edge.kind === "similar_meaning" || edge.kind === "similar_words";
+}
+
+function pct(value: number | null | undefined): string {
+  return typeof value === "number" ? `${Math.round(value * 100)}%` : "—";
+}
+
+/**
+ * The lens text, drawn where it would land.
+ *
+ * It sits at the similarity-weighted middle of the topics it is most alike
+ * to, with a dashed line and a figure to each. Text like nothing in the
+ * library sits at the centre, alone, which is itself the answer.
+ */
+function LensMark({
+  lens,
+  targets,
+  positions,
+  angle,
+}: {
+  lens: CerebroLens;
+  targets: CerebroLens["topics"];
+  positions: Map<string, { x: number; y: number }>;
+  angle: number;
+}) {
+  const points = targets.map((t) => ({ t, p: positions.get(t.id)! }));
+  const total = points.reduce((sum, { t }) => sum + t.similarity, 0);
+  const at = total
+    ? {
+        x: points.reduce((sum, { t, p }) => sum + p.x * t.similarity, 0) / total,
+        y: points.reduce((sum, { t, p }) => sum + p.y * t.similarity, 0) / total + (points.length === 1 ? 46 : 0),
+      }
+    : { x: VIEWBOX.width / 2, y: VIEWBOX.height / 2 };
+  const label = lens.text.length > 28 ? `${lens.text.slice(0, 27)}…` : lens.text;
+  return (
+    <g data-testid="lens-mark">
+      {points.map(({ t, p }) => (
+        <g key={t.id}>
+          <line
+            x1={at.x}
+            y1={at.y}
+            x2={p.x}
+            y2={p.y}
+            style={{ stroke: INK }}
+            strokeWidth={0.8 + t.strength * 1.6}
+            strokeDasharray="5 4"
+            opacity={0.25 + t.strength * 0.55}
+          />
+          <g transform={`translate(${(at.x + p.x) / 2} ${(at.y + p.y) / 2}) rotate(${-angle})`}>
+            <rect x={-15} y={-7} width={30} height={14} rx={7} style={{ fill: "var(--color-scene)", stroke: INK }} strokeWidth={0.6} />
+            <text y={3.5} textAnchor="middle" style={{ fontSize: 9, fontWeight: 700, fill: LABEL }}>
+              {pct(t.similarity)}
+            </text>
+          </g>
+        </g>
+      ))}
+      <g transform={`translate(${at.x} ${at.y}) rotate(${-angle})`}>
+        <rect x={-7} y={-7} width={14} height={14} transform="rotate(45)" style={{ fill: INK }} opacity={0.9} />
+        <text y={22} textAnchor="middle" style={{ fontSize: 11, fontWeight: 600, fill: LABEL }}>
+          “{label}”
+        </text>
+      </g>
+    </g>
+  );
+}
+
+/** What the lens found, in words: the placement, the closest topics, the nearest passages. */
+function LensCard({ lens }: { lens: CerebroLens }) {
+  const shown = lens.topics.slice(0, 5);
+  return (
+    <div
+      data-testid="lens-card"
+      // Top right, clear of the legend on the left and the controls below.
+      className="absolute right-3 top-14 z-20 w-72 rounded-lg border border-scene-ink/15 bg-scene-raised/95 p-3 text-xs shadow-xl backdrop-blur"
+    >
+      <p className="font-medium text-scene-ink">{lens.placement}</p>
+      <ul className="mt-2 space-y-1">
+        {shown.map((t) => (
+          <li key={t.id} className="flex items-center gap-2">
+            <span className="w-24 truncate text-scene-ink/75">{t.label}</span>
+            <span className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-scene-ink/10">
+              <span
+                className="absolute inset-y-0 left-0 rounded-full"
+                style={{ width: `${Math.max(2, t.similarity * 100)}%`, background: colorFor(t.label), opacity: t.above_typical ? 0.9 : 0.35 }}
+              />
+            </span>
+            <span className="w-9 text-right tabular-nums text-scene-ink/80">{pct(t.similarity)}</span>
+          </li>
+        ))}
+      </ul>
+      {lens.passages.length > 0 && (
+        <div className="mt-2 border-t border-scene-ink/10 pt-2">
+          <p className="text-[0.625rem] uppercase tracking-wide text-scene-ink/40">Nearest passages</p>
+          {lens.passages.map((p) => (
+            <p key={p.id} className="mt-1 line-clamp-2 text-[0.6875rem] text-scene-ink/60">
+              <span className="text-scene-ink/85">{p.title}</span> · {pct(p.similarity)} — {p.excerpt}
+            </p>
+          ))}
+        </div>
+      )}
+      <p className="mt-2 border-t border-scene-ink/10 pt-2 text-[0.625rem] text-scene-ink/40">
+        Measured with {lens.similarity.model} ({lens.similarity.measures}). A what-if: nothing was
+        stored. Your topics typically share {pct(lens.similarity.typical)}.
+      </p>
     </div>
   );
 }
@@ -555,28 +799,134 @@ function HoverCard({
   );
 }
 
+/**
+ * How to read the Galaxy, pinned to the left.
+ *
+ * Each entry is a small drawing of the mark it explains, and the figures in
+ * it are this library's own: the model that measured similarity, the
+ * similarity two topics typically share, the strongest pair, how many links
+ * were discovered. They change as the library does, which is the point — a
+ * legend with fixed numbers would describe somebody else's galaxy.
+ *
+ * Collapsible, and inert apart from its toggle, so it never steals a gesture
+ * from the nodes beneath it.
+ */
 function Legend({ graph }: { graph: CerebroGalaxy }) {
-  const categories = [...new Set(graph.nodes.map((n) => n.category))].slice(0, 6);
-  if (!categories.length) return null;
+  const [open, setOpen] = useState(true);
+  const space: SimilaritySpace | null | undefined = graph.similarity;
+  const discovered = graph.edges.filter((e) => e.discovered).length;
+  const orbiting = graph.nodes.filter((n) => n.type === "fragment" && n.orbit).length;
+  const leaning = graph.nodes.filter((n) => n.type === "fragment" && n.orbit === false).length;
   return (
     <div
-      // Capped so it cannot run under the chat launcher in the opposite
-      // corner, and inert: it reads, it is never clicked. Adding the
-      // rotation hint made it taller, and a taller legend began swallowing
-      // clicks on the nodes beneath it — a caption that steals a gesture
-      // from the thing it is captioning.
-      className="pointer-events-none absolute bottom-4 left-4 flex max-w-[52%] flex-wrap gap-x-4 gap-y-1.5 rounded-lg border border-scene-ink/10 bg-scene-raised/80 px-3 py-2 backdrop-blur">
-      {categories.map((category) => (
-        <span key={category} className="flex items-center gap-1.5 text-[0.6875rem] text-scene-ink/70">
-          <span className="size-2 rounded-full" style={{ background: colorFor(category) }} />
-          {category}
-        </span>
-      ))}
-      {/* Rotation is not discoverable by itself, so it is said once here
-          rather than hidden behind a tooltip on a button. */}
-      <span className="w-full text-[0.625rem] text-scene-ink/35">
-        Drag to move · shift-drag to rotate
-      </span>
+      data-testid="galaxy-legend"
+      className="pointer-events-none absolute left-3 top-3 z-10 w-56 rounded-lg border border-scene-ink/10 bg-scene-raised/85 text-[0.6875rem] text-scene-ink/70 shadow-lg backdrop-blur"
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="pointer-events-auto flex w-full items-center justify-between px-3 py-2 text-left font-semibold text-scene-ink/85"
+      >
+        Reading the Galaxy
+        <span aria-hidden="true" className="text-scene-ink/40">{open ? "−" : "+"}</span>
+      </button>
+      {open && (
+        <div className="space-y-2 border-t border-scene-ink/10 px-3 pb-3 pt-2">
+          <LegendRow
+            mark={
+              <svg viewBox="0 0 36 16" className="h-4 w-9" aria-hidden="true">
+                <circle cx="7" cy="8" r="3.5" style={{ fill: LABEL_MUTED }} />
+                <circle cx="24" cy="8" r="7" style={{ fill: LABEL }} opacity={0.8} />
+              </svg>
+            }
+          >
+            Size — documents behind a topic
+          </LegendRow>
+          <LegendRow
+            mark={
+              <svg viewBox="0 0 36 16" className="h-4 w-9" aria-hidden="true">
+                <line x1="2" y1="8" x2="34" y2="8" style={{ stroke: LABEL }} strokeWidth="1.8" opacity={0.6} />
+              </svg>
+            }
+          >
+            Topics on the same document
+          </LegendRow>
+          {space && (
+            <>
+              <LegendRow
+                mark={
+                  <svg viewBox="0 0 36 16" className="h-4 w-9" aria-hidden="true">
+                    <line x1="2" y1="3" x2="34" y2="3" style={{ stroke: LABEL }} strokeWidth="0.7" opacity={0.18} />
+                    <line x1="2" y1="8" x2="34" y2="8" style={{ stroke: LABEL }} strokeWidth="1.4" opacity={0.45} />
+                    <line x1="2" y1="13" x2="34" y2="13" style={{ stroke: LABEL }} strokeWidth="2.4" opacity={0.85} />
+                  </svg>
+                }
+              >
+                Alike in {space.measures} — fainter is weaker.{" "}
+                <span className="text-scene-ink/50">
+                  {pct(space.typical)} is typical here, {pct(space.ceiling)} the strongest pair
+                </span>
+              </LegendRow>
+              <LegendRow
+                mark={
+                  <svg viewBox="0 0 36 16" className="h-4 w-9" aria-hidden="true">
+                    <line x1="2" y1="8" x2="34" y2="8" style={{ stroke: LABEL }} strokeWidth="1.6" strokeDasharray="1.5 3.5" strokeLinecap="round" />
+                  </svg>
+                }
+              >
+                Discovered — alike, but never on one document
+                {discovered > 0 && <span className="text-scene-ink/50"> · {discovered} found</span>}
+              </LegendRow>
+              <LegendRow
+                mark={
+                  <svg viewBox="0 0 36 16" className="h-4 w-9" aria-hidden="true">
+                    <rect x="4" y="2" width="28" height="12" rx="6" style={{ fill: "var(--color-scene)", stroke: LABEL_MUTED }} strokeWidth="0.6" />
+                    <text x="18" y="11" textAnchor="middle" style={{ fontSize: 7.5, fontWeight: 600, fill: LABEL }}>62%</text>
+                  </svg>
+                }
+              >
+                Similarity, measured — hover a line for why
+              </LegendRow>
+              <LegendRow
+                mark={
+                  <svg viewBox="0 0 36 16" className="h-4 w-9" aria-hidden="true">
+                    <circle cx="18" cy="8" r="4.5" style={{ fill: LABEL }} opacity={0.7} />
+                    <circle cx="18" cy="8" r="7" fill="none" style={{ stroke: LABEL_MUTED }} strokeWidth="0.5" strokeDasharray="1 2" />
+                    <circle cx="25" cy="8" r="1.6" style={{ fill: LABEL }} />
+                  </svg>
+                }
+              >
+                Passage like nothing else orbits its topic
+                {orbiting + leaning > 0 && (
+                  <span className="text-scene-ink/50"> · {leaning} reach out, {orbiting} orbit</span>
+                )}
+              </LegendRow>
+            </>
+          )}
+          <p className="border-t border-scene-ink/10 pt-2 text-[0.625rem] leading-relaxed text-scene-ink/45">
+            {space ? (
+              <>
+                Measured with {space.model}
+                {space.learned ? "" : " — shared words, not meaning; connect a local model for meaning"} over{" "}
+                {space.vectors.toLocaleString()} passages. Alike is not related: these are resemblances in the text.
+              </>
+            ) : (
+              "Similarity appears once passages have embeddings."
+            )}
+          </p>
+          <p className="text-[0.625rem] text-scene-ink/35">Drag to move · shift-drag to rotate</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LegendRow({ mark, children }: { mark: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-2">
+      <span className="mt-0.5 shrink-0">{mark}</span>
+      <span className="leading-snug">{children}</span>
     </div>
   );
 }
@@ -622,15 +972,31 @@ function gradientId(id: string): string {
  */
 function EdgeCard({ edge, graph }: { edge: GraphEdge; graph: CerebroGalaxy }) {
   const label = (id: string) => graph.nodes.find((n) => n.id === id)?.label ?? id;
+  const measured = isMeasured(edge);
   return (
     <div
       role="tooltip"
       data-testid="edge-card"
-      className="pointer-events-none absolute left-4 top-4 z-30 max-w-xs rounded-lg border border-scene-ink/15 bg-scene-overlay/97 p-3 text-xs shadow-2xl"
+      // Bottom centre: the legend holds the top left, the lens card the top right.
+      className="pointer-events-none absolute bottom-4 left-1/2 z-30 w-80 -translate-x-1/2 rounded-lg border border-scene-ink/15 bg-scene-overlay/97 p-3 text-xs shadow-2xl"
     >
-      <Field label="Relationship">{RELATIONSHIP[edge.kind] ?? edge.kind}</Field>
+      <Field label="Relationship">
+        {RELATIONSHIP[edge.kind] ?? edge.kind}
+        {edge.discovered ? " · discovered" : ""}
+      </Field>
       <Field label="Source">{label(edge.source)}</Field>
       <Field label="Target">{label(edge.target)}</Field>
+      {typeof edge.similarity === "number" && (
+        <Field label="Similarity">
+          <span className="font-semibold">{pct(edge.similarity)}</span>
+          {measured && edge.relevance ? ` · ${edge.relevance.toLowerCase()}` : ""}
+        </Field>
+      )}
+      {typeof edge.strength === "number" && (
+        <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-scene-ink/10" aria-hidden="true">
+          <div className="h-full rounded-full bg-scene-ink/60" style={{ width: `${Math.max(3, edge.strength * 100)}%` }} />
+        </div>
+      )}
       <p className="mt-2 border-t border-scene-ink/10 pt-2 text-scene-ink/70">{edge.explanation}</p>
       {edge.evidence.length > 0 && (
         <p className="mt-1.5 text-[0.6875rem] text-scene-ink/45">
@@ -653,6 +1019,8 @@ const RELATIONSHIP: Record<string, string> = {
   co_occurrence: "Appears in the same document",
   named_in: "Named in documents about",
   contains: "Fragment of",
+  similar_meaning: "Alike in meaning",
+  similar_words: "Shares wording",
 };
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

@@ -107,8 +107,12 @@ export function GalaxyView() {
           return {
             ...current,
             nodes: [...clusters, ...expansion.nodes.filter((n) => !known.has(n.id))],
+            // The previous cluster's passages leave with all their lines:
+            // containment and the similarity links they carried.
             edges: [
-              ...current.edges.filter((e) => e.kind !== "contains"),
+              ...current.edges.filter(
+                (e) => e.kind !== "contains" && !e.source.startsWith("fragment:"),
+              ),
               ...expansion.edges,
             ],
           };

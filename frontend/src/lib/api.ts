@@ -282,6 +282,12 @@ export interface GraphNode {
   source_title: string | null;
   excerpt: string | null;
   kind: string | null;
+  /** Fragments: cosine similarity to their own topic's passages. */
+  similarity?: number | null;
+  /** Fragments: resembles no other topic, so it is drawn close around its own. */
+  orbit?: boolean | null;
+  /** Fragments: the other topic it resembles most, if any. */
+  affinity?: string | null;
 }
 
 export interface GraphEdge {
@@ -302,6 +308,27 @@ export interface GraphEdge {
   status: string;
   /** False for an edge resting on one document: shown only on selection. */
   strong: boolean;
+  /** A measurement: cosine similarity of the two ends' embeddings, 0–1. */
+  similarity?: number | null;
+  /** 0 at the library's typical similarity, 1 at its strongest pair. */
+  strength?: number | null;
+  /** Alike, though no document carries both topics. */
+  discovered?: boolean;
+}
+
+/** How similarity was measured for a response, and the yardstick it was judged by. */
+export interface SimilaritySpace {
+  provider: string;
+  model: string;
+  dimensions: number;
+  learned: boolean;
+  /** "meaning" for a learned model, "shared words" for the hashing embedder. */
+  measures: string;
+  typical: number | null;
+  topic_threshold: number | null;
+  ceiling: number | null;
+  vectors: number;
+  topics_measured: number;
 }
 
 export interface CerebroGalaxy {
@@ -309,6 +336,16 @@ export interface CerebroGalaxy {
   edges: GraphEdge[];
   clusters: string[];
   truncated: boolean;
+  similarity?: SimilaritySpace | null;
+}
+
+/** Where a piece of text would sit in the library. Nothing is stored. */
+export interface CerebroLens {
+  text: string;
+  topics: { id: string; label: string; similarity: number; strength: number; above_typical: boolean }[];
+  passages: { id: string; artifact_id: string; title: string; excerpt: string; similarity: number }[];
+  placement: string;
+  similarity: SimilaritySpace;
 }
 
 export interface CerebroNodeDetails {
@@ -871,6 +908,8 @@ export const api = {
   expandCluster: (topic: string) =>
     request<CerebroGalaxy>(`/api/graph/expand?topic=${encodeURIComponent(topic)}`),
 
+  lens: (text: string) =>
+    request<CerebroLens>("/api/graph/lens", { method: "POST", body: JSON.stringify({ text }) }),
   graphNode: (id: string) =>
     request<CerebroNodeDetails>(`/api/graph/node?id=${encodeURIComponent(id)}`),
 
