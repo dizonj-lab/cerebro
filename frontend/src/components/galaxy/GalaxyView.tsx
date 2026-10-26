@@ -355,7 +355,8 @@ export function GalaxyView() {
             {answerMap && (
               <div
                 data-testid="answer-map"
-                className="pointer-events-auto absolute left-4 top-4 z-30 flex max-w-sm items-start gap-3 rounded-lg border border-scene-ink/15 bg-scene-overlay/95 px-3 py-2 text-xs shadow-xl backdrop-blur"
+                // Top centre, clear of the legend in the top-left corner.
+                className="pointer-events-auto absolute left-1/2 top-4 z-30 flex max-w-md -translate-x-1/2 items-start gap-3 rounded-lg border border-scene-ink/15 bg-scene-overlay/95 px-3 py-2 text-xs shadow-xl backdrop-blur"
               >
                 <div className="min-w-0">
                   <p className="truncate font-medium text-scene-ink">
@@ -372,19 +373,25 @@ export function GalaxyView() {
                         Open document
                       </a>
                       <Link
-                        href={`/construct/timeline?${new URLSearchParams({ docs: answerMap.document.artifact_id, about: answerMap.document.title })}`}
+                        href={`/construct/timeline?${new URLSearchParams({ docs: answerMap.document.artifact_id, names: JSON.stringify([answerMap.document.title]) })}`}
                         className="rounded border border-scene-ink/20 px-1.5 py-0.5 text-[0.6875rem] text-scene-ink/80 hover:bg-scene-ink/10"
                       >
                         On Timeline
                       </Link>
                     </p>
                   )}
-                  <p className="mt-0.5 text-scene-ink/55">
+{answerMap.document ? (
+                    <p className="mt-1 text-scene-ink/55">
+                      Its passage and its topic are lit; everything else is dimmed.
+                    </p>
+                  ) : (
+                                    <p className="mt-0.5 text-scene-ink/55">
                     <span className="text-scene-ink">{answerMap.cited.size} quoted</span>
                     {" · "}
                     {answerMap.retrieved.size} found but not quoted · the rest is not
                     part of this answer
                   </p>
+                  )}
                 </div>
                 <button
                   type="button"

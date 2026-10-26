@@ -86,9 +86,15 @@ export function RecallChat() {
   // The Timeline is opened on the documents themselves, by id. It used to be
   // opened on the answer's topic, which found nothing whenever that topic
   // was not one of the six the Timeline has lanes for.
-  function timelineFor(sources: CerebroRecallSource[], question: string) {
+  function timelineFor(sources: CerebroRecallSource[], question: string | null) {
     const ids = [...new Set(sources.map((s) => s.artifact_id))];
-    const query = new URLSearchParams({ docs: ids.join(","), about: question.slice(0, 120) });
+    // Titles travel with the ids, so a document that dates nothing is still named.
+    const names = ids.map((id) => {
+      const source = sources.find((s) => s.artifact_id === id)!;
+      return source.title || source.filename;
+    });
+    const query = new URLSearchParams({ docs: ids.join(","), names: JSON.stringify(names) });
+    if (question) query.set("about", question.slice(0, 120));
     router.push(`/construct/timeline?${query}`);
   }
   function onTimeline(reply: CerebroRecallAnswer, question: string) {
@@ -298,7 +304,7 @@ export function RecallChat() {
                 onShowMe={onShowMe}
                 onTimeline={(reply) => onTimeline(reply, turn.question)}
                 onSourceGalaxy={onSourceGalaxy}
-                onSourceTimeline={(source) => timelineFor([source], source.title || source.filename)}
+                onSourceTimeline={(source) => timelineFor([source], turn.question)}
               />
             ) : (
               <p className="text-[0.75rem] text-scene-ink/40">Searching your library…</p>

@@ -111,6 +111,14 @@ export function TimelineView() {
   const docsParam = params.get("docs") ?? "";
   const docs = docsParam ? docsParam.split(",").filter(Boolean) : null;
   const about = params.get("about");
+  const names = useMemo(() => {
+    try {
+      const parsed = JSON.parse(params.get("names") ?? "[]");
+      return Array.isArray(parsed) ? parsed.map(String) : [];
+    } catch {
+      return [];
+    }
+  }, [params]);
   const setSource = (value: string) => remember({ source: value });
   const setEntityType = (value: string) => remember({ entityType: value });
   const setEntity = (value: string) => remember({ entity: value });
@@ -574,6 +582,7 @@ export function TimelineView() {
       {docs && (
         <DocumentsBanner
           docs={docs}
+          names={names}
           about={about}
           data={data}
           onShowAll={() => router.replace("/construct/timeline")}
@@ -593,8 +602,7 @@ export function TimelineView() {
             <div className="p-6 text-sm" data-testid="timeline-empty">
               {docs ? (
                 <p className="text-scene-ink/60">
-                  {docs.length === 1 ? "This document states" : "These documents state"} no dates of
-                  their own{data.references.hidden > 0 ? " — only references, which are hidden" : ""}.
+                  {docs.length === 1 ? "This document states no dates of its own" : "These documents state no dates of their own"}{data.references.hidden > 0 ? " — only references, which are hidden" : ""}.
                   Open {docs.length === 1 ? "it" : "them"} from the bar above, or show everything.
                 </p>
               ) : data.references.hidden > 0 ? (
@@ -917,12 +925,15 @@ export function TimelineView() {
  */
 function DocumentsBanner({
   docs,
+  names,
   about,
   data,
   onShowAll,
   onShowReferences,
 }: {
   docs: string[];
+  /** Titles sent with the ids, in the same order. */
+  names: string[];
   about: string | null;
   data: CerebroTimeline | null;
   onShowAll: () => void;
@@ -930,7 +941,8 @@ function DocumentsBanner({
 }) {
   // Titles from the events where there are any, filenames otherwise.
   const titles = new Map<string, string>();
-  for (const [id, filename] of data?.sources ?? []) titles.set(id, filename);
+  docs.forEach((id, i) => names[i] && titles.set(id, names[i]));
+  for (const [id, filename] of data?.sources ?? []) if (!titles.has(id)) titles.set(id, filename);
   for (const event of data?.events ?? []) {
     if (event.document?.title) titles.set(event.artifact_id, event.document.title);
   }
