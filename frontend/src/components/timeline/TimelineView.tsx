@@ -18,6 +18,25 @@ import {
 import { api, ApiError } from "@/lib/api";
 import type { CerebroAnchor, CerebroTimeline, CerebroTimelineEventDetail } from "@/lib/api";
 import { cn } from "@/lib/cn";
+import { createPersistedStore } from "@/lib/persistedStore";
+
+/**
+ * How the reader left the Timeline: filters, references shown or not, the
+ * details panel, and the window they were looking at. Restored on the next
+ * visit instead of starting over.
+ */
+const useTimelineView = createPersistedStore("cerebro-timeline-view", {
+  categories: [] as string[],
+  source: "",
+  entityType: "",
+  entity: "",
+  start: "",
+  end: "",
+  references: false,
+  panelOpen: true,
+  windowFrom: null as number | null,
+  windowTo: null as number | null,
+});
 
 const YEAR = 365.25 * 24 * 60 * 60 * 1000;
 const MIN_SPAN = YEAR / 4;
@@ -64,25 +83,32 @@ export function TimelineView() {
   const [selected, setSelected] = useState<CerebroTimelineEventDetail | null>(null);
   const [hovered, setHovered] = useState<CerebroTimelineEventDetail | null>(null);
   const [selectedAnchor, setSelectedAnchor] = useState<CerebroAnchor | null>(null);
-  const [panelOpen, setPanelOpen] = useState(true);
+  const [view, remember] = useTimelineView();
+  const panelOpen = view.panelOpen;
+  const setPanelOpen = (open: boolean) => remember({ panelOpen: open });
   const [window_, setWindow] = useState<Window | null>(null);
   // Cited dates — a paper's year, a link's /2021/ — are not events in the
   // document, so they are hidden until asked for. The count is always shown.
-  const [references, setReferences] = useState(false);
+  const references = view.references;
   const [width, setWidth] = useState(1000);
 
   // Arriving from the Galaxy with ?focus=Atlas opens on that lane, so the
-  // subject survives the switch between the two views.
+  // subject survives the switch between the two views; otherwise the
+  // remembered filters apply.
   const params = useSearchParams();
-  const [categories, setCategories] = useState<string[]>(() => {
-    const focus = params.get("focus");
-    return focus ? [focus] : [];
-  });
-  const [source, setSource] = useState<string>("");
-  const [entityType, setEntityType] = useState<string>("");
-  const [entity, setEntity] = useState<string>("");
-  const [start, setStart] = useState<string>("");
-  const [end, setEnd] = useState<string>("");
+  // The focus applies until the reader picks a category of their own.
+  const [focus, setFocus] = useState<string | null>(() => params.get("focus"));
+  const categories = focus ? [focus] : view.categories;
+  const setCategories = (value: string[]) => {
+    setFocus(null);
+    remember({ categories: value });
+  };
+  const { source, entityType, entity, start, end } = view;
+  const setSource = (value: string) => remember({ source: value });
+  const setEntityType = (value: string) => remember({ entityType: value });
+  const setEntity = (value: string) => remember({ entity: value });
+  const setStart = (value: string) => remember({ start: value });
+  const setEnd = (value: string) => remember({ end: value });
 
   const canvas = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLElement>(null);
@@ -101,7 +127,13 @@ export function TimelineView() {
   // Written as a promise chain rather than an awaited call so that nothing
   // sets state synchronously inside the effect below: that would re-render
   // every page in the shell before this one had its data.
+  // Only the latest request may update the page. On a fresh load the first
+  // render uses default settings and the remembered ones arrive a moment
+  // later; without this, the first, now stale, response could land last and
+  // undo them.
+  const latest = useRef(0);
   const load = useCallback(() => {
+    const request = ++latest.current;
     api
       .timeline({
         categories,
@@ -113,6 +145,7 @@ export function TimelineView() {
         references,
       })
       .then((body) => {
+        if (request !== latest.current) return;
         setData(body);
         setError(null);
       })
@@ -120,23 +153,37 @@ export function TimelineView() {
         setError(e instanceof ApiError ? e.message : "Could not load the timeline.");
       })
       .finally(() => setLoading(false));
-  }, [categories, source, entityType, entity, start, end, references]);
+    // `categories` is rebuilt each render from the store; its contents are the dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categories.join("|"), source, entityType, entity, start, end, references]);
 
   useEffect(load, [load]);
 
   // The first load decides the window; later ones leave it alone, so
   // filtering does not throw away where the user had navigated to.
   // Showing or hiding references changes the range itself, so it refits.
+  // The first load reopens the window the reader left, if there was one.
   const fitted = useRef(false);
   useEffect(() => {
     if (!data || fitted.current) return;
     fitted.current = true;
-    setWindow(fitAll(data));
+    const saved = view.windowFrom !== null && view.windowTo !== null && view.windowTo > view.windowFrom;
+    setWindow(saved ? { from: view.windowFrom!, to: view.windowTo! } : fitAll(data));
+    // Only the first load decides; later changes to the store are our own writes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
+
+  // Remember the window, a moment after it stops moving rather than on every
+  // frame of a drag.
+  useEffect(() => {
+    if (!window_) return;
+    const timer = setTimeout(() => remember({ windowFrom: window_.from, windowTo: window_.to }), 300);
+    return () => clearTimeout(timer);
+  }, [window_, remember]);
 
   function toggleReferences() {
     fitted.current = false;
-    setReferences((current) => !current);
+    remember({ references: !references, windowFrom: null, windowTo: null });
   }
 
   function fitAll(body: CerebroTimeline): Window | null {
@@ -375,6 +422,7 @@ export function TimelineView() {
     setStart("");
     setEnd("");
     fitted.current = false;
+    remember({ categories: [], source: "", entityType: "", entity: "", start: "", end: "", windowFrom: null, windowTo: null });
     if (data) setWindow(fitAll(data));
   }
 

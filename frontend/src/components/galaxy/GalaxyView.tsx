@@ -5,7 +5,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { GalaxyCanvas } from "@/components/galaxy/GalaxyCanvas";
-import { RecallChat } from "@/components/galaxy/RecallChat";
 import { KnowledgeTimeline } from "@/components/galaxy/KnowledgeTimeline";
 import { NodeDetailsPanel } from "@/components/galaxy/NodeDetailsPanel";
 import { Button } from "@/components/ui/Button";
@@ -13,9 +12,11 @@ import { ErrorMessage } from "@/components/ui/ErrorMessage";
 import { ApiError, api } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { useGalaxyLayout } from "@/lib/galaxyLayoutState";
+import { setRecallContext, takeQueuedMap } from "@/lib/recallContext";
 import type {
   CerebroGalaxy,
   CerebroLens,
+  CerebroRecallAnswer,
   CerebroNodeDetails,
   CerebroTimelineEvent,
   GraphNode,
@@ -169,6 +170,37 @@ export function GalaxyView() {
     selectedId?.startsWith("topic:") ? selectedId.slice("topic:".length) : null;
   const selectedArtifactId = details?.source_artifact_id ?? null;
 
+  // Ask CEREBRO lives in the shell; this page tells it the topic in focus
+  // and how to light up the map, and takes both back when it closes.
+  const showMe = useCallback((reply: CerebroRecallAnswer) => {
+    // Cited passages are the ones the answer actually used; the citation
+    // guard has already removed any that pointed at a passage which was
+    // never retrieved. Everything else it searched up is "found but not
+    // quoted".
+    const cited = new Set<string>();
+    const retrieved = new Set<string>();
+    const citedIndexes = new Set(reply.cited ?? []);
+    for (const source of reply.sources) {
+      const target = citedIndexes.has(source.index) ? cited : retrieved;
+      for (const topic of source.topics ?? []) target.add(`topic:${topic}`);
+      target.add(`fragment:${source.fragment_id}`);
+    }
+    // A topic quoted somewhere is quoted, even if another passage from it
+    // went unused.
+    for (const id of cited) retrieved.delete(id);
+    setAnswerMap({ question: reply.answer?.slice(0, 60) ?? "this answer", cited, retrieved });
+  }, []);
+  useEffect(() => {
+    setRecallContext({ topic: selectedTopic, showMe });
+    return () => setRecallContext(null);
+  }, [selectedTopic, showMe]);
+  // An answer mapped from another page arrives here, once.
+  useEffect(() => {
+    const queued = takeQueuedMap();
+    // After this render, not during it.
+    if (queued) void Promise.resolve().then(() => showMe(queued));
+  }, [showMe]);
+
   if (loading) {
     return <div className="h-96 animate-pulse rounded-xl bg-surface-sunken" />;
   }
@@ -209,15 +241,17 @@ export function GalaxyView() {
         maximized && "fixed inset-0 z-50 h-dvh bg-canvas p-3",
       )}
     >
-      {/* Title, the what-if lens centred on the bar, then the view controls. */}
-      <div className="grid grid-cols-1 items-center gap-3 lg:grid-cols-[1fr_minmax(18rem,30rem)_1fr]">
+      {/* Title on the left; the what-if lens and the view controls together on the right. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-ink">Knowledge Galaxy</h1>
           <p className="text-xs text-ink-muted">Explore the connections in your knowledge.</p>
         </div>
+        {/* Its own full-width line on narrow screens; beside the title on wide ones. */}
+        <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2 lg:w-auto lg:flex-1">
         <form
           onSubmit={placeText}
-          className="flex w-full items-center gap-1.5 rounded-full border border-line bg-surface py-1 pl-3.5 pr-1"
+          className="flex w-full max-w-md items-center gap-1.5 rounded-full border border-line bg-surface py-1 pl-3.5 pr-1"
         >
           <span aria-hidden="true" className="shrink-0 text-xs text-ink-muted">What if…</span>
           <input
@@ -246,7 +280,7 @@ export function GalaxyView() {
             </button>
           )}
         </form>
-        <div className="flex items-center gap-2 lg:justify-self-end">
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={toggleTimeline}
@@ -261,6 +295,7 @@ export function GalaxyView() {
           >
             {maximized ? "Exit full screen" : "Full screen"}
           </button>
+        </div>
         </div>
       </div>
 
@@ -312,32 +347,6 @@ export function GalaxyView() {
                 </button>
               </div>
             )}
-
-            <RecallChat
-              topic={selectedTopic}
-              onShowMe={(reply) => {
-                // Cited passages are the ones the answer actually used; the
-                // citation guard has already removed any that pointed at a
-                // passage which was never retrieved. Everything else it
-                // searched up is "found but not quoted".
-                const cited = new Set<string>();
-                const retrieved = new Set<string>();
-                const citedIndexes = new Set(reply.cited ?? []);
-                for (const source of reply.sources) {
-                  const target = citedIndexes.has(source.index) ? cited : retrieved;
-                  for (const topic of source.topics ?? []) target.add(`topic:${topic}`);
-                  target.add(`fragment:${source.fragment_id}`);
-                }
-                // A topic quoted somewhere is quoted, even if another passage
-                // from it went unused.
-                for (const id of cited) retrieved.delete(id);
-                setAnswerMap({
-                  question: reply.answer?.slice(0, 60) ?? "this answer",
-                  cited,
-                  retrieved,
-                });
-              }}
-            />
           </div>
 
           {panelOpen ? (

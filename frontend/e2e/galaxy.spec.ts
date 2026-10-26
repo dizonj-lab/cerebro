@@ -558,7 +558,7 @@ test("what if: an idea is placed among the topics and nothing is stored", async 
 
   // Folded to a tab on the left; hovering the placed idea brings the details out.
   const card = page.getByTestId("lens-card");
-  await expect(page.getByTestId("lens-tab")).toBeVisible();
+  await expect(page.getByTestId("lens-card-tab")).toBeVisible();
   await expect(card).toBeHidden();
   await page.getByTestId("lens-node").hover({ force: true });
   await expect(card).toContainText("closest to");
@@ -574,10 +574,10 @@ test("the what-if window can be kept open, moved, and folded back to the left", 
   await page.getByLabel("Place an idea in your Galaxy").fill("speech audio");
   await page.getByRole("button", { name: "Place", exact: true }).click();
 
-  await page.getByTestId("lens-tab").click();
+  await page.getByTestId("lens-card-tab").click();
   const card = page.getByTestId("lens-card");
   await expect(card).toBeVisible();
-  await expect(page.getByTestId("lens-tab")).toHaveCount(0);
+  await expect(page.getByTestId("lens-card-tab")).toHaveCount(0);
 
   const header = card.locator("div").first();
   const before = (await card.boundingBox())!;
@@ -589,8 +589,8 @@ test("the what-if window can be kept open, moved, and folded back to the left", 
   const after = (await card.boundingBox())!;
   expect(after.x - before.x).toBeGreaterThan(150);
 
-  await card.getByRole("button", { name: "Minimise the what-if window" }).click();
-  await expect(page.getByTestId("lens-tab")).toBeVisible();
+  await card.getByRole("button", { name: /Minimise the what.if window/ }).click();
+  await expect(page.getByTestId("lens-card-tab")).toBeVisible();
 });
 
 test("the legend can be moved", async ({ page }) => {
@@ -665,4 +665,82 @@ test("an opened topic's passages surround it rather than the middle of the map",
       expect(Math.hypot(Number(x) - parent.x, Number(y) - parent.y)).toBeLessThan(110);
     }
   }
+});
+
+// --- workspace: header, settings, windows, chat on every page ---------------
+
+test("search sits beside Ingest, and what-if beside Hide timeline", async ({ page }) => {
+  await openGalaxy(page, "g-bars");
+  // The bordered field, not the text box inside it.
+  const search = (await page.getByPlaceholder(/Search your knowledge/).locator("xpath=..").boundingBox())!;
+  const ingest = (await page.locator("header").getByRole("link", { name: "Ingest" }).boundingBox())!;
+  expect(ingest.x - (search.x + search.width)).toBeGreaterThan(0);
+  expect(ingest.x - (search.x + search.width)).toBeLessThan(40);
+
+  const whatIf = (await page.getByLabel("Place an idea in your Galaxy").locator("xpath=ancestor::form").boundingBox())!;
+  const hide = (await page.getByRole("button", { name: "Hide timeline" }).boundingBox())!;
+  expect(hide.x - (whatIf.x + whatIf.width)).toBeGreaterThan(0);
+  expect(hide.x - (whatIf.x + whatIf.width)).toBeLessThan(24);
+});
+
+test("Galaxy settings hide the figures and keep the canvas dark, and are remembered", async ({ page }) => {
+  await openAlike(page, "g-settings");
+  await expect(page.getByTestId("edge-figure").first()).toBeVisible();
+
+  await page.getByRole("button", { name: "Galaxy settings" }).click();
+  const panel = page.getByTestId("galaxy-settings");
+  await panel.getByLabel(/Similarity figures/).uncheck();
+  await expect(page.getByTestId("edge-figure")).toHaveCount(0);
+  await expect(panel.getByLabel("Line contrast")).toBeVisible();
+
+  await panel.getByLabel(/Always-dark canvas/).check();
+  const frame = page.locator("[data-canvas-frame]");
+  await expect(frame).toHaveClass(/scene-dark/);
+
+  await page.reload();
+  await expect(page.getByRole("application", { name: "Knowledge Galaxy" })).toBeVisible();
+  await expect(page.getByTestId("edge-figure")).toHaveCount(0);
+  await expect(page.locator("[data-canvas-frame]")).toHaveClass(/scene-dark/);
+});
+
+test("node details open in the floating window and can be pinned", async ({ page }) => {
+  await openAlike(page, "g-node-window");
+  await page.getByRole("button", { name: "Audio, cluster" }).hover();
+  const win = page.getByTestId("node-window");
+  await expect(win).toContainText("Knowledge Cluster");
+
+  await win.getByRole("button", { name: "Pin these details" }).click();
+  await page.mouse.move(1, 1);
+  await expect(win).toContainText("Audio");
+  await win.getByRole("button", { name: /Close the details window/ }).click();
+  await page.mouse.move(2, 2);
+  await expect(win).toHaveCount(0);
+});
+
+test("Ask CEREBRO is on every page, movable, and maps an answer onto the Galaxy from elsewhere", async ({ page }) => {
+  await openGalaxy(page, "g-chat-anywhere");
+  await page.goto("/construct/library");
+  await page.getByRole("button", { name: /Ask CEREBRO/ }).click();
+
+  const chat = page.getByTestId("recall-chat");
+  await expect(chat).toBeVisible();
+  const before = (await chat.boundingBox())!;
+  await page.mouse.move(before.x + 120, before.y + 18);
+  await page.mouse.down();
+  await page.mouse.move(before.x - 200, before.y - 100, { steps: 6 });
+  await page.mouse.up();
+  const after = (await chat.boundingBox())!;
+  expect(before.x - after.x).toBeGreaterThan(150);
+
+  await page.getByLabel("Ask or describe what you're looking for").fill("machine learning");
+  await page.getByRole("button", { name: "Send" }).click();
+  const showMe = page.getByTestId("show-me").first();
+  await expect(showMe).toBeVisible({ timeout: 15000 });
+  await expect(page.getByTestId("see-timeline").first()).toBeVisible();
+  await showMe.click();
+
+  await expect(page).toHaveURL(/\/construct\/galaxy/);
+  await expect(page.getByTestId("answer-map")).toBeVisible();
+  // Still open, where it was put.
+  await expect(chat).toBeVisible();
 });

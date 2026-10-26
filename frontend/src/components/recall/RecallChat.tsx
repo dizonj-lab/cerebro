@@ -1,11 +1,20 @@
 "use client";
 
+import { usePathname, useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
 import { api } from "@/lib/api";
 import type { CerebroRecallAnswer } from "@/lib/api";
+import { createPersistedStore } from "@/lib/persistedStore";
+import { queueMap, useRecallContext } from "@/lib/recallContext";
 import { streamRecall } from "@/lib/recallStream";
 import { cn } from "@/lib/cn";
+
+/** Where the chat window was left, and whether it was open. x below zero docks it bottom right. */
+const useRecallWindow = createPersistedStore("cerebro-recall-window", { open: false, x: -1, y: -1 });
+
+const WIDTH = 352;
+const HEIGHT = 432;
 
 interface Turn {
   question: string;
@@ -16,27 +25,78 @@ interface Turn {
 /**
  * Assisted Recollection.
  *
- * Anchored to the lower right of the workspace, collapsed to a launcher until
- * asked for. Nothing is sent anywhere until the user presses send: no request
- * on selection, on hover, or while the Galaxy is being moved.
+ * Available on every page, floating above it: collapsed to a launcher at the
+ * lower right until asked for, then a window the user can drag anywhere —
+ * where it was left, and whether it was open, is remembered. Nothing is sent
+ * anywhere until the user presses send: no request on selection, on hover,
+ * or while the Galaxy is being moved.
+ *
+ * The page supplies context (see lib/recallContext): the Galaxy's topic in
+ * focus, and a way to map an answer. From any other page, "Show me on the
+ * map" opens the Galaxy with the answer mapped, and "See on the timeline"
+ * opens the Timeline on the answer's topic.
  *
  * Answers are grounded by construction — the service retrieves from the
  * user's registered documents first and a model only ever sees those
  * passages — so every reply shows its sources.
  */
-export function RecallChat({
-  topic,
-  onShowMe,
-}: {
-  topic: string | null;
-  /** Light up the part of the map this answer was built from. */
-  onShowMe?: (reply: CerebroRecallAnswer) => void;
-}) {
-  const [open, setOpen] = useState(false);
+export function RecallChat() {
+  const { topic, showMe } = useRecallContext();
+  const router = useRouter();
+  const pathname = usePathname();
+  const [win, setWin] = useRecallWindow();
+  const open = win.open;
+  const setOpen = (value: boolean) => setWin({ open: value });
   const [question, setQuestion] = useState("");
   const [busy, setBusy] = useState(false);
   const [turns, setTurns] = useState<Turn[]>([]);
   const log = useRef<HTMLDivElement>(null);
+
+  // Follow a streaming answer only while the reader is at the bottom. It used
+  // to scroll to the end on every token, so scrolling up to reread something
+  // was pulled back down — the chat fought the reader.
+  const follow = useRef(true);
+  function onScroll() {
+    const el = log.current;
+    if (el) follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+  }
+  function toEnd(force = false) {
+    if (force) follow.current = true;
+    if (!follow.current) return;
+    requestAnimationFrame(() => log.current?.scrollTo({ top: log.current.scrollHeight }));
+  }
+
+  function onShowMe(reply: CerebroRecallAnswer) {
+    if (showMe && pathname?.startsWith("/construct/galaxy")) {
+      showMe(reply);
+      return;
+    }
+    queueMap(reply);
+    router.push("/construct/galaxy");
+  }
+  function onTimeline(reply: CerebroRecallAnswer) {
+    const first = reply.sources.flatMap((s) => s.topics ?? [])[0];
+    router.push(first ? `/construct/timeline?focus=${encodeURIComponent(first)}` : "/construct/timeline");
+  }
+
+  function startDrag(event: React.PointerEvent<HTMLElement>) {
+    if ((event.target as Element).closest("button")) return;
+    const box = (event.currentTarget.closest("section") as HTMLElement | null)?.getBoundingClientRect();
+    if (!box) return;
+    event.preventDefault();
+    const start = { px: event.clientX, py: event.clientY, x: box.left, y: box.top };
+    const move = (e: PointerEvent) =>
+      setWin({
+        x: Math.round(Math.min(Math.max(0, start.x + e.clientX - start.px), globalThis.innerWidth - box.width)),
+        y: Math.round(Math.min(Math.max(0, start.y + e.clientY - start.py), globalThis.innerHeight - 48)),
+      });
+    const stop = () => {
+      globalThis.removeEventListener("pointermove", move);
+      globalThis.removeEventListener("pointerup", stop);
+    };
+    globalThis.addEventListener("pointermove", move);
+    globalThis.addEventListener("pointerup", stop);
+  }
 
   async function send(event: React.FormEvent) {
     event.preventDefault();
@@ -46,6 +106,8 @@ export function RecallChat({
     setQuestion("");
     setTurns((t) => [...t, { question: asked, reply: null }]);
     setBusy(true);
+    // A new question is the reader asking to see the answer: follow it.
+    toEnd(true);
 
     const update = (patch: (reply: CerebroRecallAnswer) => CerebroRecallAnswer) =>
       setTurns((t) =>
@@ -101,14 +163,14 @@ export function RecallChat({
             telemetry: e.telemetry,
           }));
         }
-        requestAnimationFrame(() => log.current?.scrollTo({ top: log.current.scrollHeight }));
+        toEnd();
       });
     } catch (e) {
       const message = e instanceof Error ? e.message : "Could not reach CEREBRO.";
       setTurns((t) => t.map((turn, i) => (i === t.length - 1 ? { ...turn, error: message } : turn)));
     } finally {
       setBusy(false);
-      requestAnimationFrame(() => log.current?.scrollTo({ top: log.current.scrollHeight }));
+      toEnd();
     }
   }
 
@@ -117,7 +179,7 @@ export function RecallChat({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="absolute bottom-4 right-4 z-30 inline-flex items-center gap-2 rounded-full border border-scene-ink/15 bg-scene-raised/95 px-4 py-2.5 text-sm font-medium text-scene-ink shadow-xl backdrop-blur transition-colors hover:bg-scene-hover"
+        className="fixed bottom-5 right-5 z-40 inline-flex items-center gap-2 rounded-full border border-scene-ink/15 bg-scene-raised/95 px-4 py-2.5 text-sm font-medium text-scene-ink shadow-xl backdrop-blur transition-colors hover:bg-scene-hover"
       >
         <Spark />
         Ask CEREBRO
@@ -126,8 +188,20 @@ export function RecallChat({
   }
 
   return (
-    <section className="absolute bottom-4 right-4 z-30 flex h-[23rem] w-[21rem] max-w-[calc(100%-2rem)] flex-col rounded-xl border border-scene-ink/15 bg-scene-overlay/97 shadow-2xl backdrop-blur">
-      <header className="flex items-center justify-between gap-2 border-b border-scene-ink/10 px-3 py-2.5">
+    <section
+      data-testid="recall-chat"
+      style={
+        win.x < 0
+          ? { right: 20, bottom: 20, width: WIDTH, height: HEIGHT }
+          : { left: win.x, top: win.y, width: WIDTH, height: HEIGHT }
+      }
+      className="fixed z-40 flex max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] flex-col rounded-xl border border-scene-ink/15 bg-scene-overlay/97 shadow-2xl backdrop-blur"
+    >
+      <header
+        onPointerDown={startDrag}
+        title="Drag to move"
+        className="flex cursor-move items-center justify-between gap-2 border-b border-scene-ink/10 px-3 py-2.5"
+      >
         <h2 className="flex items-center gap-2 text-sm font-semibold text-scene-ink">
           <Spark />
           Ask CEREBRO
@@ -149,7 +223,7 @@ export function RecallChat({
         {topic ? `Context: ${topic} · ` : ""}Answers come from your registered documents.
       </p>
 
-      <div ref={log} className="flex-1 space-y-3 overflow-y-auto p-3">
+      <div ref={log} onScroll={onScroll} className="flex-1 space-y-3 overflow-y-auto p-3">
         {turns.length === 0 && (
           <p className="text-[0.75rem] leading-relaxed text-scene-ink/45">
             Ask what a concept means, where you learned it, or which documents discuss it.
@@ -164,7 +238,7 @@ export function RecallChat({
             {turn.error ? (
               <p className="text-[0.75rem] text-rose-300">{turn.error}</p>
             ) : turn.reply ? (
-              <Reply reply={turn.reply} onShowMe={onShowMe} />
+              <Reply reply={turn.reply} onShowMe={onShowMe} onTimeline={onTimeline} />
             ) : (
               <p className="text-[0.75rem] text-scene-ink/40">Searching your library…</p>
             )}
@@ -195,9 +269,11 @@ export function RecallChat({
 function Reply({
   reply,
   onShowMe,
+  onTimeline,
 }: {
   reply: CerebroRecallAnswer;
   onShowMe?: (reply: CerebroRecallAnswer) => void;
+  onTimeline?: (reply: CerebroRecallAnswer) => void;
 }) {
   return (
     <div className="w-fit max-w-[92%] space-y-2 rounded-lg rounded-bl-sm bg-scene-ink/8 px-2.5 py-2">
@@ -224,15 +300,31 @@ function Reply({
 
       {/* Maps the answer onto the galaxy: what it quoted, what it merely
           found, and what it did not touch. */}
-      {onShowMe && reply.sources.length > 0 && (
-        <button
-          type="button"
-          data-testid="show-me"
-          onClick={() => onShowMe(reply)}
-          className="rounded-md border border-sky-400/40 px-2 py-1 text-[0.6875rem] font-medium text-sky-300 transition-colors hover:bg-sky-400/10"
-        >
-          Show me on the map
-        </button>
+      {/* The evidence, on the screens that show it best: the map for how it
+          connects, the timeline for when. */}
+      {reply.sources.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {onShowMe && (
+            <button
+              type="button"
+              data-testid="show-me"
+              onClick={() => onShowMe(reply)}
+              className="rounded-md border border-sky-400/40 px-2 py-1 text-[0.6875rem] font-medium text-sky-300 transition-colors hover:bg-sky-400/10"
+            >
+              Show me on the map
+            </button>
+          )}
+          {onTimeline && (
+            <button
+              type="button"
+              data-testid="see-timeline"
+              onClick={() => onTimeline(reply)}
+              className="rounded-md border border-scene-ink/20 px-2 py-1 text-[0.6875rem] font-medium text-scene-ink/80 transition-colors hover:bg-scene-ink/10"
+            >
+              See on the timeline
+            </button>
+          )}
+        </div>
       )}
 
       {reply.sources.map((source) => (

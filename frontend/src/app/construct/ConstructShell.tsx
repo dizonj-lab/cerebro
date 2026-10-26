@@ -5,6 +5,7 @@ import { useState, useSyncExternalStore } from "react";
 
 import { ConstructHeader } from "@/components/construct/ConstructHeader";
 import { Sidebar } from "@/components/construct/Sidebar";
+import { RecallChat } from "@/components/recall/RecallChat";
 import { TelemetryWindow } from "@/components/telemetry/TelemetryWindow";
 import { api } from "@/lib/api";
 import {
@@ -98,6 +99,9 @@ export function ConstructShell({ user, children }: ConstructShellProps) {
         size and telemetry intact.
       */}
       <TelemetryWindow />
+      {/* Ask CEREBRO, on every page, for the same reason as the telemetry
+          window: it outlives navigation, conversation and position intact. */}
+      <RecallChat />
     </div>
   );
 }

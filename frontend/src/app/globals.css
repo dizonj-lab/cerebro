@@ -31,6 +31,11 @@
      because the dark theme needs the opposite: its accent is light, and
      white on it would fail contrast. */
   --color-accent-ink: #ffffff;
+  /* The brand mark is dark navy with pale network lines: a little more
+     contrast on light, and a soft light disc behind it on dark, where the
+     navy head otherwise disappears into the canvas. */
+  --brand-mark-backdrop: transparent;
+  --brand-mark-filter: contrast(1.25) saturate(1.35);
 
   /* --- Semantic, used only where meaning demands it -------------------- */
   --color-danger: #b42318;        /* 6.57:1 */
@@ -100,6 +105,8 @@
     --color-accent-hover: #9cbdea;
     --color-accent-subtle: #1a2534;
     --color-accent-ink: #0f1216;  /*  7.76:1 against the accent */
+    --brand-mark-backdrop: #dbe5f3;
+    --brand-mark-filter: none;
 
     --color-danger: #f08b7f;      /*  7.78:1 on canvas */
     --color-danger-subtle: #2a1715;
@@ -142,6 +149,8 @@
       --color-accent-hover: #9cbdea;
       --color-accent-subtle: #1a2534;
       --color-accent-ink: #0f1216;
+      --brand-mark-backdrop: #dbe5f3;
+      --brand-mark-filter: none;
 
       --color-danger: #f08b7f;
       --color-danger-subtle: #2a1715;
@@ -206,4 +215,20 @@
     white-space: nowrap;
     border-width: 0;
   }
+}
+
+/* The Galaxy's "always dark canvas" setting: the scene tokens re-pointed to
+   their dark values inside the canvas only, so the map can stay dark while
+   the rest of the app follows a light theme. */
+.scene-dark,
+.scene-dark * {
+  --color-scene: #070b14;
+  --color-scene-raised: #101725;
+  --color-scene-overlay: #0e1522;
+  --color-scene-sunken: #0b111c;
+  --color-scene-hover: #1a2334;
+  --color-scene-ink: #ffffff;
+  --scene-glow-1: rgba(56, 110, 190, 0.22);
+  --scene-glow-2: rgba(24, 150, 130, 0.16);
+  --scene-glow-3: rgba(140, 90, 210, 0.16);
 }

@@ -6,6 +6,25 @@ import { layout, reachOf, VIEWBOX } from "@/components/galaxy/layout";
 import { colorFor, hueFor } from "@/components/galaxy/palette";
 import { api } from "@/lib/api";
 import { useGalaxyLayout } from "@/lib/galaxyLayoutState";
+import { createPersistedStore } from "@/lib/persistedStore";
+
+/** How the reader likes the Galaxy drawn. Per browser; nothing about the library. */
+export const useGalaxySettings = createPersistedStore("cerebro-galaxy-settings", {
+  /** Percentages on the lines. */
+  showFigures: true,
+  /** Links between topics no document carries together. */
+  showDiscovered: true,
+  /** Resemblances only just above typical, drawn faint. */
+  showWeakLinks: true,
+  /** 0.6–2.5: how strongly lines are drawn. Light canvases want more. */
+  lineContrast: 1,
+  /** Keep the map dark even when the app is light. */
+  darkCanvas: false,
+  /** The soft halo around each node. */
+  glow: true,
+  labelSize: "M" as "S" | "M" | "L",
+});
+const LABEL_SCALE = { S: 0.85, M: 1, L: 1.2 } as const;
 import type { CerebroGalaxy, CerebroLens, GraphEdge, GraphNode, SimilaritySpace } from "@/lib/api";
 import { cn } from "@/lib/cn";
 
@@ -70,6 +89,12 @@ export function GalaxyCanvas({
   const [hoveredEdge, setHoveredEdge] = useState<GraphEdge | null>(null);
   // Hovering the placed idea opens its details, even when the window is folded.
   const [lensPeek, setLensPeek] = useState(false);
+  const [settings, setSettings] = useGalaxySettings();
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  // A node the user pinned: its window stays after the pointer leaves.
+  const [pinned, setPinned] = useState<string | null>(null);
+  const contrast = settings.lineContrast;
+  const labelScale = LABEL_SCALE[settings.labelSize] ?? 1;
   const drag = useRef<{
     mode: "pan" | "rotate";
     x: number;
@@ -216,10 +241,9 @@ export function GalaxyCanvas({
   }
 
   const hoveredNode = hovered ? positions.get(hovered)?.node : undefined;
-  const hoveredPoint = hovered ? positions.get(hovered) : undefined;
 
   return (
-    <div className="relative size-full overflow-hidden bg-scene" data-canvas-frame>
+    <div className={cn("relative size-full overflow-hidden bg-scene", settings.darkCanvas && "scene-dark")} data-canvas-frame>
       {/* A still backdrop rather than an animated starfield: atmosphere
           without a compositing loop running behind every interaction. */}
       <div
@@ -290,6 +314,16 @@ export function GalaxyCanvas({
             // the eye never mistakes one for the other.
             const measured = isMeasured(edge);
             const strength = edge.strength ?? 0;
+            // One rule for every line between two topics, or a passage and
+            // another topic: thickness and brightness follow the measured
+            // similarity, solid means they share a document, dotted that
+            // they were discovered alike, and each carries its figure.
+            // Containment — a passage to its own topic — is structure, and
+            // keeps a plain line.
+            const contained = edge.kind === "contains";
+            const scored = !contained && typeof edge.similarity === "number" && edge.strength != null;
+            if (edge.discovered && !settings.showDiscovered) return null;
+            if (measured && strength < 0.33 && !settings.showWeakLinks && !touches) return null;
             // Progressive disclosure, but only where there is something to
             // disclose progressively: a weak edge is hidden when stronger
             // ones exist, and shown anyway when they do not. Either way it
@@ -297,7 +331,7 @@ export function GalaxyCanvas({
             // the user is asking about that node specifically. A measured
             // edge is never hidden: a weak resemblance is drawn faint instead,
             // which is what makes it a weak one.
-            if (!measured && !edge.strong && hasStrongEdges && !touches) return null;
+            if (!measured && !scored && !edge.strong && hasStrongEdges && !touches) return null;
             const lit = !connected || connected.has(edge.source) || connected.has(edge.target);
             // A gentle curve reads better than a straight chord on a radial
             // layout, and separates edges that share endpoints.
@@ -310,35 +344,31 @@ export function GalaxyCanvas({
             // Figures only on lines that are a similarity link. A passage's
             // fit to its own topic, written on the line to its parent, read
             // as a score for a relationship; it is in the hover card instead.
-            const showFigure =
-              measured &&
-              typeof edge.similarity === "number" &&
-              lit &&
-              (edge.source.startsWith("fragment:") || edge.discovered || touches);
+            const showFigure = scored && settings.showFigures && lit;
+            const baseOpacity = scored
+              ? lit
+                ? 0.22 + strength * 0.6
+                : 0.05
+              : lit
+                ? edge.strong
+                  ? 0.55
+                  : 0.3
+                : 0.08;
+            const baseWidth = scored ? 0.6 + strength * 1.8 : 0.6 + Math.min(edge.weight, 4) * 0.45;
             return (
               <g key={edge.id}>
                 <path
                   d={path}
                   fill="none"
                   stroke={`url(#${gradientId(edge.id)})`}
-                  strokeWidth={measured ? 0.6 + strength * 1.8 : 0.6 + Math.min(edge.weight, 4) * 0.45}
-                  opacity={
-                    measured
-                      ? lit
-                        ? 0.22 + strength * 0.6
-                        : 0.05
-                      : lit
-                        ? edge.strong
-                          ? 0.55
-                          : 0.3
-                        : 0.08
-                  }
+                  strokeWidth={baseWidth * (0.7 + 0.3 * contrast)}
+                  opacity={Math.min(1, baseOpacity * contrast)}
                   strokeDasharray={
-                    measured ? (edge.discovered ? "1.5 3.5" : undefined) : edge.strong ? undefined : "4 3"
+                    edge.discovered ? "1.5 3.5" : scored || contained || edge.strong ? undefined : "4 3"
                   }
                   strokeLinecap="round"
                   data-kind={edge.kind}
-                  data-strength={measured ? strength : undefined}
+                  data-strength={scored ? strength : undefined}
                   className="transition-opacity duration-200"
                 />
                 {showFigure && (
@@ -464,7 +494,7 @@ export function GalaxyCanvas({
                 <circle
                   r={radius * 2.6}
                   style={{ fill: outside ? OUTSIDE : `url(#${gradientId(node.id)})` }}
-                  opacity={isSelected ? 0.45 : outside ? 0.1 : 0.22}
+                  opacity={settings.glow ? (isSelected ? 0.45 : outside ? 0.1 : 0.22) : 0}
                   className={isSelected && !answerMap ? "animate-pulse" : undefined}
                 />
                 {/* Outside the answer, a node keeps its place but loses its
@@ -489,7 +519,7 @@ export function GalaxyCanvas({
                     textAnchor="middle"
                     className="pointer-events-none select-none"
                     style={{
-                      fontSize: node.type === "cluster" ? 13 : 9,
+                      fontSize: (node.type === "cluster" ? 13 : 9) * labelScale,
                       fontWeight: node.type === "cluster" ? 600 : 400,
                       fill: node.type === "cluster" ? LABEL : LABEL_MUTED,
                     }}
@@ -516,22 +546,26 @@ export function GalaxyCanvas({
 
       {hoveredEdge && <EdgeCard edge={hoveredEdge} graph={graph} />}
 
-      {hoveredNode && hoveredPoint && (
-        <HoverCard
-          node={hoveredNode}
-          x={hoveredPoint.x}
-          y={hoveredPoint.y}
-          view={view}
-          onOpen={() => onSelect(hoveredNode)}
-          onKeepOpen={() => setHovered(hoveredNode.id)}
-          onDismiss={() => setHovered(null)}
-        />
-      )}
+      <NodeWindow
+        node={(hoveredNode ?? (pinned ? positions.get(pinned)?.node : undefined)) ?? null}
+        pinned={Boolean(pinned) && (!hoveredNode || hoveredNode.id === pinned)}
+        onPin={(id) => setPinned(id)}
+        onOpen={(node) => onSelect(node)}
+        onKeepOpen={(id) => setHovered(id)}
+        onDismiss={() => setHovered(null)}
+      />
 
       {/* Clear of the Ask CEREBRO launcher, which sits in the same corner at
           a higher stacking level and silently swallowed clicks on the lowest
           button here. */}
       <div className="absolute bottom-[4.25rem] right-4 flex flex-col gap-1.5">
+        <ViewButton label="Galaxy settings" onClick={() => setSettingsOpen((v) => !v)}>
+          <svg viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+            <path d="M4 6h8M15 6h1M4 14h2M9 14h7" strokeLinecap="round" />
+            <circle cx="13.5" cy="6" r="1.6" />
+            <circle cx="7.5" cy="14" r="1.6" />
+          </svg>
+        </ViewButton>
         <ViewButton label="Zoom in" onClick={() => zoom(1.25)}>+</ViewButton>
         <ViewButton label="Zoom out" onClick={() => zoom(0.8)}>−</ViewButton>
         <ViewButton label="Rotate anticlockwise" onClick={() => rotate(-15)}>
@@ -552,6 +586,10 @@ export function GalaxyCanvas({
           </svg>
         </ViewButton>
       </div>
+
+      {settingsOpen && (
+        <SettingsPanel settings={settings} onChange={setSettings} onClose={() => setSettingsOpen(false)} />
+      )}
 
       <Legend graph={graph} />
 
@@ -675,110 +713,362 @@ function useWindowDrag(
 }
 
 /**
- * What the lens found: the placement, the closest topics, the nearest passages.
- *
- * A window the user can move, or fold to a tab on the left edge. Folded, it
- * stays out of the map's way, and hovering the placed idea — or the tab —
- * opens it for as long as the pointer is there.
+ * A floating window on the canvas, shared by the what-if results and node
+ * details so the two look and behave the same: a header that drags it, a
+ * button that folds it to a tab on the left edge, and a peek — what it
+ * describes being hovered — that opens it while folded.
  */
-function LensCard({ lens, peek, onClose }: { lens: CerebroLens; peek: boolean; onClose: () => void }) {
-  const [layout, arrange] = useGalaxyLayout();
+function FloatingWindow({
+  testId,
+  tabLabel,
+  tabTop,
+  title,
+  minimized,
+  onMinimize,
+  x,
+  y,
+  onMove,
+  show,
+  role,
+  headerExtra,
+  onClose,
+  onPointerEnter,
+  onPointerLeave,
+  children,
+}: {
+  testId: string;
+  tabLabel: string;
+  /** Where its tab sits on the left edge, as a percentage of the canvas height. */
+  tabTop: number;
+  title: React.ReactNode;
+  minimized: boolean;
+  onMinimize: (minimized: boolean) => void;
+  /** x below zero docks it to the right edge. */
+  x: number;
+  y: number;
+  onMove: (x: number, y: number) => void;
+  /** Whether there is something to show right now (open, or peeked). */
+  show: boolean;
+  role?: string;
+  headerExtra?: React.ReactNode;
+  onClose?: () => void;
+  onPointerEnter?: () => void;
+  onPointerLeave?: () => void;
+  children: React.ReactNode;
+}) {
   const [hoverTab, setHoverTab] = useState(false);
-  const startDrag = useWindowDrag(layout.lensX, layout.lensY, (x, y) => arrange({ lensX: x, lensY: y }));
-  const shown = lens.topics.slice(0, 5);
-  const open = !layout.lensMinimized || peek || hoverTab;
+  const startDrag = useWindowDrag(Math.max(0, x), y, onMove);
+  const open = show || (minimized && hoverTab);
 
   return (
     <>
-      {layout.lensMinimized && (
+      {minimized && (
         <button
           type="button"
-          data-testid="lens-tab"
-          onClick={() => arrange({ lensMinimized: false })}
+          data-testid={`${testId}-tab`}
+          onClick={() => onMinimize(false)}
           onPointerEnter={() => setHoverTab(true)}
           onPointerLeave={() => setHoverTab(false)}
-          className="absolute left-0 top-1/2 z-20 -translate-y-1/2 rounded-r-lg border border-l-0 border-scene-ink/15 bg-scene-raised/95 px-1.5 py-3 text-[0.6875rem] font-medium text-scene-ink/80 shadow-lg [writing-mode:vertical-rl] hover:text-scene-ink"
+          style={{ top: `${tabTop}%` }}
+          className="absolute left-0 z-20 -translate-y-1/2 rounded-r-lg border border-l-0 border-scene-ink/15 bg-scene-raised/95 px-1.5 py-3 text-[0.6875rem] font-medium text-scene-ink/80 shadow-lg [writing-mode:vertical-rl] hover:text-scene-ink"
         >
-          What if ◂
+          {tabLabel} ◂
         </button>
       )}
       {open && (
         <div
           data-floating
-          data-testid="lens-card"
+          data-testid={testId}
+          role={role}
           className="absolute z-30 w-72 rounded-lg border border-scene-ink/15 bg-scene-raised/95 text-xs shadow-xl backdrop-blur"
           style={
-            layout.lensMinimized
-              ? { left: 40, top: "50%", transform: "translateY(-50%)" }
-              : { left: layout.lensX, top: layout.lensY }
+            minimized
+              ? { left: 40, top: `${tabTop}%`, transform: "translateY(-50%)" }
+              : x < 0
+                ? { right: 12, top: y }
+                : { left: x, top: y }
           }
-          onPointerEnter={() => layout.lensMinimized && setHoverTab(true)}
-          onPointerLeave={() => setHoverTab(false)}
+          onPointerEnter={() => {
+            if (minimized) setHoverTab(true);
+            onPointerEnter?.();
+          }}
+          onPointerLeave={() => {
+            setHoverTab(false);
+            onPointerLeave?.();
+          }}
         >
           <div
-            onPointerDown={layout.lensMinimized ? undefined : startDrag}
+            onPointerDown={minimized ? undefined : startDrag}
             className={cn(
               "flex items-center justify-between gap-2 border-b border-scene-ink/10 px-3 py-1.5",
-              !layout.lensMinimized && "cursor-move",
+              !minimized && "cursor-move",
             )}
           >
-            <span className="truncate font-semibold text-scene-ink/85">What if “{lens.text}”</span>
+            <span className="min-w-0 truncate font-semibold text-scene-ink/85">{title}</span>
             <span className="flex shrink-0 items-center">
+              {headerExtra}
               <button
                 type="button"
-                aria-label={layout.lensMinimized ? "Keep the what-if window open" : "Minimise the what-if window"}
+                aria-label={minimized ? `Keep the ${tabLabel.toLowerCase()} window open` : `Minimise the ${tabLabel.toLowerCase()} window`}
                 onClick={() => {
-                  arrange({ lensMinimized: !layout.lensMinimized });
+                  onMinimize(!minimized);
                   setHoverTab(false);
                 }}
                 className="rounded px-1.5 text-scene-ink/50 hover:text-scene-ink"
               >
-                {layout.lensMinimized ? "▸" : "−"}
+                {minimized ? "▸" : "−"}
               </button>
-              <button
-                type="button"
-                aria-label="Clear the what-if"
-                onClick={onClose}
-                className="rounded px-1.5 text-scene-ink/50 hover:text-scene-ink"
-              >
-                ✕
-              </button>
+              {onClose && (
+                <button
+                  type="button"
+                  aria-label={`Close the ${tabLabel.toLowerCase()} window`}
+                  onClick={onClose}
+                  className="rounded px-1.5 text-scene-ink/50 hover:text-scene-ink"
+                >
+                  ✕
+                </button>
+              )}
             </span>
           </div>
-          <div className="p-3">
-            <p className="font-medium text-scene-ink">{lens.placement}</p>
-            <ul className="mt-2 space-y-1">
-              {shown.map((t) => (
-                <li key={t.id} className="flex items-center gap-2">
-                  <span className="w-24 truncate text-scene-ink/75">{t.label}</span>
-                  <span className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-scene-ink/10">
-                    <span
-                      className="absolute inset-y-0 left-0 rounded-full"
-                      style={{ width: `${Math.max(2, t.similarity * 100)}%`, background: colorFor(t.label), opacity: t.above_typical ? 0.9 : 0.35 }}
-                    />
-                  </span>
-                  <span className="w-9 text-right tabular-nums text-scene-ink/80">{pct(t.similarity)}</span>
-                </li>
-              ))}
-            </ul>
-            {lens.passages.length > 0 && (
-              <div className="mt-2 border-t border-scene-ink/10 pt-2">
-                <p className="text-[0.625rem] uppercase tracking-wide text-scene-ink/40">Nearest passages</p>
-                {lens.passages.map((p) => (
-                  <p key={p.id} className="mt-1 line-clamp-2 text-[0.6875rem] text-scene-ink/60">
-                    <span className="text-scene-ink/85">{p.title}</span> · {pct(p.similarity)} — {p.excerpt}
-                  </p>
-                ))}
-              </div>
-            )}
-            <p className="mt-2 border-t border-scene-ink/10 pt-2 text-[0.625rem] text-scene-ink/40">
-              Measured with {lens.similarity.model} ({lens.similarity.measures}). A what-if: nothing was
-              stored. Your topics typically share {pct(lens.similarity.typical)}.
-            </p>
-          </div>
+          <div className="p-3">{children}</div>
         </div>
       )}
     </>
+  );
+}
+
+/** What the lens found: the placement, the closest topics, the nearest passages. */
+function LensCard({ lens, peek, onClose }: { lens: CerebroLens; peek: boolean; onClose: () => void }) {
+  const [layout, arrange] = useGalaxyLayout();
+  const shown = lens.topics.slice(0, 5);
+  return (
+    <FloatingWindow
+      testId="lens-card"
+      tabLabel="What if"
+      tabTop={40}
+      title={<>What if “{lens.text}”</>}
+      minimized={layout.lensMinimized}
+      onMinimize={(lensMinimized) => arrange({ lensMinimized })}
+      x={layout.lensX}
+      y={layout.lensY}
+      onMove={(lensX, lensY) => arrange({ lensX, lensY })}
+      show={!layout.lensMinimized || peek}
+      onClose={onClose}
+    >
+      <p className="font-medium text-scene-ink">{lens.placement}</p>
+      <ul className="mt-2 space-y-1">
+        {shown.map((t) => (
+          <li key={t.id} className="flex items-center gap-2">
+            <span className="w-24 truncate text-scene-ink/75">{t.label}</span>
+            <span className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-scene-ink/10">
+              <span
+                className="absolute inset-y-0 left-0 rounded-full"
+                style={{ width: `${Math.max(2, t.similarity * 100)}%`, background: colorFor(t.label), opacity: t.above_typical ? 0.9 : 0.35 }}
+              />
+            </span>
+            <span className="w-9 text-right tabular-nums text-scene-ink/80">{pct(t.similarity)}</span>
+          </li>
+        ))}
+      </ul>
+      {lens.passages.length > 0 && (
+        <div className="mt-2 border-t border-scene-ink/10 pt-2">
+          <p className="text-[0.625rem] uppercase tracking-wide text-scene-ink/40">Nearest passages</p>
+          {lens.passages.map((p) => (
+            <p key={p.id} className="mt-1 line-clamp-2 text-[0.6875rem] text-scene-ink/60">
+              <span className="text-scene-ink/85">{p.title}</span> · {pct(p.similarity)} — {p.excerpt}
+            </p>
+          ))}
+        </div>
+      )}
+      <p className="mt-2 border-t border-scene-ink/10 pt-2 text-[0.625rem] text-scene-ink/40">
+        Measured with {lens.similarity.model} ({lens.similarity.measures}). A what-if: nothing was
+        stored. Your topics typically share {pct(lens.similarity.typical)}.
+      </p>
+    </FloatingWindow>
+  );
+}
+
+/**
+ * A node's details, in the same window as the what-if results.
+ *
+ * Opens while a node is hovered, reading only what is already in memory — no
+ * request, and certainly no model call, on hover. The pointer can travel into
+ * it without it closing, and the pin keeps it after the pointer leaves.
+ */
+function NodeWindow({
+  node,
+  pinned,
+  onPin,
+  onOpen,
+  onKeepOpen,
+  onDismiss,
+}: {
+  node: GraphNode | null;
+  pinned: boolean;
+  onPin: (id: string | null) => void;
+  onOpen: (node: GraphNode) => void;
+  onKeepOpen: (id: string) => void;
+  onDismiss: () => void;
+}) {
+  const [layout, arrange] = useGalaxyLayout();
+  if (!node && !layout.nodeMinimized) return null;
+  return (
+    <FloatingWindow
+      testId="node-window"
+      role="tooltip"
+      tabLabel="Details"
+      tabTop={62}
+      title={node?.label ?? "Details"}
+      minimized={layout.nodeMinimized}
+      onMinimize={(nodeMinimized) => arrange({ nodeMinimized })}
+      x={layout.nodeX}
+      y={layout.nodeY}
+      onMove={(nodeX, nodeY) => arrange({ nodeX, nodeY })}
+      show={Boolean(node)}
+      onPointerEnter={() => node && onKeepOpen(node.id)}
+      onPointerLeave={onDismiss}
+      headerExtra={
+        node && (
+          <button
+            type="button"
+            aria-label={pinned ? "Unpin these details" : "Pin these details"}
+            aria-pressed={pinned}
+            onClick={() => onPin(pinned ? null : node.id)}
+            className={cn("rounded px-1.5", pinned ? "text-scene-ink" : "text-scene-ink/50 hover:text-scene-ink")}
+          >
+            {pinned ? "●" : "○"}
+          </button>
+        )
+      }
+      onClose={pinned ? () => onPin(null) : undefined}
+    >
+      {node && (
+        <>
+          <p className="text-[0.6875rem] text-scene-ink/60">
+            {node.type === "cluster" ? "Knowledge Cluster" : "Knowledge Fragment"} · {node.category}
+          </p>
+          <p className="mt-2 text-[0.6875rem] text-scene-ink/75">
+            Found in {node.document_count} document{node.document_count === 1 ? "" : "s"}
+            {node.type === "cluster" && (
+              <> · {node.fragment_count} fragment{node.fragment_count === 1 ? "" : "s"}</>
+            )}
+            {node.type === "fragment" && typeof node.similarity === "number" && (
+              <> · {pct(node.similarity)} alike to its topic</>
+            )}
+          </p>
+          {node.excerpt && (
+            <p className="mt-2 line-clamp-4 text-[0.6875rem] leading-relaxed text-scene-ink/60">{node.excerpt}</p>
+          )}
+          {node.source_filename && (
+            <p className="mt-2 border-t border-scene-ink/10 pt-2 text-[0.625rem] text-scene-ink/50">
+              Source: {node.source_filename}
+              {node.source_location?.page ? ` · page ${node.source_location.page}` : ""}
+            </p>
+          )}
+          <div className="mt-2.5 flex flex-wrap gap-2 border-t border-scene-ink/10 pt-2.5">
+            <button
+              type="button"
+              onClick={() => onOpen(node)}
+              className="rounded-md bg-scene-ink/10 px-2 py-1 text-[0.6875rem] font-medium text-scene-ink transition-colors hover:bg-scene-ink/20"
+            >
+              Explore
+            </button>
+            {node.source_artifact_id && (
+              <a
+                href={api.artifactContentUrl(node.source_artifact_id)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-md bg-scene-ink/10 px-2 py-1 text-[0.6875rem] font-medium text-scene-ink transition-colors hover:bg-scene-ink/20"
+              >
+                Open source
+              </a>
+            )}
+          </div>
+        </>
+      )}
+    </FloatingWindow>
+  );
+}
+
+/** How the reader likes the Galaxy drawn: labels, line contrast, canvas, glow. */
+function SettingsPanel({
+  settings,
+  onChange,
+  onClose,
+}: {
+  settings: ReturnType<typeof useGalaxySettings>[0];
+  onChange: ReturnType<typeof useGalaxySettings>[1];
+  onClose: () => void;
+}) {
+  const toggles: [keyof typeof settings, string, string][] = [
+    ["showFigures", "Similarity figures", "Percentages on the lines"],
+    ["showDiscovered", "Discovered links", "Topics alike but never on one document"],
+    ["showWeakLinks", "Weak resemblances", "Lines only just above typical"],
+    ["glow", "Node glow", "The halo around each node"],
+    ["darkCanvas", "Always-dark canvas", "Keep the map dark in light mode"],
+  ];
+  return (
+    <div
+      data-testid="galaxy-settings"
+      className="absolute bottom-[4.25rem] right-14 z-30 w-64 rounded-lg border border-scene-ink/15 bg-scene-raised/95 p-3 text-xs text-scene-ink shadow-xl backdrop-blur"
+    >
+      <div className="mb-2 flex items-center justify-between">
+        <p className="font-semibold">Galaxy settings</p>
+        <button type="button" aria-label="Close Galaxy settings" onClick={onClose} className="rounded px-1 text-scene-ink/50 hover:text-scene-ink">
+          ✕
+        </button>
+      </div>
+      <label className="block">
+        <span className="flex justify-between text-scene-ink/80">
+          Line contrast <span className="tabular-nums text-scene-ink/50">{Math.round(settings.lineContrast * 100)}%</span>
+        </span>
+        <input
+          type="range"
+          min={0.6}
+          max={2.5}
+          step={0.1}
+          value={settings.lineContrast}
+          onChange={(e) => onChange({ lineContrast: Number(e.target.value) })}
+          aria-label="Line contrast"
+          className="mt-1 w-full accent-[var(--color-accent)]"
+        />
+      </label>
+      <div className="mt-2 space-y-1.5">
+        {toggles.map(([key, label, hint]) => (
+          <label key={key} className="flex cursor-pointer items-start gap-2">
+            <input
+              type="checkbox"
+              checked={Boolean(settings[key])}
+              onChange={(e) => onChange({ [key]: e.target.checked })}
+              className="mt-0.5 accent-[var(--color-accent)]"
+            />
+            <span>
+              <span className="block text-scene-ink/85">{label}</span>
+              <span className="block text-[0.625rem] text-scene-ink/45">{hint}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+      <div className="mt-2.5 flex items-center justify-between border-t border-scene-ink/10 pt-2.5">
+        <span className="text-scene-ink/80">Label size</span>
+        <span className="flex gap-1" role="group" aria-label="Label size">
+          {(["S", "M", "L"] as const).map((size) => (
+            <button
+              key={size}
+              type="button"
+              aria-pressed={settings.labelSize === size}
+              onClick={() => onChange({ labelSize: size })}
+              className={cn(
+                "size-6 rounded border text-[0.6875rem]",
+                settings.labelSize === size ? "border-scene-ink/60 text-scene-ink" : "border-scene-ink/15 text-scene-ink/50",
+              )}
+            >
+              {size}
+            </button>
+          ))}
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -797,99 +1087,6 @@ function angleFromCentre(event: React.PointerEvent<SVGSVGElement>): number {
     (Math.atan2(event.clientY - (box.top + box.height / 2), event.clientX - (box.left + box.width / 2)) *
       180) /
     Math.PI
-  );
-}
-
-/**
- * The hover preview.
- *
- * Reads only from the node already in memory — no request, and certainly no
- * model call, on hover.
- */
-function HoverCard({
-  node,
-  x,
-  y,
-  view,
-  onOpen,
-  onKeepOpen,
-  onDismiss,
-}: {
-  node: GraphNode;
-  x: number;
-  y: number;
-  view: { scale: number; x: number; y: number; angle: number };
-  onOpen: () => void;
-  onKeepOpen: () => void;
-  onDismiss: () => void;
-}) {
-  // The same transform the canvas group applies, in reverse order of
-  // reading: offset by the pan, turned by the angle, scaled about the
-  // centre. The card has to follow its node when the galaxy is rotated.
-  const radians = (view.angle * Math.PI) / 180;
-  const ox = x + view.x - VIEWBOX.width / 2;
-  const oy = y + view.y - VIEWBOX.height / 2;
-  const rx = ox * Math.cos(radians) - oy * Math.sin(radians);
-  const ry = ox * Math.sin(radians) + oy * Math.cos(radians);
-  const left = (rx * view.scale + VIEWBOX.width / 2) / VIEWBOX.width;
-  const top = (ry * view.scale + VIEWBOX.height / 2) / VIEWBOX.height;
-
-  return (
-    <div
-      role="tooltip"
-      // Reachable rather than inert: the card carries actions, so the pointer
-      // has to be able to travel into it without dismissing it.
-      onPointerEnter={onKeepOpen}
-      onPointerLeave={onDismiss}
-      className="absolute z-20 w-64 rounded-lg border border-scene-ink/12 bg-scene-raised/95 p-3 shadow-xl backdrop-blur"
-      style={{
-        // Kept inside the viewport rather than clipped at an edge.
-        left: `${Math.min(62, Math.max(2, left * 100 + 3))}%`,
-        top: `${Math.min(62, Math.max(2, top * 100 + 6))}%`,
-      }}
-    >
-      <p className="text-sm font-semibold text-scene-ink">{node.label}</p>
-      <p className="mt-0.5 text-[0.6875rem] text-scene-ink/60">
-        {node.type === "cluster" ? "Knowledge Cluster" : "Knowledge Fragment"} ·{" "}
-        {node.category}
-      </p>
-      <p className="mt-2 text-[0.6875rem] text-scene-ink/75">
-        Found in {node.document_count} document{node.document_count === 1 ? "" : "s"}
-        {node.type === "cluster" && (
-          <> · {node.fragment_count} fragment{node.fragment_count === 1 ? "" : "s"}</>
-        )}
-      </p>
-      {node.excerpt && (
-        <p className="mt-2 line-clamp-3 text-[0.6875rem] leading-relaxed text-scene-ink/60">
-          {node.excerpt}
-        </p>
-      )}
-      {node.source_filename && (
-        <p className="mt-2 border-t border-scene-ink/10 pt-2 text-[0.625rem] text-scene-ink/50">
-          Source: {node.source_filename}
-          {node.source_location?.page ? ` · page ${node.source_location.page}` : ""}
-        </p>
-      )}
-      <div className="mt-2.5 flex flex-wrap gap-2 border-t border-scene-ink/10 pt-2.5">
-        <button
-          type="button"
-          onClick={onOpen}
-          className="rounded-md bg-scene-ink/10 px-2 py-1 text-[0.6875rem] font-medium text-scene-ink transition-colors hover:bg-scene-ink/20"
-        >
-          Explore
-        </button>
-        {node.source_artifact_id && (
-          <a
-            href={api.artifactContentUrl(node.source_artifact_id)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-md bg-scene-ink/10 px-2 py-1 text-[0.6875rem] font-medium text-sky-300 transition-colors hover:bg-scene-ink/20"
-          >
-            Open source
-          </a>
-        )}
-      </div>
-    </div>
   );
 }
 

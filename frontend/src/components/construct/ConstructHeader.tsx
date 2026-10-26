@@ -62,9 +62,13 @@ export function ConstructHeader({
 
       <Logo />
 
-      <GlobalSearch />
+      <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-1.5">
+        {/* Search sits with the actions, beside Ingest: finding and adding
+            knowledge are the two things the bar is for. */}
+        <div className="mr-1.5 hidden w-full max-w-sm md:block">
+          <GlobalSearch />
+        </div>
 
-      <div className="ml-auto flex items-center gap-1.5">
         {/* The existing ingestion route. No second pipeline. */}
         <Link
           href="/construct/ingest"

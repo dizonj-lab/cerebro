@@ -346,3 +346,27 @@ test("a library whose only dates are references says so and offers them", async 
   await empty.getByRole("button", { name: "Show 2 references" }).click();
   await expect(page.getByTestId("timeline-event")).toHaveCount(2);
 });
+
+test("the Timeline reopens as it was left", async ({ page }) => {
+  await signUp(page, makeAccount("tl-remember"));
+  await page.waitForURL(/\/construct$/);
+  const text = "The pipeline went live in March 2024. It builds on Marr (1982).\n";
+  const created = await page.request.post("/api/artifacts", {
+    multipart: { file: { name: "v.txt", mimeType: "text/plain", buffer: Buffer.from(text) } },
+  });
+  const artifact = await created.json();
+  await page.request.patch(`/api/artifacts/${artifact.id}`, {
+    data: { metadata: { ...artifact.metadata, title: "V", topics: ["Vision"] }, approve: true },
+  });
+  await page.goto("/construct/timeline");
+  await page.getByRole("button", { name: "Show", exact: true }).click();
+  await expect(page.getByTestId("timeline-references")).toContainText("shown");
+  await page.getByRole("button", { name: "1 y", exact: true }).click();
+  const span = await page.getByTestId("timeline-window").textContent();
+  await page.waitForTimeout(500);
+
+  await page.goto("/construct");
+  await page.goto("/construct/timeline");
+  await expect(page.getByTestId("timeline-references")).toContainText("shown");
+  await expect(page.getByTestId("timeline-window")).toHaveText(span ?? "");
+});

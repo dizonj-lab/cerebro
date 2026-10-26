@@ -102,7 +102,7 @@ export function GlobalSearch() {
   const panel = open && (suggestions.length > 0 || (query.trim() === "" && history.length > 0));
 
   return (
-    <div className="relative mx-auto hidden w-full max-w-md md:block">
+    <div className="relative w-full">
       <form
         role="search"
         onSubmit={(event) => {

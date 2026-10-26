@@ -26,6 +26,10 @@ export interface GalaxyLayout {
   lensMinimized: boolean;
   lensX: number;
   lensY: number;
+  /** Node details: same window as the what-if; x below zero docks it right. */
+  nodeMinimized: boolean;
+  nodeX: number;
+  nodeY: number;
 }
 
 const DEFAULTS: GalaxyLayout = {
@@ -38,6 +42,9 @@ const DEFAULTS: GalaxyLayout = {
   lensMinimized: true,
   lensX: 12,
   lensY: 64,
+  nodeMinimized: false,
+  nodeX: -1,
+  nodeY: 64,
 };
 
 const listeners = new Set<() => void>();

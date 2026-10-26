@@ -31,16 +31,24 @@ interface LogoMarkProps {
 }
 
 export function LogoMark({ size = 24, className, priority = false }: LogoMarkProps) {
+  // The backdrop and filter are theme tokens (see globals.css): the navy mark
+  // needs a light disc behind it on dark surfaces to be seen at all.
   return (
-    <Image
-      src={MARK_SRC}
-      alt=""
-      width={size}
-      height={size}
-      priority={priority}
+    <span
       aria-hidden="true"
-      className={cn("shrink-0 select-none", className)}
-    />
+      className={cn("inline-grid shrink-0 place-items-center rounded-full", className)}
+      style={{ background: "var(--brand-mark-backdrop)", width: size, height: size }}
+    >
+      <Image
+        src={MARK_SRC}
+        alt=""
+        width={size}
+        height={size}
+        priority={priority}
+        className="select-none"
+        style={{ filter: "var(--brand-mark-filter)", width: size * 0.9, height: size * 0.9 }}
+      />
+    </span>
   );
 }
 
