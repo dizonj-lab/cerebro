@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useId, useRef, useState } from "react";
 
 import { dateMs } from "@/components/timeline/lanes";
 
@@ -9,8 +9,11 @@ const YEAR = 365.25 * 24 * 60 * 60 * 1000;
 /**
  * The overview: where the events are, and which part of that is on screen.
  *
- * One bar per year — per month when the whole library spans less than eight
- * years — whose height is the number of events in it. It used to be pages of
+ * A line through the number of events per year — per month when the whole
+ * library spans less than eight years — with the area under it shaded. The
+ * shading is one gradient across the strip's full height rather than per
+ * hump, so colour tracks size: a tall peak reaches the strong end of the
+ * accent and a small bump stays faint. It used to be pages of
  * document, stacked in lane colours, which needed a caption to explain and
  * repeated the lanes' legend. Counting events answers the one question the
  * strip is for: where is there something to look at.
@@ -32,6 +35,8 @@ export function Navigator({
   onChange: (next: { from: number; to: number }) => void;
 }) {
   const track = useRef<HTMLDivElement>(null);
+  const gradient = useId().replace(/:/g, "");
+  const [pointed, setPointed] = useState<number | null>(null);
 
   const first = histogram[0]?.month;
   const last = histogram[histogram.length - 1]?.month;
@@ -132,24 +137,67 @@ export function Navigator({
           const half = (window_.to - window_.from) / 2;
           onChange({ from: middle - half, to: middle + half });
         }}
-        className="relative flex h-10 cursor-pointer items-end gap-px overflow-hidden rounded-md bg-scene-ink/[0.03]"
+        className="relative h-12 cursor-pointer overflow-hidden rounded-md bg-scene-ink/[0.03]"
       >
-        {buckets.map((bucket) => {
-          const inView = bucket.to > window_.from && bucket.from < window_.to;
-          return (
+        <svg
+          viewBox="0 0 1000 100"
+          preserveAspectRatio="none"
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 size-full"
+        >
+          <defs>
+            <linearGradient id={gradient} gradientUnits="userSpaceOnUse" x1="0" y1="8" x2="0" y2="100">
+              <stop offset="0%" style={{ stopColor: "var(--color-accent)" }} stopOpacity="0.75" />
+              <stop offset="55%" style={{ stopColor: "var(--color-accent)" }} stopOpacity="0.28" />
+              <stop offset="100%" style={{ stopColor: "var(--color-accent)" }} stopOpacity="0.02" />
+            </linearGradient>
+          </defs>
+          <path d={area(buckets, fullest)} style={{ fill: `url(#${gradient})` }} />
+          <path
+            d={line(buckets, fullest)}
+            fill="none"
+            style={{ stroke: "var(--color-accent)" }}
+            strokeWidth="1.5"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+          />
+          {pointed !== null && buckets[pointed] && (
+            <line
+              x1={xAt(pointed, buckets.length)}
+              x2={xAt(pointed, buckets.length)}
+              y1="0"
+              y2="100"
+              style={{ stroke: "var(--color-accent)" }}
+              strokeWidth="1"
+              strokeDasharray="2 2"
+              vectorEffect="non-scaling-stroke"
+            />
+          )}
+        </svg>
+
+        {/* One invisible column per period: the hover target, its tooltip,
+            and the figures, so every value is reachable without the line. */}
+        <div className="absolute inset-0 flex">
+          {buckets.map((bucket, index) => (
             <span
               key={bucket.key}
               title={`${bucket.label}: ${bucket.count} event${bucket.count === 1 ? "" : "s"}`}
               data-testid={`period-${bucket.key}`}
               data-count={bucket.count}
-              style={{ height: bucket.count ? `${Math.max(10, (bucket.count / fullest) * 100)}%` : "2px" }}
-              className={
-                "min-w-[2px] flex-1 rounded-sm " +
-                (inView ? "bg-scene-ink/45" : "bg-scene-ink/20")
-              }
+              onPointerEnter={() => setPointed(index)}
+              onPointerLeave={() => setPointed(null)}
+              className="h-full min-w-0 flex-1"
             />
-          );
-        })}
+          ))}
+        </div>
+        {pointed !== null && buckets[pointed] && (
+          <span
+            className="pointer-events-none absolute top-0.5 z-10 -translate-x-1/2 whitespace-nowrap rounded bg-scene-raised/95 px-1.5 py-0.5 text-[0.625rem] text-scene-ink shadow"
+            style={{ left: `${Math.min(92, Math.max(8, (xAt(pointed, buckets.length) / 1000) * 100))}%` }}
+          >
+            {buckets[pointed].label} · {buckets[pointed].count} event{buckets[pointed].count === 1 ? "" : "s"}
+          </span>
+        )}
 
         <div
           onPointerDown={(event) => begin(event, "move")}
@@ -189,4 +237,40 @@ export function Navigator({
       </div>
     </div>
   );
+}
+
+/** A period's centre across the strip, in the 0–1000 drawing space. */
+function xAt(index: number, total: number): number {
+  return ((index + 0.5) / Math.max(total, 1)) * 1000;
+}
+
+/** Height on the 0–100 drawing space; the tallest period nearly fills it. */
+function yAt(count: number, fullest: number): number {
+  return 100 - (count / fullest) * 88;
+}
+
+/**
+ * A smooth curve through every period.
+ *
+ * Monotone in y between neighbours (each control point is clamped between its
+ * two ends), so the curve never dips below zero or overshoots a peak — a
+ * smoothing that invents a value the data does not have would be lying.
+ */
+function line(buckets: { count: number }[], fullest: number): string {
+  const points = buckets.map((b, i) => [xAt(i, buckets.length), yAt(b.count, fullest)] as const);
+  if (!points.length) return "";
+  if (points.length === 1) return `M0,${points[0][1]} L1000,${points[0][1]}`;
+  let d = `M0,${points[0][1]} L${points[0][0]},${points[0][1]}`;
+  for (let i = 1; i < points.length; i++) {
+    const [x0, y0] = points[i - 1];
+    const [x1, y1] = points[i];
+    const mid = (x0 + x1) / 2;
+    d += ` C${mid},${y0} ${mid},${y1} ${x1},${y1}`;
+  }
+  return `${d} L1000,${points[points.length - 1][1]}`;
+}
+
+function area(buckets: { count: number }[], fullest: number): string {
+  const d = line(buckets, fullest);
+  return d ? `${d} L1000,100 L0,100 Z` : "";
 }

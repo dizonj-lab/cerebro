@@ -327,3 +327,22 @@ test("cited dates are hidden, counted, and shown on request", async ({ page }) =
   await expect(events.filter({ hasText: "1982 · cited" })).toHaveCount(1);
   await expect(page.getByTestId("timeline-references")).toHaveText("2 references shown");
 });
+
+test("a library whose only dates are references says so and offers them", async ({ page }) => {
+  await signUp(page, makeAccount("tl-only-refs"));
+  await page.waitForURL(/\/construct$/);
+  const text = "Edges follow the classic account of Marr (1982). See example.com/2019/05/edges.\n";
+  const created = await page.request.post("/api/artifacts", {
+    multipart: { file: { name: "refs.txt", mimeType: "text/plain", buffer: Buffer.from(text) } },
+  });
+  const artifact = await created.json();
+  await page.request.patch(`/api/artifacts/${artifact.id}`, {
+    data: { metadata: { ...artifact.metadata, title: "Refs", topics: ["Vision"] }, approve: true },
+  });
+  await page.goto("/construct/timeline");
+
+  const empty = page.getByTestId("timeline-empty");
+  await expect(empty).toContainText("Every date in your documents is a reference");
+  await empty.getByRole("button", { name: "Show 2 references" }).click();
+  await expect(page.getByTestId("timeline-event")).toHaveCount(2);
+});

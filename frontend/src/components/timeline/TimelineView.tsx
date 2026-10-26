@@ -519,11 +519,36 @@ export function TimelineView() {
           {!error && loading && !data && <p className="p-4 text-sm text-scene-ink/50">Reading your knowledge…</p>}
           {!error && data && data.total === 0 && (
             <div className="p-6 text-sm" data-testid="timeline-empty">
-              <p className="font-medium">No dated statements in your registered documents yet.</p>
-              <p className="mt-1 text-scene-ink/55">
-                The timeline is built from dates the documents themselves give — “in March 2021”,
-                “on 2023-09-12”. Registering a document that states dates will fill it.
-              </p>
+              {data.references.hidden > 0 ? (
+                // Every date found was a citation or a link. Saying "no dated
+                // statements" here was wrong, and left no way to see them.
+                <>
+                  <p className="font-medium">
+                    Every date in your documents is a reference — {data.references.hidden} citation
+                    {data.references.hidden === 1 ? "" : "s"}, link{data.references.hidden === 1 ? "" : "s"} or
+                    notice{data.references.hidden === 1 ? "" : "s"}.
+                  </p>
+                  <p className="mt-1 text-scene-ink/55">
+                    They are hidden by default because “Marr (1982)” is when someone else’s work appeared,
+                    not something your document did. You can still place them on the timeline.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={toggleReferences}
+                    className="mt-3 rounded-md border border-scene-ink/20 px-3 py-1.5 text-xs font-medium text-scene-ink hover:bg-scene-ink/10"
+                  >
+                    Show {data.references.hidden} reference{data.references.hidden === 1 ? "" : "s"}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="font-medium">No dated statements in your registered documents yet.</p>
+                  <p className="mt-1 text-scene-ink/55">
+                    The timeline is built from dates the documents themselves give — “in March 2021”,
+                    “on 2023-09-12”. Registering a document that states dates will fill it.
+                  </p>
+                </>
+              )}
             </div>
           )}
 
