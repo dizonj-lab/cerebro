@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { EventPanel } from "@/components/timeline/EventPanel";
 import { Navigator } from "@/components/timeline/Navigator";
@@ -104,6 +104,13 @@ export function TimelineView() {
     remember({ categories: value });
   };
   const { source, entityType, entity, start, end } = view;
+  // Documents sent here from elsewhere — "On Timeline" in Ask CEREBRO or the
+  // Galaxy — by id, read from the address on every change, so it works when
+  // the Timeline is already open. While set, it replaces the filters.
+  const router = useRouter();
+  const docsParam = params.get("docs") ?? "";
+  const docs = docsParam ? docsParam.split(",").filter(Boolean) : null;
+  const about = params.get("about");
   const setSource = (value: string) => remember({ source: value });
   const setEntityType = (value: string) => remember({ entityType: value });
   const setEntity = (value: string) => remember({ entity: value });
@@ -136,8 +143,8 @@ export function TimelineView() {
     const request = ++latest.current;
     api
       .timeline({
-        categories,
-        sources: source ? [source] : [],
+        categories: docs ? [] : categories,
+        sources: docs ?? (source ? [source] : []),
         entity_type: entityType || undefined,
         entity: entity || undefined,
         start: start || undefined,
@@ -155,7 +162,7 @@ export function TimelineView() {
       .finally(() => setLoading(false));
     // `categories` is rebuilt each render from the store; its contents are the dependency.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [categories.join("|"), source, entityType, entity, start, end, references]);
+  }, [categories.join("|"), source, entityType, entity, start, end, references, docsParam]);
 
   useEffect(load, [load]);
 
@@ -164,10 +171,17 @@ export function TimelineView() {
   // Showing or hiding references changes the range itself, so it refits.
   // The first load reopens the window the reader left, if there was one.
   const fitted = useRef(false);
+  // New documents to show: fit the window to them when their events arrive.
+  const shownDocs = useRef(docsParam);
+  if (shownDocs.current !== docsParam) {
+    shownDocs.current = docsParam;
+    fitted.current = false;
+  }
   useEffect(() => {
     if (!data || fitted.current) return;
     fitted.current = true;
-    const saved = view.windowFrom !== null && view.windowTo !== null && view.windowTo > view.windowFrom;
+    const saved =
+      !docsParam && view.windowFrom !== null && view.windowTo !== null && view.windowTo > view.windowFrom;
     setWindow(saved ? { from: view.windowFrom!, to: view.windowTo! } : fitAll(data));
     // Only the first load decides; later changes to the store are our own writes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -557,6 +571,16 @@ export function TimelineView() {
         )}
       </div>
 
+      {docs && (
+        <DocumentsBanner
+          docs={docs}
+          about={about}
+          data={data}
+          onShowAll={() => router.replace("/construct/timeline")}
+          onShowReferences={references ? undefined : toggleReferences}
+        />
+      )}
+
       <div className="flex min-h-0 flex-1 gap-2">
         <section
           ref={frame}
@@ -567,7 +591,13 @@ export function TimelineView() {
           {!error && loading && !data && <p className="p-4 text-sm text-scene-ink/50">Reading your knowledge…</p>}
           {!error && data && data.total === 0 && (
             <div className="p-6 text-sm" data-testid="timeline-empty">
-              {data.references.hidden > 0 ? (
+              {docs ? (
+                <p className="text-scene-ink/60">
+                  {docs.length === 1 ? "This document states" : "These documents state"} no dates of
+                  their own{data.references.hidden > 0 ? " — only references, which are hidden" : ""}.
+                  Open {docs.length === 1 ? "it" : "them"} from the bar above, or show everything.
+                </p>
+              ) : data.references.hidden > 0 ? (
                 // Every date found was a citation or a link. Saying "no dated
                 // statements" here was wrong, and left no way to see them.
                 <>
@@ -877,6 +907,76 @@ export function TimelineView() {
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * What the Timeline is showing when it was opened on particular documents:
+ * which ones, why, each openable, and the way back to everything.
+ */
+function DocumentsBanner({
+  docs,
+  about,
+  data,
+  onShowAll,
+  onShowReferences,
+}: {
+  docs: string[];
+  about: string | null;
+  data: CerebroTimeline | null;
+  onShowAll: () => void;
+  onShowReferences?: () => void;
+}) {
+  // Titles from the events where there are any, filenames otherwise.
+  const titles = new Map<string, string>();
+  for (const [id, filename] of data?.sources ?? []) titles.set(id, filename);
+  for (const event of data?.events ?? []) {
+    if (event.document?.title) titles.set(event.artifact_id, event.document.title);
+  }
+  const counts = new Map<string, number>();
+  for (const event of data?.events ?? []) counts.set(event.artifact_id, (counts.get(event.artifact_id) ?? 0) + 1);
+  return (
+    <div
+      data-testid="timeline-documents"
+      className="flex flex-wrap items-center gap-2 rounded-lg border border-scene-ink/15 bg-scene-raised px-3 py-2 text-xs text-scene-ink"
+    >
+      <span className="font-medium">
+        Showing {docs.length} document{docs.length === 1 ? "" : "s"}
+        {about ? <span className="font-normal text-scene-ink/60"> · from “{about}”</span> : null}
+      </span>
+      {docs.map((id) => (
+        <span key={id} className="inline-flex items-center gap-1 rounded-md border border-scene-ink/15 px-1.5 py-0.5">
+          <span className="max-w-[14rem] truncate">{titles.get(id) ?? "Document"}</span>
+          <span className="text-scene-ink/45">· {counts.get(id) ?? 0} dated</span>
+          <a
+            href={api.artifactContentUrl(id)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ml-1 text-accent hover:underline"
+          >
+            Open
+          </a>
+        </span>
+      ))}
+      <span className="ml-auto flex gap-1.5">
+        {onShowReferences && (data?.references.hidden ?? 0) > 0 && (
+          <button
+            type="button"
+            onClick={onShowReferences}
+            className="rounded-md border border-scene-ink/20 px-2 py-0.5 hover:bg-scene-ink/10"
+          >
+            Show {data!.references.hidden} reference{data!.references.hidden === 1 ? "" : "s"}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onShowAll}
+          className="rounded-md border border-scene-ink/20 px-2 py-0.5 hover:bg-scene-ink/10"
+        >
+          Show everything
+        </button>
+      </span>
     </div>
   );
 }

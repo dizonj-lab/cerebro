@@ -11,13 +11,35 @@
  */
 import { useSyncExternalStore } from "react";
 
-import type { CerebroRecallAnswer } from "@/lib/api";
+import type { CerebroRecallAnswer, CerebroRecallSource } from "@/lib/api";
 
 export interface RecallContext {
   /** The topic the question is asked in the context of, if any. */
   topic: string | null;
   /** Present on the Galaxy: lights up the part of the map an answer came from. */
   showMe?: (reply: CerebroRecallAnswer) => void;
+  /** Present on the Galaxy: opens one document's topic and lights its passage. */
+  showSource?: (source: CerebroRecallSource) => void;
+}
+
+/**
+ * One document found by the chat, as an answer of its own: mapping it lights
+ * that document's passage and topic, and `document` tells the Galaxy to open
+ * the topic so the passage is on the map, and to offer the file itself.
+ */
+export function documentAnswer(source: CerebroRecallSource): CerebroRecallAnswer & {
+  document: { artifact_id: string; title: string; topic: string | null };
+} {
+  const title = source.title || source.filename;
+  return {
+    answer: title,
+    sources: [source],
+    cited: [source.index],
+    grounded: true,
+    model: null,
+    note: null,
+    document: { artifact_id: source.artifact_id, title, topic: source.topics?.[0] ?? null },
+  };
 }
 
 const EMPTY: RecallContext = { topic: null };

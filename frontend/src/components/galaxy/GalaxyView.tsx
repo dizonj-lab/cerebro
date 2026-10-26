@@ -12,11 +12,12 @@ import { ErrorMessage } from "@/components/ui/ErrorMessage";
 import { ApiError, api } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { useGalaxyLayout } from "@/lib/galaxyLayoutState";
-import { setRecallContext, takeQueuedMap } from "@/lib/recallContext";
+import { documentAnswer, setRecallContext, takeQueuedMap } from "@/lib/recallContext";
 import type {
   CerebroGalaxy,
   CerebroLens,
   CerebroRecallAnswer,
+  CerebroRecallSource,
   CerebroNodeDetails,
   CerebroTimelineEvent,
   GraphNode,
@@ -52,6 +53,8 @@ export function GalaxyView() {
     question: string;
     cited: Set<string>;
     retrieved: Set<string>;
+    /** Set when one document is shown: the banner offers the file itself. */
+    document?: { artifact_id: string; title: string; topic: string | null };
   } | null>(null);
   const [maximized, setMaximized] = useState(false);
   // The arrangement — timeline open and how tall, details panel — is
@@ -172,7 +175,7 @@ export function GalaxyView() {
 
   // Ask CEREBRO lives in the shell; this page tells it the topic in focus
   // and how to light up the map, and takes both back when it closes.
-  const showMe = useCallback((reply: CerebroRecallAnswer) => {
+  const showMe = useCallback((reply: CerebroRecallAnswer & { document?: { artifact_id: string; title: string; topic: string | null } }) => {
     // Cited passages are the ones the answer actually used; the citation
     // guard has already removed any that pointed at a passage which was
     // never retrieved. Everything else it searched up is "found but not
@@ -188,18 +191,46 @@ export function GalaxyView() {
     // A topic quoted somewhere is quoted, even if another passage from it
     // went unused.
     for (const id of cited) retrieved.delete(id);
-    setAnswerMap({ question: reply.answer?.slice(0, 60) ?? "this answer", cited, retrieved });
+    setAnswerMap({
+      question: reply.answer?.slice(0, 60) ?? "this answer",
+      cited,
+      retrieved,
+      document: reply.document,
+    });
   }, []);
+  // One document from the chat: light its passage and open its topic, so
+  // the passage itself is on the map rather than hidden inside a cluster.
+  const showSource = useCallback(
+    (source: CerebroRecallSource) => {
+      const answer = documentAnswer(source);
+      showMe(answer);
+      const topic = answer.document.topic;
+      if (topic) {
+        setSelectedId(`topic:${topic}`);
+        void expand(topic);
+      }
+    },
+    [showMe, expand],
+  );
   useEffect(() => {
-    setRecallContext({ topic: selectedTopic, showMe });
+    setRecallContext({ topic: selectedTopic, showMe, showSource });
     return () => setRecallContext(null);
-  }, [selectedTopic, showMe]);
-  // An answer mapped from another page arrives here, once.
+  }, [selectedTopic, showMe, showSource]);
+  // An answer, or one document, mapped from another page arrives here once —
+  // applied when the graph has loaded, since opening a topic needs it.
+  const pending = useRef<ReturnType<typeof takeQueuedMap> | undefined>(undefined);
   useEffect(() => {
-    const queued = takeQueuedMap();
+    if (pending.current === undefined) pending.current = takeQueuedMap();
+    const queued = pending.current;
+    if (!queued || !graph) return;
+    pending.current = null;
+    const doc = (queued as { document?: { topic: string | null } }).document;
     // After this render, not during it.
-    if (queued) void Promise.resolve().then(() => showMe(queued));
-  }, [showMe]);
+    void Promise.resolve().then(() => {
+      if (doc && queued.sources[0]) showSource(queued.sources[0]);
+      else showMe(queued);
+    });
+  }, [graph, showMe, showSource]);
 
   if (loading) {
     return <div className="h-96 animate-pulse rounded-xl bg-surface-sunken" />;
@@ -328,8 +359,26 @@ export function GalaxyView() {
               >
                 <div className="min-w-0">
                   <p className="truncate font-medium text-scene-ink">
-                    Mapped: {answerMap.question}
+                    {answerMap.document ? `Showing: ${answerMap.document.title}` : `Mapped: ${answerMap.question}`}
                   </p>
+                  {answerMap.document && (
+                    <p className="mt-1 flex flex-wrap gap-1.5">
+                      <a
+                        href={api.artifactContentUrl(answerMap.document.artifact_id)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="rounded border border-scene-ink/20 px-1.5 py-0.5 text-[0.6875rem] text-scene-ink/80 hover:bg-scene-ink/10"
+                      >
+                        Open document
+                      </a>
+                      <Link
+                        href={`/construct/timeline?${new URLSearchParams({ docs: answerMap.document.artifact_id, about: answerMap.document.title })}`}
+                        className="rounded border border-scene-ink/20 px-1.5 py-0.5 text-[0.6875rem] text-scene-ink/80 hover:bg-scene-ink/10"
+                      >
+                        On Timeline
+                      </Link>
+                    </p>
+                  )}
                   <p className="mt-0.5 text-scene-ink/55">
                     <span className="text-scene-ink">{answerMap.cited.size} quoted</span>
                     {" · "}

@@ -744,3 +744,110 @@ test("Ask CEREBRO is on every page, movable, and maps an answer onto the Galaxy 
   // Still open, where it was put.
   await expect(chat).toBeVisible();
 });
+
+// --- Ask CEREBRO: each document found, on the map and the timeline ----------
+
+/**
+ * Seven topics, so the Timeline has lanes for six of them. The document the
+ * chat finds carries the seventh, which is the case that used to open an
+ * empty Timeline: the answer was sent by topic, and that topic had no lane.
+ */
+async function openSevenTopics(page: import("@playwright/test").Page, prefix: string) {
+  await signUp(page, makeAccount(prefix));
+  await page.waitForURL(/\/construct$/);
+  const docs: [string, string, string][] = [
+    ["a.txt", "Alpha", "Alpha notes for the alpha team in June 2021.\n"],
+    ["b.txt", "Beta", "Beta notes for the beta team in July 2021.\n"],
+    ["c.txt", "Gamma", "Gamma notes for the gamma team in August 2021.\n"],
+    ["d.txt", "Delta", "Delta notes for the delta team in September 2021.\n"],
+    ["e.txt", "Epsilon", "Epsilon notes for the epsilon team in October 2021.\n"],
+    ["f.txt", "Zeta", "Zeta notes for the zeta team in November 2021.\n"],
+    ["volcano.txt", "Volcanology", "The volcano monitoring station went live in March 2024 on the basalt ridge.\n"],
+  ];
+  for (const [name, topic, text] of docs) {
+    const created = await page.request.post("/api/artifacts", {
+      multipart: { file: { name, mimeType: "text/plain", buffer: Buffer.from(text) } },
+    });
+    const artifact = await created.json();
+    await page.request.patch(`/api/artifacts/${artifact.id}`, {
+      data: { metadata: { ...artifact.metadata, title: topic === "Volcanology" ? "Volcano Station" : topic, topics: [topic] }, approve: true },
+    });
+  }
+}
+
+async function askAbout(page: import("@playwright/test").Page, question: string) {
+  await page.getByRole("button", { name: /Ask CEREBRO/ }).click();
+  await page.getByLabel("Ask or describe what you're looking for").fill(question);
+  await page.getByRole("button", { name: "Send" }).click();
+  const source = page.getByTestId("chat-source").filter({ hasText: "Volcano Station" }).first();
+  await expect(source).toBeVisible({ timeout: 15000 });
+  return source;
+}
+
+test("a document the chat found opens on the Timeline, even with no lane for its topic", async ({ page }) => {
+  await openSevenTopics(page, "c-timeline");
+  await page.goto("/construct/library");
+  const source = await askAbout(page, "volcano monitoring station basalt");
+
+  await source.getByTestId("source-timeline").click();
+  await expect(page).toHaveURL(/\/construct\/timeline\?docs=/);
+  const banner = page.getByTestId("timeline-documents");
+  await expect(banner).toContainText("Showing 1 document");
+  await expect(banner).toContainText("Volcano Station");
+  await expect(banner.getByRole("link", { name: "Open" })).toBeVisible();
+  await expect(page.getByTestId("timeline-event").filter({ hasText: "Mar 2024" })).toHaveCount(1);
+
+  // And back to everything.
+  await banner.getByRole("button", { name: "Show everything" }).click();
+  await expect(page.getByTestId("timeline-documents")).toHaveCount(0);
+  await expect(page.getByTestId("timeline-event").first()).toBeVisible();
+});
+
+test("On Timeline works when the Timeline is already open", async ({ page }) => {
+  await openSevenTopics(page, "c-timeline-here");
+  await page.goto("/construct/timeline");
+  await expect(page.getByTestId("timeline-event").first()).toBeVisible();
+  const source = await askAbout(page, "volcano monitoring station basalt");
+  await source.getByTestId("source-timeline").click();
+  await expect(page.getByTestId("timeline-documents")).toContainText("Volcano Station");
+  await expect(page.getByTestId("timeline-event")).toHaveCount(1);
+});
+
+test("a document the chat found opens in the Galaxy with its passage on the map", async ({ page }) => {
+  await openSevenTopics(page, "c-galaxy");
+  await page.goto("/construct/library");
+  const source = await askAbout(page, "volcano monitoring station basalt");
+
+  await source.getByTestId("source-galaxy").click();
+  await expect(page).toHaveURL(/\/construct\/galaxy/);
+  const banner = page.getByTestId("answer-map");
+  await expect(banner).toContainText("Showing: Volcano Station");
+  await expect(banner.getByRole("link", { name: "Open document" })).toBeVisible();
+  // Its topic is opened, so the passage itself is on the map.
+  await expect(page.getByRole("button", { name: /, fragment$/ }).first()).toBeAttached();
+  // And from here, the same document on the Timeline.
+  await banner.getByRole("link", { name: "On Timeline" }).click();
+  await expect(page.getByTestId("timeline-documents")).toContainText("Volcano Station");
+});
+
+test("the chat window can be resized, and keeps its size", async ({ page }) => {
+  await openGalaxy(page, "c-resize");
+  await page.getByRole("button", { name: /Ask CEREBRO/ }).click();
+  const chat = page.getByTestId("recall-chat");
+  const before = (await chat.boundingBox())!;
+
+  // The resize corner is the bottom right.
+  await page.mouse.move(before.x + before.width - 3, before.y + before.height - 3);
+  await page.mouse.down();
+  await page.mouse.move(before.x + before.width + 77, before.y + before.height - 103, { steps: 8 });
+  await page.mouse.up();
+  const after = (await chat.boundingBox())!;
+  expect(Math.abs(after.width - before.width) + Math.abs(after.height - before.height)).toBeGreaterThan(40);
+
+  await page.waitForTimeout(500);
+  await page.reload();
+  await expect(chat).toBeVisible();
+  const kept = (await chat.boundingBox())!;
+  expect(Math.abs(kept.width - after.width)).toBeLessThan(3);
+  expect(Math.abs(kept.height - after.height)).toBeLessThan(3);
+});

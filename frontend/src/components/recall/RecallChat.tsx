@@ -1,20 +1,29 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { api } from "@/lib/api";
-import type { CerebroRecallAnswer } from "@/lib/api";
+import type { CerebroRecallAnswer, CerebroRecallSource } from "@/lib/api";
 import { createPersistedStore } from "@/lib/persistedStore";
-import { queueMap, useRecallContext } from "@/lib/recallContext";
+import { queueMap, useRecallContext, documentAnswer } from "@/lib/recallContext";
 import { streamRecall } from "@/lib/recallStream";
 import { cn } from "@/lib/cn";
 
-/** Where the chat window was left, and whether it was open. x below zero docks it bottom right. */
-const useRecallWindow = createPersistedStore("cerebro-recall-window", { open: false, x: -1, y: -1 });
+/**
+ * Where the chat window was left, how big, and whether it was open. x below
+ * zero docks it bottom right.
+ */
+const useRecallWindow = createPersistedStore("cerebro-recall-window", {
+  open: false,
+  x: -1,
+  y: -1,
+  width: 352,
+  height: 432,
+});
 
-const WIDTH = 352;
-const HEIGHT = 432;
+const MIN_WIDTH = 300;
+const MIN_HEIGHT = 300;
 
 interface Turn {
   question: string;
@@ -41,7 +50,7 @@ interface Turn {
  * passages — so every reply shows its sources.
  */
 export function RecallChat() {
-  const { topic, showMe } = useRecallContext();
+  const { topic, showMe, showSource } = useRecallContext();
   const router = useRouter();
   const pathname = usePathname();
   const [win, setWin] = useRecallWindow();
@@ -74,10 +83,51 @@ export function RecallChat() {
     queueMap(reply);
     router.push("/construct/galaxy");
   }
-  function onTimeline(reply: CerebroRecallAnswer) {
-    const first = reply.sources.flatMap((s) => s.topics ?? [])[0];
-    router.push(first ? `/construct/timeline?focus=${encodeURIComponent(first)}` : "/construct/timeline");
+  // The Timeline is opened on the documents themselves, by id. It used to be
+  // opened on the answer's topic, which found nothing whenever that topic
+  // was not one of the six the Timeline has lanes for.
+  function timelineFor(sources: CerebroRecallSource[], question: string) {
+    const ids = [...new Set(sources.map((s) => s.artifact_id))];
+    const query = new URLSearchParams({ docs: ids.join(","), about: question.slice(0, 120) });
+    router.push(`/construct/timeline?${query}`);
   }
+  function onTimeline(reply: CerebroRecallAnswer, question: string) {
+    // Quoted sources first: those are what the answer rests on.
+    const cited = new Set(reply.cited ?? []);
+    const ordered = [...reply.sources].sort((a, b) => Number(cited.has(b.index)) - Number(cited.has(a.index)));
+    timelineFor(ordered, question);
+  }
+  function onSourceGalaxy(source: CerebroRecallSource) {
+    if (showSource && pathname?.startsWith("/construct/galaxy")) {
+      showSource(source);
+      return;
+    }
+    queueMap(documentAnswer(source));
+    router.push("/construct/galaxy");
+  }
+
+  // The window can be resized from its corner. The size the reader settles
+  // on is remembered, a moment after they stop dragging.
+  const frame = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = frame.current;
+    if (!el) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const w = Math.round(el.offsetWidth);
+        const h = Math.round(el.offsetHeight);
+        if (width && height && (w !== win.width || h !== win.height)) setWin({ width: w, height: h });
+      }, 250);
+    });
+    observer.observe(el);
+    return () => {
+      clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, [open, win.width, win.height, setWin]);
 
   function startDrag(event: React.PointerEvent<HTMLElement>) {
     if ((event.target as Element).closest("button")) return;
@@ -189,13 +239,18 @@ export function RecallChat() {
 
   return (
     <section
+      ref={frame}
       data-testid="recall-chat"
-      style={
-        win.x < 0
-          ? { right: 20, bottom: 20, width: WIDTH, height: HEIGHT }
-          : { left: win.x, top: win.y, width: WIDTH, height: HEIGHT }
-      }
-      className="fixed z-40 flex max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] flex-col rounded-xl border border-scene-ink/15 bg-scene-overlay/97 shadow-2xl backdrop-blur"
+      style={{
+        ...(win.x < 0 ? { right: 20, bottom: 20 } : { left: win.x, top: win.y }),
+        width: win.width,
+        height: win.height,
+        minWidth: MIN_WIDTH,
+        minHeight: MIN_HEIGHT,
+      }}
+      // `resize` gives the window a corner the reader can drag to resize it;
+      // docked bottom right, it grows up and to the left.
+      className="fixed z-40 flex max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] resize flex-col overflow-hidden rounded-xl border border-scene-ink/15 bg-scene-overlay/97 shadow-2xl backdrop-blur"
     >
       <header
         onPointerDown={startDrag}
@@ -238,7 +293,13 @@ export function RecallChat() {
             {turn.error ? (
               <p className="text-[0.75rem] text-rose-300">{turn.error}</p>
             ) : turn.reply ? (
-              <Reply reply={turn.reply} onShowMe={onShowMe} onTimeline={onTimeline} />
+              <Reply
+                reply={turn.reply}
+                onShowMe={onShowMe}
+                onTimeline={(reply) => onTimeline(reply, turn.question)}
+                onSourceGalaxy={onSourceGalaxy}
+                onSourceTimeline={(source) => timelineFor([source], source.title || source.filename)}
+              />
             ) : (
               <p className="text-[0.75rem] text-scene-ink/40">Searching your library…</p>
             )}
@@ -270,10 +331,14 @@ function Reply({
   reply,
   onShowMe,
   onTimeline,
+  onSourceGalaxy,
+  onSourceTimeline,
 }: {
   reply: CerebroRecallAnswer;
   onShowMe?: (reply: CerebroRecallAnswer) => void;
   onTimeline?: (reply: CerebroRecallAnswer) => void;
+  onSourceGalaxy?: (source: CerebroRecallSource) => void;
+  onSourceTimeline?: (source: CerebroRecallSource) => void;
 }) {
   return (
     <div className="w-fit max-w-[92%] space-y-2 rounded-lg rounded-bl-sm bg-scene-ink/8 px-2.5 py-2">
@@ -327,22 +392,59 @@ function Reply({
         </div>
       )}
 
+      {/* Each document found, and three ways to look at it: the file itself,
+          where it sits on the map, and what it dates on the timeline. */}
       {reply.sources.map((source) => (
-        <a
+        <div
           key={source.fragment_id}
-          href={api.artifactContentUrl(source.artifact_id)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block rounded-md border border-scene-ink/10 p-2 transition-colors hover:border-scene-ink/25"
+          data-testid="chat-source"
+          className="rounded-md border border-scene-ink/10 p-2 transition-colors hover:border-scene-ink/25"
         >
-          <span className="block text-[0.6875rem] font-medium text-sky-300">
-            [{source.index}] {source.title || source.filename}
-            {source.source_location?.page ? ` · page ${source.source_location.page}` : ""}
-          </span>
-          <span className="mt-0.5 block line-clamp-2 text-[0.6875rem] leading-relaxed text-scene-ink/55">
-            {source.excerpt}
-          </span>
-        </a>
+          <a
+            href={api.artifactContentUrl(source.artifact_id)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block"
+          >
+            <span className="block text-[0.6875rem] font-medium text-sky-300">
+              [{source.index}] {source.title || source.filename}
+              {source.source_location?.page ? ` · page ${source.source_location.page}` : ""}
+            </span>
+            <span className="mt-0.5 block line-clamp-2 text-[0.6875rem] leading-relaxed text-scene-ink/55">
+              {source.excerpt}
+            </span>
+          </a>
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            <a
+              href={api.artifactContentUrl(source.artifact_id)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded border border-scene-ink/15 px-1.5 py-0.5 text-[0.625rem] text-scene-ink/75 hover:bg-scene-ink/10"
+            >
+              Open document
+            </a>
+            {onSourceGalaxy && (
+              <button
+                type="button"
+                data-testid="source-galaxy"
+                onClick={() => onSourceGalaxy(source)}
+                className="rounded border border-scene-ink/15 px-1.5 py-0.5 text-[0.625rem] text-scene-ink/75 hover:bg-scene-ink/10"
+              >
+                In Galaxy
+              </button>
+            )}
+            {onSourceTimeline && (
+              <button
+                type="button"
+                data-testid="source-timeline"
+                onClick={() => onSourceTimeline(source)}
+                className="rounded border border-scene-ink/15 px-1.5 py-0.5 text-[0.625rem] text-scene-ink/75 hover:bg-scene-ink/10"
+              >
+                On Timeline
+              </button>
+            )}
+          </div>
+        </div>
       ))}
 
       {reply.note && <p className="text-[0.625rem] text-scene-ink/40">{reply.note}</p>}
