@@ -99,6 +99,53 @@ def test_entities_are_attached_only_where_the_sentence_names_them():
     assert cutover["entities"]["projects"] == ["Atlas"]
 
 
+@pytest.mark.parametrize(
+    ("sentence", "basis"),
+    [
+        ("--- David Marr (1982)", "citation"),
+        ("Prior work (Smith et al., 2019; Jones, 2020a) found this.", "citation"),
+        ("Marr et al. (1982) showed that edges matter.", "citation"),
+        ("Vision as a computational problem. Springer, 2006", "citation"),
+        ("Ghosh, 2020", "citation"),
+        ("Ho et al, “Large Language Models in practice” 2023", "citation"),
+        ("References 2022 Knowledge-Driven Vision", "reference list"),
+        ("See example.com/2021/12/31/timeline-transformers for details", "link"),
+        ("https://neurips.cc/virtual/2023/tutorial/18576", "link"),
+        ("© 2026 National University of Singapore", "copyright"),
+    ],
+)
+def test_a_cited_date_is_a_reference_not_an_event(sentence, basis):
+    """When someone else's work appeared is not something this document did."""
+    found = temporal.extract_from_text(sentence)
+
+    assert found, "the date is still read, so it can be shown on request"
+    assert found[0]["kind"] == "reference"
+    assert found[0]["reference_basis"] == basis
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "The Atlas migration project completed its cutover in March 2021.",
+        "The cutover (March 2021) completed on time.",
+        "Launched in 2019, the platform grew quickly.",
+        "Version 2.0 shipped in March 2022.",
+    ],
+)
+def test_a_stated_date_stays_an_event(sentence):
+    found = temporal.extract_from_text(sentence)
+    assert found[0]["kind"] == "event"
+    assert found[0]["reference_basis"] is None
+
+
+def test_a_sentence_is_dated_by_its_own_date_not_the_one_it_cites():
+    event = temporal.extract_from_text("In 2021 we adopted the approach of Marr (1982).")[0]
+
+    assert event["kind"] == "event"
+    assert event["date"] == "2021-01-01"
+    assert event["expression"] == "2021"
+
+
 # --- the API ----------------------------------------------------------------
 
 def test_the_timeline_is_built_from_registered_knowledge(client, registered):
@@ -293,3 +340,44 @@ def test_one_document_is_counted_once_however_many_dates_it_names(client, regist
         in_month = {e["artifact_id"] for e in body["events"] if e["date"][:7] == bucket["month"]}
         if in_month:
             assert bucket["documents"] == len(in_month)
+
+
+CITING = (
+    "The vision pipeline went live in March 2024. "
+    "It builds on the classic account of Marr (1982). "
+    "See also example.com/2019/05/edge-detection for a tutorial.\n"
+)
+
+
+@pytest.fixture
+def citing(client, signed_in):
+    artifact = client.post(
+        "/api/artifacts", files={"file": ("vision.txt", CITING.encode(), "text/plain")}
+    ).json()
+    client.patch(
+        f"/api/artifacts/{artifact['id']}",
+        json={"metadata": {"title": "Vision Notes", "topics": ["Vision"]}, "approve": True},
+    )
+    return artifact
+
+
+def test_references_are_hidden_by_default_and_counted(client, citing):
+    body = client.get("/api/timeline").json()
+
+    assert [e["date"] for e in body["events"]] == ["2024-03-01"]
+    assert body["references"] == {"included": False, "hidden": 2, "total": 2}
+    # A cited 1982 must not stretch the range the timeline opens on.
+    assert body["range"]["earliest"] == "2024-03-01"
+    assert [h["month"] for h in body["histogram"]] == ["2024-03"]
+
+
+def test_references_are_shown_on_request_with_their_reason(client, citing):
+    body = client.get("/api/timeline", params={"references": "true"}).json()
+
+    by_date = {e["date"]: e for e in body["events"]}
+    assert by_date["1982-01-01"]["kind"] == "reference"
+    assert by_date["1982-01-01"]["reference_basis"] == "citation"
+    assert by_date["2019-01-01"]["reference_basis"] == "link"
+    assert by_date["2024-03-01"]["kind"] == "event"
+    assert body["references"] == {"included": True, "hidden": 0, "total": 2}
+    assert body["range"]["earliest"] == "1982-01-01"

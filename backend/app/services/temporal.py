@@ -15,6 +15,11 @@ Three rules shape the whole module:
 * **Deterministic parsing first.** Regular expressions over sentences, with
   the method recorded. A language model is not needed to see "March 2021",
   and using one here would make the result unrepeatable and unexplainable.
+* **A cited date is not an event.** "Marr (1982)" and "Springer, 2006" are
+  when someone else's work appeared, not something that happened in this
+  document, and a URL's /2021/12/31/ is a path. Such dates are kept but
+  marked `kind: "reference"` with the reason, so the timeline can hide them
+  by default and still show them on request — nothing is silently dropped.
 * **Precision is kept.** "2024" is a year, "Q3 2024" a quarter, "March 2021"
   a month, "12 Sep 2023" a day. They are not all silently turned into the
   first of some month.
@@ -37,7 +42,7 @@ from app.models.fragment import KnowledgeFragment
 from app.services import telemetry
 
 EXTRACTION_METHOD = "deterministic_date_parsing"
-EXTRACTION_VERSION = 1
+EXTRACTION_VERSION = 2
 
 MONTHS = {
     "january": 1, "jan": 1, "february": 2, "feb": 2, "march": 3, "mar": 3,
@@ -56,11 +61,64 @@ PATTERNS: list[tuple[str, str]] = [
     ("month_year", rf"\b({_MONTH_NAMES})\.?\s+(\d{{4}})\b"),
     ("quarter", r"\b[Qq]([1-4])\s*(?:of\s*)?(\d{4})\b"),
     ("fiscal_year", r"\b(?:FY|fiscal year)\s*(\d{4})\b"),
-    ("year", r"\b(19\d{2}|20\d{2})\b"),
+    # "2020a" is how a reference list tells two 2020 papers apart.
+    ("year", r"\b(19\d{2}|20\d{2})(?:\b|(?=[a-c]\b))"),
 ]
 _COMPILED = [(name, re.compile(pattern, re.IGNORECASE)) for name, pattern in PATTERNS]
 
-_SENTENCE = re.compile(r"[^.!?\n]+(?:[.!?]|\n|$)")
+# A full stop followed by a comma, a bracket, a digit or a lowercase word does
+# not end a sentence: "Smith et al., 2019" and "Marr et al. (1982)" stay whole,
+# so the citation around the year is still visible to the rules below.
+_SENTENCE = re.compile(r"(?:[^.!?\n]|\.(?=\s*[a-z(,;\d]))+(?:[.!?]|\n|$)")
+
+# What marks a date as a reference rather than an event. Each rule looks only
+# at the text around the match, so the reason can be stated.
+#
+# Links and copyright lines apply at any precision. The citation rules apply
+# to bare years only: citations are dated by year, while "the cutover (March
+# 2021)" is an event however it is punctuated.
+_LINK_TOKEN = re.compile(r"/|https?:|www\.|\.(?:com|org|net|edu|gov|io|ai|sg)\b", re.IGNORECASE)
+_COPYRIGHT = re.compile(r"©|\(c\)|\bcopyright\b|\ball rights reserved\b", re.IGNORECASE)
+_REFERENCE_LINE = re.compile(
+    r"^\s*(?:\[\d+\]|references?\b|bibliography\b|sources?\s*:|cited\b|further reading\b)",
+    re.IGNORECASE,
+)
+_CITATION_MARKER = re.compile(
+    r"\bet al\b|\bdoi\b|\barxiv\b|\bisbn\b|\bpp\.|\bvol\.|\bproceedings\b|\bjournal\b"
+    r"|\buniversity press\b|\bpublish(?:ed|er|ing)\b|\bspringer\b|\belsevier\b|\bieee\b|\bacm\b"
+    r"|\bwiley\b|\bo['’]reilly\b|\bneurips\b|\bicml\b|\biclr\b|\bcvpr\b|\biccv\b|\beccv\b"
+    r"|\baaai\b",
+    re.IGNORECASE,
+)
+# "(1982)", "(Ghosh, 2020)", "(Smith et al., 2019; Jones, 2020a)"
+_OPENS_CITATION = re.compile(r"\(\s*$|\([^()]*[,;]\s*$")
+_CLOSES_CITATION = re.compile(r"^[a-z]?\s*[),;]")
+# "Ghosh, 2020" or "Springer, 2006" closing a sentence or a line.
+_NAME_COMMA = re.compile(r"[A-Z][\w'’\-]+(?:\s+et\s+al\.?)?,\s*$")
+_ENDS_CLAUSE = re.compile(r"^\s*[).;,]?\s*$")
+
+
+def _reference_basis(sentence: str, start: int, end: int, precision: str) -> str | None:
+    """Why the date at sentence[start:end] is a reference, or None for an event."""
+    token_start = sentence.rfind(" ", 0, start) + 1
+    token_end = sentence.find(" ", end)
+    token = sentence[token_start : token_end if token_end != -1 else len(sentence)]
+    if _LINK_TOKEN.search(token):
+        return "link"
+    if _COPYRIGHT.search(sentence[max(0, start - 40) : start]):
+        return "copyright"
+    if precision != "year":
+        return None
+    before, after = sentence[:start], sentence[end:]
+    if _OPENS_CITATION.search(before) and _CLOSES_CITATION.match(after):
+        return "citation"
+    if _NAME_COMMA.search(before) and _ENDS_CLAUSE.match(after):
+        return "citation"
+    if _REFERENCE_LINE.match(sentence):
+        return "reference list"
+    if _CITATION_MARKER.search(sentence):
+        return "citation"
+    return None
 
 # Two ways to put an event in a lane, and neither of them guesses.
 #
@@ -121,6 +179,8 @@ class Event:
     precision: str
     expression: str
     evidence: str
+    kind: str
+    reference_basis: str | None
     source_location: dict
     filename: str
     author: str | None
@@ -258,11 +318,18 @@ def extract_from_text(
         if not expressions:
             continue
 
-        # One event per sentence, dated by its first expression; a second
-        # date in the same sentence becomes the range's end rather than a
-        # separate event, which is what "from March to June" means.
-        iso, precision, expression, _, _ = expressions[0]
-        end = expressions[1][0] if len(expressions) > 1 and expressions[1][0] > iso else None
+        # One event per sentence, dated by its first expression that is not
+        # a reference; a second such date becomes the range's end rather
+        # than a separate event, which is what "from March to June" means.
+        # "In 2021 we adopted Marr (1982)" is a 2021 event. A sentence whose
+        # dates are all references is one reference, dated by the first.
+        bases = [_reference_basis(sentence, s, e, p) for _, p, _, s, e in expressions]
+        dated = [x for x, basis in zip(expressions, bases, strict=True) if basis is None]
+        kind = "event" if dated else "reference"
+        reference_basis = None if dated else bases[0]
+        dated = dated or expressions
+        iso, precision, expression, _, _ = dated[0]
+        end = dated[1][0] if len(dated) > 1 and dated[1][0] > iso else None
         lane, basis = _lane(sentence, topics, preferred=lanes)
 
         mentioned = {
@@ -285,6 +352,8 @@ def extract_from_text(
                 "end_date": end,
                 "precision": precision,
                 "expression": expression,
+                "kind": kind,
+                "reference_basis": reference_basis,
                 "evidence": " ".join(sentence.split())[:MAX_EVIDENCE_CHARS],
                 "entities": {k: v for k, v in mentioned.items() if v},
             }

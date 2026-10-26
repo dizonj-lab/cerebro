@@ -77,12 +77,19 @@ def read(
     entity: str | None = None,
     start: str | None = None,
     end: str | None = None,
+    references: bool = False,
 ) -> dict:
     started = time.perf_counter()
     # The owner's own topics are the lanes; the six named ones are the
     # fallback for a library that has not confirmed any.
     owner_lanes = temporal.lanes_for_owner(db, current_user.id)
-    events, stats = temporal.events_for_owner(db, current_user.id, lanes=owner_lanes)
+    everything, stats = temporal.events_for_owner(db, current_user.id, lanes=owner_lanes)
+    # Cited dates ("Marr (1982)", a URL's /2021/) are left out unless asked
+    # for, and the response says how many, so hiding them is never silent.
+    # Range, histogram and facets follow the same choice: a 1982 citation
+    # should not stretch a library of 2020s documents across forty years.
+    hidden_references = 0 if references else sum(e.kind == "reference" for e in everything)
+    events = everything if references else [e for e in everything if e.kind != "reference"]
 
     # The histogram is built from everything, so the navigator keeps showing
     # the whole range while the lanes show a filtered slice of it.
@@ -160,6 +167,11 @@ def read(
             "version": temporal.EXTRACTION_VERSION,
             **stats,
         },
+        "references": {
+            "included": references,
+            "hidden": hidden_references,
+            "total": sum(e.kind == "reference" for e in everything),
+        },
         "total": len(selected),
         "took_ms": took_ms,
     }
@@ -221,7 +233,8 @@ def journey(current_user: CurrentUser, db: DbSession, entity: str, field: str = 
     steps = [
         event
         for event in events
-        if entity in (event.entities.get(field) or [])
+        # A cited year is not a step in the entity's own story.
+        if event.kind != "reference" and entity in (event.entities.get(field) or [])
     ]
     return {
         "entity": entity,
