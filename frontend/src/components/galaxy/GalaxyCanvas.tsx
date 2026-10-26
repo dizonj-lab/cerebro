@@ -7,6 +7,8 @@ import { colorFor, hueFor } from "@/components/galaxy/palette";
 import { api } from "@/lib/api";
 import { useGalaxyLayout } from "@/lib/galaxyLayoutState";
 import { createPersistedStore } from "@/lib/persistedStore";
+import { noteColour, useStickyNotes } from "@/lib/stickyNotes";
+import type { StickyNote } from "@/lib/stickyNotes";
 
 /** How the reader likes the Galaxy drawn. Per browser; nothing about the library. */
 export const useGalaxySettings = createPersistedStore("cerebro-galaxy-settings", {
@@ -90,6 +92,7 @@ export function GalaxyCanvas({
   // Hovering the placed idea opens its details, even when the window is folded.
   const [lensPeek, setLensPeek] = useState(false);
   const [settings, setSettings] = useGalaxySettings();
+  const stickies = useStickyNotes();
   const [settingsOpen, setSettingsOpen] = useState(false);
   // A node the user pinned: its window stays after the pointer leaves.
   const [pinned, setPinned] = useState<string | null>(null);
@@ -530,6 +533,32 @@ export function GalaxyCanvas({
               </g>
             );
           })}
+          {/* Sticky notes from Ask CEREBRO: each points at its document's
+              passage when that topic is open, at its topic otherwise. */}
+          {(() => {
+            const stacked = new Map<string, number>();
+            return stickies.notes.map((note) => {
+              const anchor =
+                (note.fragmentId && positions.get(`fragment:${note.fragmentId}`)) ||
+                (note.topic && positions.get(`topic:${note.topic}`)) ||
+                null;
+              if (!anchor) return null;
+              const key = `${anchor.x},${anchor.y}`;
+              const stack = stacked.get(key) ?? 0;
+              stacked.set(key, stack + 1);
+              return (
+                <StickyFlag
+                  key={note.id}
+                  note={note}
+                  at={anchor}
+                  angle={view.angle}
+                  stack={stack}
+                  onClose={() => stickies.remove(note.id)}
+                />
+              );
+            });
+          })()}
+
           {/* Drawn last, above the topics, so the idea can always be hovered
               even when it lands right on top of one. */}
           {lens && (
@@ -587,6 +616,33 @@ export function GalaxyCanvas({
         </ViewButton>
       </div>
 
+      {/* Notes with nowhere to point — their topic is not one of the clusters
+          drawn — are listed rather than silently dropped. */}
+      {stickies.notes.some(
+        (n) => !(n.fragmentId && positions.has(`fragment:${n.fragmentId}`)) && !(n.topic && positions.has(`topic:${n.topic}`)),
+      ) && (
+        <div className="absolute bottom-4 left-4 z-20 flex max-w-xs flex-col gap-1">
+          {stickies.notes
+            .filter(
+              (n) => !(n.fragmentId && positions.has(`fragment:${n.fragmentId}`)) && !(n.topic && positions.has(`topic:${n.topic}`)),
+            )
+            .map((n) => (
+              <span
+                key={n.id}
+                data-testid="sticky-note-tray"
+                style={{ background: `color-mix(in srgb, ${noteColour(n.colour)} 55%, transparent)` }}
+                className="flex items-center gap-1.5 rounded px-2 py-1 text-[0.6875rem] text-scene-ink"
+              >
+                <button type="button" aria-label={`Close note ${n.title}`} onClick={() => stickies.remove(n.id)} className="font-bold">
+                  ×
+                </button>
+                <span className="truncate">{n.title}</span>
+                <span className="text-scene-ink/60">· topic not on the map</span>
+              </span>
+            ))}
+        </div>
+      )}
+
       {settingsOpen && (
         <SettingsPanel settings={settings} onChange={setSettings} onClose={() => setSettingsOpen(false)} />
       )}
@@ -595,6 +651,69 @@ export function GalaxyCanvas({
 
       {lens && <LensCard lens={lens} peek={lensPeek} onClose={() => onClearLens?.()} />}
     </div>
+  );
+}
+
+/**
+ * An arrow-shaped sticky note on the map: translucent, in the result's
+ * colour, with the document's title, its point at the node's edge. Notes on
+ * the same node stack upwards. The × closes it; otherwise it stays for the
+ * session.
+ */
+function StickyFlag({
+  note,
+  at,
+  angle,
+  stack,
+  onClose,
+}: {
+  note: StickyNote;
+  at: { x: number; y: number; radius: number };
+  angle: number;
+  stack: number;
+  onClose: () => void;
+}) {
+  const colour = noteColour(note.colour);
+  const label = note.title.length > 26 ? `${note.title.slice(0, 25)}…` : note.title;
+  return (
+    <g
+      transform={`translate(${at.x} ${at.y}) rotate(${-angle})`}
+      data-testid="sticky-note"
+      data-note={note.id}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      <g transform={`translate(${-at.radius - 3} ${-6 - stack * 25})`}>
+        <path
+          d="M0,0 L-13,-10.5 L-172,-10.5 L-172,10.5 L-13,10.5 Z"
+          style={{ fill: colour, stroke: colour }}
+          fillOpacity={0.55}
+          strokeOpacity={0.95}
+          strokeWidth={1}
+        />
+        <text x={-152} y={3.5} style={{ fontSize: 10, fontWeight: 600, fill: INK }} className="pointer-events-none select-none">
+          {label}
+        </text>
+        <g
+          transform="translate(-163 0)"
+          role="button"
+          tabIndex={0}
+          aria-label={`Close note ${note.title}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") onClose();
+          }}
+          className="cursor-pointer"
+        >
+          <circle r={7} fill="transparent" />
+          <text y={3.5} textAnchor="middle" style={{ fontSize: 11, fontWeight: 700, fill: INK }}>
+            ×
+          </text>
+        </g>
+      </g>
+    </g>
   );
 }
 

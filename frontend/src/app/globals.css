@@ -34,6 +34,14 @@
   /* The brand mark is dark navy with pale network lines: a little more
      contrast on light, and a soft light disc behind it on dark, where the
      navy head otherwise disappears into the canvas. */
+  /* Sticky-note colours for documents Ask CEREBRO finds: one per result, the
+     same on its card in the chat and on the note that marks it in the Galaxy
+     and the Timeline. Vivid enough for both themes, drawn translucent. */
+  --note-1: #ff8a3d;
+  --note-2: #ff4f9a;
+  --note-3: #ffd83d;
+  --note-4: #4fdc7a;
+  --note-5: #3fa9ff;
   --brand-mark-backdrop: transparent;
   --brand-mark-filter: contrast(1.25) saturate(1.35);
 

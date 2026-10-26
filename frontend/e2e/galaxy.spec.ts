@@ -784,50 +784,59 @@ async function askAbout(page: import("@playwright/test").Page, question: string)
   return source;
 }
 
-test("a document the chat found opens on the Timeline, even with no lane for its topic", async ({ page }) => {
+test("Show in Timeline marks the document with a sticky note, even with no lane for its topic", async ({ page }) => {
   await openSevenTopics(page, "c-timeline");
   await page.goto("/construct/library");
   const source = await askAbout(page, "volcano monitoring station basalt");
+  // Each result is colour-coded; the note will wear the same colour.
+  const colour = await source.getAttribute("data-colour");
+  expect(Number(colour)).toBeGreaterThan(0);
 
   await source.getByTestId("source-timeline").click();
-  await expect(page).toHaveURL(/\/construct\/timeline\?docs=/);
-  const banner = page.getByTestId("timeline-documents");
-  await expect(banner).toContainText("Showing 1 document");
-  await expect(banner).toContainText("Volcano Station");
-  await expect(banner.getByRole("link", { name: "Open" })).toBeVisible();
+  await expect(page).toHaveURL(/\/construct\/timeline\?mark=/);
+  const note = page.getByTestId("sticky-note").filter({ hasText: "Volcano Station" });
+  await expect(note).toBeVisible();
+  // It is drawn in a colour — the theme variable resolved, not dropped.
+  const background = await note.evaluate((el) => getComputedStyle(el).backgroundColor);
+  expect(background).not.toMatch(/^rgba?\(0, 0, 0(, 0)?\)$/);
+  // Everything is still there — the document is shown among its neighbours,
+  // and the window opens on its dates.
   await expect(page.getByTestId("timeline-event").filter({ hasText: "Mar 2024" })).toHaveCount(1);
-
-  // And back to everything.
-  await banner.getByRole("button", { name: "Show everything" }).click();
-  await expect(page.getByTestId("timeline-documents")).toHaveCount(0);
-  await expect(page.getByTestId("timeline-event").first()).toBeVisible();
+  await expect(page.getByTestId("timeline-window")).toContainText("2024");
 });
 
-test("On Timeline works when the Timeline is already open", async ({ page }) => {
+test("Show in Timeline works when the Timeline is already open", async ({ page }) => {
   await openSevenTopics(page, "c-timeline-here");
   await page.goto("/construct/timeline");
   await expect(page.getByTestId("timeline-event").first()).toBeVisible();
   const source = await askAbout(page, "volcano monitoring station basalt");
   await source.getByTestId("source-timeline").click();
-  await expect(page.getByTestId("timeline-documents")).toContainText("Volcano Station");
-  await expect(page.getByTestId("timeline-event")).toHaveCount(1);
+  await expect(page.getByTestId("sticky-note").filter({ hasText: "Volcano Station" })).toBeVisible();
 });
 
-test("a document the chat found opens in the Galaxy with its passage on the map", async ({ page }) => {
+test("Show in Galaxy marks the passage with a sticky note that stays until closed", async ({ page }) => {
   await openSevenTopics(page, "c-galaxy");
   await page.goto("/construct/library");
   const source = await askAbout(page, "volcano monitoring station basalt");
 
   await source.getByTestId("source-galaxy").click();
   await expect(page).toHaveURL(/\/construct\/galaxy/);
-  const banner = page.getByTestId("answer-map");
-  await expect(banner).toContainText("Showing: Volcano Station");
-  await expect(banner.getByRole("link", { name: "Open document" })).toBeVisible();
-  // Its topic is opened, so the passage itself is on the map.
+  // Its topic is opened, so the passage itself is on the map, and marked.
   await expect(page.getByRole("button", { name: /, fragment$/ }).first()).toBeAttached();
-  // And from here, the same document on the Timeline.
-  await banner.getByRole("link", { name: "On Timeline" }).click();
-  await expect(page.getByTestId("timeline-documents")).toContainText("Volcano Station");
+  const note = page.getByTestId("sticky-note").filter({ hasText: "Volcano Station" });
+  await expect(note).toBeAttached();
+
+  // It stays for the session: across pages, and back.
+  await page.goto("/construct/timeline");
+  await expect(page.getByTestId("sticky-note").filter({ hasText: "Volcano Station" })).toBeVisible();
+  await page.goto("/construct/galaxy");
+  await expect(note).toBeAttached();
+
+  // Until its × is pressed.
+  await page.getByRole("button", { name: "Close note Volcano Station" }).first().click();
+  await expect(page.getByTestId("sticky-note")).toHaveCount(0);
+  await page.goto("/construct/timeline");
+  await expect(page.getByTestId("sticky-note")).toHaveCount(0);
 });
 
 test("the chat window can be resized, and keeps its size", async ({ page }) => {

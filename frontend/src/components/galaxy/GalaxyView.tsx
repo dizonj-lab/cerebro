@@ -202,15 +202,15 @@ export function GalaxyView() {
   // the passage itself is on the map rather than hidden inside a cluster.
   const showSource = useCallback(
     (source: CerebroRecallSource) => {
-      const answer = documentAnswer(source);
-      showMe(answer);
-      const topic = answer.document.topic;
+      // The sticky note marks it; nothing else is dimmed, so it is seen in
+      // its neighbourhood.
+      const topic = documentAnswer(source).document.topic;
       if (topic) {
         setSelectedId(`topic:${topic}`);
         void expand(topic);
       }
     },
-    [showMe, expand],
+    [expand],
   );
   useEffect(() => {
     setRecallContext({ topic: selectedTopic, showMe, showSource });

@@ -8,6 +8,7 @@ import type { CerebroRecallAnswer, CerebroRecallSource } from "@/lib/api";
 import { createPersistedStore } from "@/lib/persistedStore";
 import { queueMap, useRecallContext, documentAnswer } from "@/lib/recallContext";
 import { streamRecall } from "@/lib/recallStream";
+import { colourFor, noteColour, noteFor, useStickyNotes } from "@/lib/stickyNotes";
 import { cn } from "@/lib/cn";
 
 /**
@@ -51,6 +52,7 @@ interface Turn {
  */
 export function RecallChat() {
   const { topic, showMe, showSource } = useRecallContext();
+  const notes = useStickyNotes();
   const router = useRouter();
   const pathname = usePathname();
   const [win, setWin] = useRecallWindow();
@@ -74,8 +76,18 @@ export function RecallChat() {
     if (!follow.current) return;
     requestAnimationFrame(() => log.current?.scrollTo({ top: log.current.scrollHeight }));
   }
-
+  // A result shown in the Galaxy or the Timeline is marked there with a
+  // sticky note in its colour, which stays until closed or the session ends.
+  // The Timeline is opened on everything, zoomed to the marked documents
+  // (?mark=), rather than filtered to them: where a document sits is the
+  // point, and that needs its neighbours.
+  function timelineFor(sources: CerebroRecallSource[]) {
+    notes.add(sources.map(noteFor));
+    const ids = [...new Set(sources.map((s) => s.artifact_id))];
+    router.push(`/construct/timeline?${new URLSearchParams({ mark: ids.join(",") })}`);
+  }
   function onShowMe(reply: CerebroRecallAnswer) {
+    notes.add(reply.sources.map(noteFor));
     if (showMe && pathname?.startsWith("/construct/galaxy")) {
       showMe(reply);
       return;
@@ -83,27 +95,11 @@ export function RecallChat() {
     queueMap(reply);
     router.push("/construct/galaxy");
   }
-  // The Timeline is opened on the documents themselves, by id. It used to be
-  // opened on the answer's topic, which found nothing whenever that topic
-  // was not one of the six the Timeline has lanes for.
-  function timelineFor(sources: CerebroRecallSource[], question: string | null) {
-    const ids = [...new Set(sources.map((s) => s.artifact_id))];
-    // Titles travel with the ids, so a document that dates nothing is still named.
-    const names = ids.map((id) => {
-      const source = sources.find((s) => s.artifact_id === id)!;
-      return source.title || source.filename;
-    });
-    const query = new URLSearchParams({ docs: ids.join(","), names: JSON.stringify(names) });
-    if (question) query.set("about", question.slice(0, 120));
-    router.push(`/construct/timeline?${query}`);
-  }
-  function onTimeline(reply: CerebroRecallAnswer, question: string) {
-    // Quoted sources first: those are what the answer rests on.
-    const cited = new Set(reply.cited ?? []);
-    const ordered = [...reply.sources].sort((a, b) => Number(cited.has(b.index)) - Number(cited.has(a.index)));
-    timelineFor(ordered, question);
+  function onTimeline(reply: CerebroRecallAnswer) {
+    timelineFor(reply.sources);
   }
   function onSourceGalaxy(source: CerebroRecallSource) {
+    notes.add([noteFor(source)]);
     if (showSource && pathname?.startsWith("/construct/galaxy")) {
       showSource(source);
       return;
@@ -302,9 +298,9 @@ export function RecallChat() {
               <Reply
                 reply={turn.reply}
                 onShowMe={onShowMe}
-                onTimeline={(reply) => onTimeline(reply, turn.question)}
+                onTimeline={onTimeline}
                 onSourceGalaxy={onSourceGalaxy}
-                onSourceTimeline={(source) => timelineFor([source], turn.question)}
+                onSourceTimeline={(source) => timelineFor([source])}
               />
             ) : (
               <p className="text-[0.75rem] text-scene-ink/40">Searching your library…</p>
@@ -382,7 +378,7 @@ function Reply({
               onClick={() => onShowMe(reply)}
               className="rounded-md border border-sky-400/40 px-2 py-1 text-[0.6875rem] font-medium text-sky-300 transition-colors hover:bg-sky-400/10"
             >
-              Show me on the map
+              Show all in Galaxy
             </button>
           )}
           {onTimeline && (
@@ -392,7 +388,7 @@ function Reply({
               onClick={() => onTimeline(reply)}
               className="rounded-md border border-scene-ink/20 px-2 py-1 text-[0.6875rem] font-medium text-scene-ink/80 transition-colors hover:bg-scene-ink/10"
             >
-              See on the timeline
+              Show all in Timeline
             </button>
           )}
         </div>
@@ -404,7 +400,10 @@ function Reply({
         <div
           key={source.fragment_id}
           data-testid="chat-source"
-          className="rounded-md border border-scene-ink/10 p-2 transition-colors hover:border-scene-ink/25"
+          data-colour={colourFor(source.index)}
+          // Its colour, on the left edge: the same as the note that marks it.
+          style={{ borderLeftColor: noteColour(colourFor(source.index)) }}
+          className="rounded-md border border-l-4 border-scene-ink/10 p-2 transition-colors hover:border-scene-ink/25"
         >
           <a
             href={api.artifactContentUrl(source.artifact_id)}
@@ -412,8 +411,14 @@ function Reply({
             rel="noopener noreferrer"
             className="block"
           >
-            <span className="block text-[0.6875rem] font-medium text-sky-300">
-              [{source.index}] {source.title || source.filename}
+            <span className="block text-[0.6875rem] font-medium text-scene-ink">
+              <span
+                className="mr-1 inline-grid size-4 place-items-center rounded-sm text-[0.5625rem] font-bold text-black/80"
+                style={{ background: noteColour(colourFor(source.index)) }}
+              >
+                {source.index}
+              </span>
+              {source.title || source.filename}
               {source.source_location?.page ? ` · page ${source.source_location.page}` : ""}
             </span>
             <span className="mt-0.5 block line-clamp-2 text-[0.6875rem] leading-relaxed text-scene-ink/55">
@@ -436,7 +441,7 @@ function Reply({
                 onClick={() => onSourceGalaxy(source)}
                 className="rounded border border-scene-ink/15 px-1.5 py-0.5 text-[0.625rem] text-scene-ink/75 hover:bg-scene-ink/10"
               >
-                In Galaxy
+                Show in Galaxy
               </button>
             )}
             {onSourceTimeline && (
@@ -446,7 +451,7 @@ function Reply({
                 onClick={() => onSourceTimeline(source)}
                 className="rounded border border-scene-ink/15 px-1.5 py-0.5 text-[0.625rem] text-scene-ink/75 hover:bg-scene-ink/10"
               >
-                On Timeline
+                Show in Timeline
               </button>
             )}
           </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { EventPanel } from "@/components/timeline/EventPanel";
@@ -19,6 +19,7 @@ import { api, ApiError } from "@/lib/api";
 import type { CerebroAnchor, CerebroTimeline, CerebroTimelineEventDetail } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { createPersistedStore } from "@/lib/persistedStore";
+import { noteColour, useStickyNotes } from "@/lib/stickyNotes";
 
 /**
  * How the reader left the Timeline: filters, references shown or not, the
@@ -111,6 +112,10 @@ export function TimelineView() {
   const docsParam = params.get("docs") ?? "";
   const docs = docsParam ? docsParam.split(",").filter(Boolean) : null;
   const about = params.get("about");
+  // Documents to zoom to and mark (sent by "Show in Timeline"): unlike
+  // ?docs=, nothing is filtered out — they are shown among their neighbours.
+  const markParam = params.get("mark") ?? "";
+  const stickies = useStickyNotes();
   const names = useMemo(() => {
     try {
       const parsed = JSON.parse(params.get("names") ?? "[]");
@@ -176,21 +181,35 @@ export function TimelineView() {
 
   // The first load decides the window; later ones leave it alone, so
   // filtering does not throw away where the user had navigated to.
+  // The summary message shows when the results change, then fades.
+  const [announce, setAnnounce] = useState(false);
+  useEffect(() => {
+    if (!data) return;
+    const show = setTimeout(() => setAnnounce(true), 0);
+    const hide = setTimeout(() => setAnnounce(false), 3500);
+    return () => {
+      clearTimeout(show);
+      clearTimeout(hide);
+    };
+  }, [data]);
+
   // Showing or hiding references changes the range itself, so it refits.
   // The first load reopens the window the reader left, if there was one.
   const fitted = useRef(false);
   // New documents to show: fit the window to them when their events arrive.
-  const shownDocs = useRef(docsParam);
-  if (shownDocs.current !== docsParam) {
-    shownDocs.current = docsParam;
+  const shownDocs = useRef(`${docsParam}|${markParam}`);
+  if (shownDocs.current !== `${docsParam}|${markParam}`) {
+    shownDocs.current = `${docsParam}|${markParam}`;
     fitted.current = false;
   }
   useEffect(() => {
     if (!data || fitted.current) return;
     fitted.current = true;
     const saved =
-      !docsParam && view.windowFrom !== null && view.windowTo !== null && view.windowTo > view.windowFrom;
-    setWindow(saved ? { from: view.windowFrom!, to: view.windowTo! } : fitAll(data));
+      !docsParam && !markParam && view.windowFrom !== null && view.windowTo !== null && view.windowTo > view.windowFrom;
+    setWindow(
+      markedWindow(data, markParam) ?? (saved ? { from: view.windowFrom!, to: view.windowTo! } : fitAll(data)),
+    );
     // Only the first load decides; later changes to the store are our own writes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
@@ -206,6 +225,17 @@ export function TimelineView() {
   function toggleReferences() {
     fitted.current = false;
     remember({ references: !references, windowFrom: null, windowTo: null });
+  }
+
+  /** Marked documents open on their dates, with room either side. */
+  function markedWindow(body: CerebroTimeline, mark: string): Window | null {
+    const ids = mark ? mark.split(",") : [];
+    const times = body.events.filter((e) => ids.includes(e.artifact_id)).map((e) => dateMs(e.date));
+    if (!times.length) return null;
+    const from = Math.min(...times);
+    const to = Math.max(...times);
+    const pad = Math.max((to - from) * 0.25, YEAR / 2);
+    return { from: from - pad, to: to + pad };
   }
 
   function fitAll(body: CerebroTimeline): Window | null {
@@ -450,25 +480,18 @@ export function TimelineView() {
 
   return (
     <div className="flex h-[calc(100dvh-7.5rem)] min-h-0 flex-col gap-2 text-scene-ink">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Timeline</h1>
-          <p className="text-sm text-scene-ink/55">Explore the evolution of your knowledge over time</p>
-        </div>
-        <div className="flex items-center gap-1 rounded-lg border border-scene-ink/10 bg-scene-ink/5 p-0.5 text-xs">
-          <span className="rounded-md bg-sky-500 px-3 py-1.5 font-medium text-on-bright">Timeline</span>
-          <Link href="/construct/galaxy" className="rounded-md px-3 py-1.5 text-scene-ink/65 hover:text-scene-ink">
-            Galaxy
-          </Link>
-        </div>
-      </header>
-
-      <div className="flex flex-wrap items-center gap-2 text-xs">
+      {/* One compact bar: title, filters, references and the view switch, so
+          the timeline itself gets the height. The summary that used to take a
+          line of its own is a passing message over the canvas instead. */}
+      <header className="flex flex-wrap items-center gap-2 text-xs">
+        <h1 className="mr-1 text-xl font-semibold tracking-tight" title="Explore the evolution of your knowledge over time">
+          Timeline
+        </h1>
         <select
           aria-label="Category"
           value={categories[0] ?? ""}
           onChange={(e) => setCategories(e.target.value ? [e.target.value] : [])}
-          className="rounded-lg border border-scene-ink/10 bg-scene-ink/5 px-3 py-2 text-scene-ink outline-none"
+          className="rounded-lg border border-scene-ink/10 bg-scene-ink/5 px-2.5 py-1.5 text-scene-ink outline-none"
         >
           <option value="">All Categories</option>
           {lanes.map((lane) => (
@@ -480,7 +503,7 @@ export function TimelineView() {
           aria-label="Source"
           value={source}
           onChange={(e) => setSource(e.target.value)}
-          className="max-w-[12rem] rounded-lg border border-scene-ink/10 bg-scene-ink/5 px-3 py-2 text-scene-ink outline-none"
+          className="max-w-[12rem] rounded-lg border border-scene-ink/10 bg-scene-ink/5 px-2.5 py-1.5 text-scene-ink outline-none"
         >
           <option value="">All Sources</option>
           {(data?.sources ?? []).map(([id, filename]) => (
@@ -495,7 +518,7 @@ export function TimelineView() {
             setEntityType(e.target.value);
             setEntity("");
           }}
-          className="rounded-lg border border-scene-ink/10 bg-scene-ink/5 px-3 py-2 text-scene-ink outline-none"
+          className="rounded-lg border border-scene-ink/10 bg-scene-ink/5 px-2.5 py-1.5 text-scene-ink outline-none"
         >
           <option value="">All Entity Types</option>
           {Object.keys(data?.entity_values ?? {}).map((field) => (
@@ -508,7 +531,7 @@ export function TimelineView() {
             aria-label="Entity"
             value={entity}
             onChange={(e) => setEntity(e.target.value)}
-            className="max-w-[12rem] rounded-lg border border-scene-ink/10 bg-scene-ink/5 px-3 py-2 text-scene-ink outline-none"
+            className="max-w-[12rem] rounded-lg border border-scene-ink/10 bg-scene-ink/5 px-2.5 py-1.5 text-scene-ink outline-none"
           >
             <option value="">Any</option>
             {(data?.entity_values?.[entityType] ?? []).map((value) => (
@@ -524,7 +547,7 @@ export function TimelineView() {
             aria-label="From date"
             value={start}
             onChange={(e) => setStart(e.target.value)}
-            className="rounded-lg border border-scene-ink/10 bg-scene-ink/5 px-2 py-2 text-scene-ink outline-none"
+            className="rounded-lg border border-scene-ink/10 bg-scene-ink/5 px-2 py-1.5 text-scene-ink outline-none"
           />
         </label>
         <label className="flex items-center gap-1.5 text-scene-ink/55">
@@ -534,50 +557,43 @@ export function TimelineView() {
             aria-label="To date"
             value={end}
             onChange={(e) => setEnd(e.target.value)}
-            className="rounded-lg border border-scene-ink/10 bg-scene-ink/5 px-2 py-2 text-scene-ink outline-none"
+            className="rounded-lg border border-scene-ink/10 bg-scene-ink/5 px-2 py-1.5 text-scene-ink outline-none"
           />
         </label>
 
         <button
           type="button"
           onClick={reset}
-          className="rounded-lg border border-scene-ink/10 px-3 py-2 text-scene-ink/70 hover:text-scene-ink"
+          className="rounded-lg border border-scene-ink/10 px-2.5 py-1.5 text-scene-ink/70 hover:text-scene-ink"
         >
           Reset
         </button>
 
-        {data && (
-          <span className="ml-auto flex items-center gap-2 text-scene-ink/55" data-testid="timeline-summary">
-            <span>
-              <span className="font-medium text-scene-ink">{data.total}</span> event
-              {data.total === 1 ? "" : "s"}
+
+        {data && data.references.total > 0 && (
+          <span className="flex items-center gap-1.5 text-scene-ink/55">
+            <span data-testid="timeline-references">
+              {data.references.total} reference{data.references.total === 1 ? "" : "s"}{" "}
+              {data.references.included ? "shown" : "hidden"}
             </span>
-            {data.references.total > 0 && (
-              <>
-                <span aria-hidden="true">·</span>
-                <span data-testid="timeline-references">
-                  {data.references.total} reference{data.references.total === 1 ? "" : "s"}{" "}
-                  {data.references.included ? "shown" : "hidden"}
-                </span>
-                <button
-                  type="button"
-                  onClick={toggleReferences}
-                  title="Dates a document cites — a paper's year, a link's path — rather than states as something that happened."
-                  className="rounded-md border border-scene-ink/15 px-2 py-0.5 text-scene-ink/75 hover:text-scene-ink"
-                >
-                  {data.references.included ? "Hide" : "Show"}
-                </button>
-              </>
-            )}
-            <span
-              className="text-scene-ink/30"
-              title={`${data.extraction.method} v${data.extraction.version} · ${Math.round(data.took_ms)} ms`}
+            <button
+              type="button"
+              onClick={toggleReferences}
+              title="Dates a document cites — a paper's year, a link's path — rather than states as something that happened."
+              className="rounded-md border border-scene-ink/15 px-2 py-1 text-scene-ink/75 hover:text-scene-ink"
             >
-              · dates read from the text ({data.extraction.method})
-            </span>
+              {data.references.included ? "Hide" : "Show"}
+            </button>
           </span>
         )}
-      </div>
+
+        <div className="ml-auto flex items-center gap-1 rounded-lg border border-scene-ink/10 bg-scene-ink/5 p-0.5">
+          <span className="rounded-md bg-sky-500 px-3 py-1 font-medium text-on-bright">Timeline</span>
+          <Link href="/construct/galaxy" className="rounded-md px-3 py-1 text-scene-ink/65 hover:text-scene-ink">
+            Galaxy
+          </Link>
+        </div>
+      </header>
 
       {docs && (
         <DocumentsBanner
@@ -596,7 +612,48 @@ export function TimelineView() {
           aria-label="Knowledge timeline"
           className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-scene-ink/10 bg-scene"
         >
+          {/* What the last search found, said in passing: it appears when
+              the results change and fades after a few seconds. */}
+          {data && (
+            <p
+              data-testid="timeline-summary"
+              aria-live="polite"
+              title={`${data.extraction.method} v${data.extraction.version} · ${Math.round(data.took_ms)} ms`}
+              className={cn(
+                "pointer-events-none absolute left-1/2 top-12 z-40 -translate-x-1/2 whitespace-nowrap rounded-full bg-scene-raised/80 px-3 py-1 text-xs text-scene-ink/80 shadow-lg backdrop-blur transition-opacity duration-700",
+                announce ? "opacity-100" : "opacity-0",
+              )}
+            >
+              <span className="font-medium text-scene-ink">{data.total}</span> event{data.total === 1 ? "" : "s"}
+              {data.references.total > 0 &&
+                ` · ${data.references.total} reference${data.references.total === 1 ? "" : "s"} ${data.references.included ? "shown" : "hidden"}`}
+              {` · dates read from the text (${data.extraction.method})`}
+            </p>
+          )}
           {error && <p className="p-4 text-sm text-rose-300">{error}</p>}
+          {/* Notes whose document has no dated event here say so, rather than vanishing. */}
+          {data && stickies.notes.some((n) => !data.events.some((e) => e.artifact_id === n.id)) && (
+            <div className="absolute bottom-24 left-3 z-30 flex max-w-sm flex-col gap-1">
+              {stickies.notes
+                .filter((n) => !data.events.some((e) => e.artifact_id === n.id))
+                .map((n) => (
+                  <span
+                    key={n.id}
+                    data-testid="sticky-note-tray"
+                    style={{ background: `color-mix(in srgb, ${noteColour(n.colour)} 55%, transparent)` }}
+                    className="flex items-center gap-1.5 rounded px-2 py-1 text-[0.6875rem] text-scene-ink"
+                  >
+                    <button type="button" aria-label={`Close note ${n.title}`} onClick={() => stickies.remove(n.id)} className="font-bold">
+                      ×
+                    </button>
+                    <span className="truncate">{n.title}</span>
+                    <span className="shrink-0 text-scene-ink/60">
+                      · {data.references.hidden > 0 && !data.references.included ? "no dated events (references hidden)" : "no dated events here"}
+                    </span>
+                  </span>
+                ))}
+            </div>
+          )}
           {!error && loading && !data && <p className="p-4 text-sm text-scene-ink/50">Reading your knowledge…</p>}
           {!error && data && data.total === 0 && (
             <div className="p-6 text-sm" data-testid="timeline-empty">
@@ -728,6 +785,8 @@ export function TimelineView() {
 
                 {lanes.map((lane) => {
                   const placed = visible.get(lane.name) ?? [];
+                  // One flag per marked document per lane, on its first card.
+                  const flagged = new Set<string>();
                   const count = lane.count;
                   // A lane with nothing in it is a row of noise.
                   if (count === 0) return null;
@@ -751,13 +810,52 @@ export function TimelineView() {
                       {placed.map(({ event, left, row, flipped }) => {
                         const dimmed = related !== null && !related.has(event.id);
                         const cited = event.kind === "reference";
+                        const note = stickies.notes.find((n) => n.id === event.artifact_id);
+                        const flag = note && !flagged.has(note.id);
+                        if (note) flagged.add(note.id);
+                        // The card's left edge as a share of the width, whichever way it opens.
+                        const cardLeft = flipped ? left - (CARD_WIDTH_PX / Math.max(width, 1)) * 100 : left;
+                        const flagOnRight = cardLeft < 18;
                         return (
+                          <Fragment key={event.id}>
+                          {flag && note && (
+                            <span
+                              data-testid="sticky-note"
+                              data-note={note.id}
+                              onPointerDown={(e) => e.stopPropagation()}
+                              style={{
+                                top: `${LANE_HEADER_PX + row * ROW_HEIGHT_PX + 10}px`,
+                                ...(flagOnRight
+                                  ? { left: `calc(${cardLeft + (CARD_WIDTH_PX / Math.max(width, 1)) * 100}% + 4px)` }
+                                  : { right: `calc(${100 - cardLeft}% + 4px)` }),
+                                background: `color-mix(in srgb, ${noteColour(note.colour)} 60%, transparent)`,
+                                clipPath: flagOnRight
+                                  ? "polygon(10px 0, 100% 0, 100% 100%, 10px 100%, 0 50%)"
+                                  : "polygon(0 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 0 100%)",
+                              }}
+                              className={cn(
+                                "absolute z-30 flex h-5 max-w-[11rem] items-center gap-1 text-[0.6875rem] font-semibold text-scene-ink",
+                                flagOnRight ? "pl-3 pr-2" : "pl-1.5 pr-3",
+                              )}
+                            >
+                              <button
+                                type="button"
+                                aria-label={`Close note ${note.title}`}
+                                onClick={() => stickies.remove(note.id)}
+                                className="px-0.5 font-bold"
+                              >
+                                ×
+                              </button>
+                              <span className="truncate">{note.title}</span>
+                            </span>
+                          )}
                           <button
-                            key={event.id}
                             type="button"
                             style={{
                               ...(flipped ? { right: `${100 - left}%` } : { left: `${left}%` }),
                               top: `${LANE_HEADER_PX + row * ROW_HEIGHT_PX}px`,
+                              // A marked document's cards wear its colour.
+                              ...(note ? { borderColor: noteColour(note.colour), borderWidth: 2 } : {}),
                             }}
                             onPointerDown={(e) => e.stopPropagation()}
                             onClick={() => setSelected(event)}
@@ -811,6 +909,7 @@ export function TimelineView() {
                               {event.title}
                             </span>
                           </button>
+                          </Fragment>
                         );
                       })}
                     </div>

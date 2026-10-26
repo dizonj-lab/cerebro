@@ -10,7 +10,13 @@
  */
 import { useCallback, useSyncExternalStore } from "react";
 
-export function createPersistedStore<T extends Record<string, unknown>>(key: string, defaults: T) {
+export function createPersistedStore<T extends Record<string, unknown>>(
+  key: string,
+  defaults: T,
+  /** "session" forgets the value when the browser session ends. */
+  scope: "local" | "session" = "local",
+) {
+  const storage = () => (scope === "session" ? window.sessionStorage : window.localStorage);
   const listeners = new Set<() => void>();
   let snapshot: T | undefined;
 
@@ -33,7 +39,7 @@ export function createPersistedStore<T extends Record<string, unknown>>(key: str
   function read(): T {
     if (snapshot) return snapshot;
     try {
-      snapshot = sane(JSON.parse(window.localStorage.getItem(key) ?? "null"));
+      snapshot = sane(JSON.parse(storage().getItem(key) ?? "null"));
     } catch {
       snapshot = defaults;
     }
@@ -43,7 +49,7 @@ export function createPersistedStore<T extends Record<string, unknown>>(key: str
   function write(next: T) {
     snapshot = next;
     try {
-      window.localStorage.setItem(key, JSON.stringify(next));
+      storage().setItem(key, JSON.stringify(next));
     } catch {
       // Not remembered, but the page still works.
     }
