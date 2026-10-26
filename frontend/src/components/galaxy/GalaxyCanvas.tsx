@@ -5,7 +5,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { layout, reachOf, VIEWBOX } from "@/components/galaxy/layout";
 import { colorFor, hueFor } from "@/components/galaxy/palette";
 import { api } from "@/lib/api";
-import { ApiError } from "@/lib/api";
+import { useGalaxyLayout } from "@/lib/galaxyLayoutState";
 import type { CerebroGalaxy, CerebroLens, GraphEdge, GraphNode, SimilaritySpace } from "@/lib/api";
 import { cn } from "@/lib/cn";
 
@@ -30,6 +30,9 @@ interface GalaxyCanvasProps {
   expandedTopic: string | null;
   onSelect: (node: GraphNode) => void;
   onExpand: (topic: string | null) => void;
+  /** Where a typed idea would land, placed by the page's what-if bar. */
+  lens?: CerebroLens | null;
+  onClearLens?: () => void;
 }
 
 /**
@@ -59,31 +62,14 @@ export function GalaxyCanvas({
   expandedTopic,
   onSelect,
   onExpand,
+  lens = null,
+  onClearLens,
 }: GalaxyCanvasProps) {
   const [view, setView] = useState({ scale: 1, x: 0, y: 0, angle: 0 });
   const [hovered, setHovered] = useState<string | null>(null);
   const [hoveredEdge, setHoveredEdge] = useState<GraphEdge | null>(null);
-  // The what-if lens: a piece of text placed among the topics by the same
-  // model that embedded the library. Nothing is stored.
-  const [lens, setLens] = useState<CerebroLens | null>(null);
-  const [lensText, setLensText] = useState("");
-  const [lensBusy, setLensBusy] = useState(false);
-  const [lensError, setLensError] = useState<string | null>(null);
-
-  async function placeText(event: React.FormEvent) {
-    event.preventDefault();
-    const text = lensText.trim();
-    if (text.length < 2) return;
-    setLensBusy(true);
-    setLensError(null);
-    try {
-      setLens(await api.lens(text));
-    } catch (e) {
-      setLensError(e instanceof ApiError ? e.message : "Could not place that text.");
-    } finally {
-      setLensBusy(false);
-    }
-  }
+  // Hovering the placed idea opens its details, even when the window is folded.
+  const [lensPeek, setLensPeek] = useState(false);
   const drag = useRef<{
     mode: "pan" | "rotate";
     x: number;
@@ -103,9 +89,27 @@ export function GalaxyCanvas({
   const nodeDrag = useRef<{ id: string; x: number; y: number; ox: number; oy: number } | null>(
     null,
   );
+  // A drag ends with a click on the same node. Without this, dragging an
+  // opened topic also closed it, and its passages vanished mid-move.
+  const justDragged = useRef(false);
 
   const positions = useMemo(() => {
     const base = layout(graph.nodes, expandedTopic, graph.edges);
+    // An opened topic carries its passages with it when dragged, so they stay
+    // readable as its own. A passage the user dragged separately stays where
+    // they put it.
+    const parentId = expandedTopic ? `topic:${expandedTopic}` : null;
+    const parent = parentId ? base.get(parentId) : undefined;
+    const carried = parentId && parent && moved[parentId];
+    const dx = carried ? moved[parentId].x - parent.x : 0;
+    const dy = carried ? moved[parentId].y - parent.y : 0;
+    if (dx || dy) {
+      for (const [id, point] of base) {
+        if (point.node.type === "fragment" && !moved[id]) {
+          base.set(id, { ...point, x: point.x + dx, y: point.y + dy });
+        }
+      }
+    }
     for (const [id, point] of Object.entries(moved)) {
       const existing = base.get(id);
       if (existing) base.set(id, { ...existing, ...point });
@@ -215,7 +219,7 @@ export function GalaxyCanvas({
   const hoveredPoint = hovered ? positions.get(hovered) : undefined;
 
   return (
-    <div className="relative size-full overflow-hidden bg-scene">
+    <div className="relative size-full overflow-hidden bg-scene" data-canvas-frame>
       {/* A still backdrop rather than an animated starfield: atmosphere
           without a compositing loop running behind every interaction. */}
       <div
@@ -379,7 +383,7 @@ export function GalaxyCanvas({
             );
           })}
 
-          {lens && <LensMark lens={lens} targets={lensTargets} positions={positions} angle={view.angle} />}
+
 
           {[...positions.values()].map(({ node, x, y, radius }) => {
             const lit = !connected || connected.has(node.id);
@@ -434,12 +438,17 @@ export function GalaxyCanvas({
                   // A press that did not move is a click, not a drag.
                   if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > 4) {
                     event.stopPropagation();
+                    justDragged.current = true;
                   }
                 }}
                 onFocus={() => setHovered(node.id)}
                 onBlur={() => setHovered(null)}
                 onClick={(event) => {
                   event.stopPropagation();
+                  if (justDragged.current) {
+                    justDragged.current = false;
+                    return;
+                  }
                   onSelect(node);
                   if (node.type === "cluster") {
                     onExpand(expandedTopic === node.label ? null : node.label);
@@ -491,6 +500,17 @@ export function GalaxyCanvas({
               </g>
             );
           })}
+          {/* Drawn last, above the topics, so the idea can always be hovered
+              even when it lands right on top of one. */}
+          {lens && (
+            <LensMark
+              lens={lens}
+              targets={lensTargets}
+              positions={positions}
+              angle={view.angle}
+              onPeek={setLensPeek}
+            />
+          )}
         </g>
       </svg>
 
@@ -535,49 +555,7 @@ export function GalaxyCanvas({
 
       <Legend graph={graph} />
 
-      {/* The what-if lens. Typed text is embedded by the library's own model
-          — on the GPU where the local Ollama serves it — and placed among
-          the topics. Nothing is stored. */}
-      <form
-        onSubmit={placeText}
-        className="absolute left-1/2 top-3 z-20 flex w-[min(28rem,60%)] -translate-x-1/2 items-center gap-1.5 rounded-full border border-scene-ink/15 bg-scene-raised/90 py-1 pl-3.5 pr-1 shadow-lg backdrop-blur"
-      >
-        <span aria-hidden="true" className="text-xs text-scene-ink/45">What if…</span>
-        <input
-          value={lensText}
-          onChange={(e) => setLensText(e.target.value)}
-          placeholder="type an idea to see where it would land"
-          aria-label="Place an idea in your Galaxy"
-          maxLength={1000}
-          className="min-w-0 flex-1 bg-transparent py-1 text-xs text-scene-ink outline-none placeholder:text-scene-ink/35"
-        />
-        {lens ? (
-          <button
-            type="button"
-            onClick={() => {
-              setLens(null);
-              setLensText("");
-            }}
-            className="rounded-full px-3 py-1 text-xs text-scene-ink/70 hover:text-scene-ink"
-          >
-            Clear
-          </button>
-        ) : (
-          <button
-            type="submit"
-            disabled={lensBusy || lensText.trim().length < 2}
-            className="rounded-full bg-scene-ink/10 px-3 py-1 text-xs font-medium text-scene-ink transition-colors hover:bg-scene-ink/20 disabled:opacity-40"
-          >
-            {lensBusy ? "Placing…" : "Place"}
-          </button>
-        )}
-      </form>
-      {lensError && (
-        <p className="absolute left-1/2 top-14 z-20 -translate-x-1/2 rounded-md bg-scene-raised/95 px-3 py-1.5 text-xs text-rose-400">
-          {lensError}
-        </p>
-      )}
-      {lens && <LensCard lens={lens} />}
+      {lens && <LensCard lens={lens} peek={lensPeek} onClose={() => onClearLens?.()} />}
     </div>
   );
 }
@@ -603,11 +581,13 @@ function LensMark({
   targets,
   positions,
   angle,
+  onPeek,
 }: {
   lens: CerebroLens;
   targets: CerebroLens["topics"];
   positions: Map<string, { x: number; y: number }>;
   angle: number;
+  onPeek: (open: boolean) => void;
 }) {
   const points = targets.map((t) => ({ t, p: positions.get(t.id)! }));
   const total = points.reduce((sum, { t }) => sum + t.similarity, 0);
@@ -640,7 +620,15 @@ function LensMark({
           </g>
         </g>
       ))}
-      <g transform={`translate(${at.x} ${at.y}) rotate(${-angle})`}>
+      <g
+        transform={`translate(${at.x} ${at.y}) rotate(${-angle})`}
+        onPointerEnter={() => onPeek(true)}
+        onPointerLeave={() => onPeek(false)}
+        data-testid="lens-node"
+        className="cursor-help"
+      >
+        {/* A wider target than the diamond, so hovering it is easy. */}
+        <circle r={16} fill="transparent" />
         <rect x={-7} y={-7} width={14} height={14} transform="rotate(45)" style={{ fill: INK }} opacity={0.9} />
         <text y={22} textAnchor="middle" style={{ fontSize: 11, fontWeight: 600, fill: LABEL }}>
           “{label}”
@@ -650,45 +638,147 @@ function LensMark({
   );
 }
 
-/** What the lens found, in words: the placement, the closest topics, the nearest passages. */
-function LensCard({ lens }: { lens: CerebroLens }) {
+/**
+ * Drag a floating window by its header, inside the canvas.
+ *
+ * A press that does not move is left alone, so the header's own buttons
+ * still work; only a real drag moves the window.
+ */
+function useWindowDrag(
+  x: number,
+  y: number,
+  onMove: (x: number, y: number) => void,
+): (event: React.PointerEvent<HTMLElement>) => void {
+  return (event) => {
+    if ((event.target as Element).closest("button")) return;
+    const box = (event.currentTarget.closest("[data-floating]") as HTMLElement | null)?.getBoundingClientRect();
+    const frame = (event.currentTarget.closest("[data-canvas-frame]") as HTMLElement | null)?.getBoundingClientRect();
+    if (!box || !frame) return;
+    event.preventDefault();
+    const start = { px: event.clientX, py: event.clientY, x, y };
+    const move = (e: PointerEvent) => {
+      const nx = start.x + e.clientX - start.px;
+      const ny = start.y + e.clientY - start.py;
+      // Kept inside the canvas, with its header always reachable.
+      onMove(
+        Math.round(Math.min(Math.max(0, nx), frame.width - box.width)),
+        Math.round(Math.min(Math.max(0, ny), frame.height - 32)),
+      );
+    };
+    const stop = () => {
+      globalThis.removeEventListener("pointermove", move);
+      globalThis.removeEventListener("pointerup", stop);
+    };
+    globalThis.addEventListener("pointermove", move);
+    globalThis.addEventListener("pointerup", stop);
+  };
+}
+
+/**
+ * What the lens found: the placement, the closest topics, the nearest passages.
+ *
+ * A window the user can move, or fold to a tab on the left edge. Folded, it
+ * stays out of the map's way, and hovering the placed idea — or the tab —
+ * opens it for as long as the pointer is there.
+ */
+function LensCard({ lens, peek, onClose }: { lens: CerebroLens; peek: boolean; onClose: () => void }) {
+  const [layout, arrange] = useGalaxyLayout();
+  const [hoverTab, setHoverTab] = useState(false);
+  const startDrag = useWindowDrag(layout.lensX, layout.lensY, (x, y) => arrange({ lensX: x, lensY: y }));
   const shown = lens.topics.slice(0, 5);
+  const open = !layout.lensMinimized || peek || hoverTab;
+
   return (
-    <div
-      data-testid="lens-card"
-      // Top right, clear of the legend on the left and the controls below.
-      className="absolute right-3 top-14 z-20 w-72 rounded-lg border border-scene-ink/15 bg-scene-raised/95 p-3 text-xs shadow-xl backdrop-blur"
-    >
-      <p className="font-medium text-scene-ink">{lens.placement}</p>
-      <ul className="mt-2 space-y-1">
-        {shown.map((t) => (
-          <li key={t.id} className="flex items-center gap-2">
-            <span className="w-24 truncate text-scene-ink/75">{t.label}</span>
-            <span className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-scene-ink/10">
-              <span
-                className="absolute inset-y-0 left-0 rounded-full"
-                style={{ width: `${Math.max(2, t.similarity * 100)}%`, background: colorFor(t.label), opacity: t.above_typical ? 0.9 : 0.35 }}
-              />
+    <>
+      {layout.lensMinimized && (
+        <button
+          type="button"
+          data-testid="lens-tab"
+          onClick={() => arrange({ lensMinimized: false })}
+          onPointerEnter={() => setHoverTab(true)}
+          onPointerLeave={() => setHoverTab(false)}
+          className="absolute left-0 top-1/2 z-20 -translate-y-1/2 rounded-r-lg border border-l-0 border-scene-ink/15 bg-scene-raised/95 px-1.5 py-3 text-[0.6875rem] font-medium text-scene-ink/80 shadow-lg [writing-mode:vertical-rl] hover:text-scene-ink"
+        >
+          What if ◂
+        </button>
+      )}
+      {open && (
+        <div
+          data-floating
+          data-testid="lens-card"
+          className="absolute z-30 w-72 rounded-lg border border-scene-ink/15 bg-scene-raised/95 text-xs shadow-xl backdrop-blur"
+          style={
+            layout.lensMinimized
+              ? { left: 40, top: "50%", transform: "translateY(-50%)" }
+              : { left: layout.lensX, top: layout.lensY }
+          }
+          onPointerEnter={() => layout.lensMinimized && setHoverTab(true)}
+          onPointerLeave={() => setHoverTab(false)}
+        >
+          <div
+            onPointerDown={layout.lensMinimized ? undefined : startDrag}
+            className={cn(
+              "flex items-center justify-between gap-2 border-b border-scene-ink/10 px-3 py-1.5",
+              !layout.lensMinimized && "cursor-move",
+            )}
+          >
+            <span className="truncate font-semibold text-scene-ink/85">What if “{lens.text}”</span>
+            <span className="flex shrink-0 items-center">
+              <button
+                type="button"
+                aria-label={layout.lensMinimized ? "Keep the what-if window open" : "Minimise the what-if window"}
+                onClick={() => {
+                  arrange({ lensMinimized: !layout.lensMinimized });
+                  setHoverTab(false);
+                }}
+                className="rounded px-1.5 text-scene-ink/50 hover:text-scene-ink"
+              >
+                {layout.lensMinimized ? "▸" : "−"}
+              </button>
+              <button
+                type="button"
+                aria-label="Clear the what-if"
+                onClick={onClose}
+                className="rounded px-1.5 text-scene-ink/50 hover:text-scene-ink"
+              >
+                ✕
+              </button>
             </span>
-            <span className="w-9 text-right tabular-nums text-scene-ink/80">{pct(t.similarity)}</span>
-          </li>
-        ))}
-      </ul>
-      {lens.passages.length > 0 && (
-        <div className="mt-2 border-t border-scene-ink/10 pt-2">
-          <p className="text-[0.625rem] uppercase tracking-wide text-scene-ink/40">Nearest passages</p>
-          {lens.passages.map((p) => (
-            <p key={p.id} className="mt-1 line-clamp-2 text-[0.6875rem] text-scene-ink/60">
-              <span className="text-scene-ink/85">{p.title}</span> · {pct(p.similarity)} — {p.excerpt}
+          </div>
+          <div className="p-3">
+            <p className="font-medium text-scene-ink">{lens.placement}</p>
+            <ul className="mt-2 space-y-1">
+              {shown.map((t) => (
+                <li key={t.id} className="flex items-center gap-2">
+                  <span className="w-24 truncate text-scene-ink/75">{t.label}</span>
+                  <span className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-scene-ink/10">
+                    <span
+                      className="absolute inset-y-0 left-0 rounded-full"
+                      style={{ width: `${Math.max(2, t.similarity * 100)}%`, background: colorFor(t.label), opacity: t.above_typical ? 0.9 : 0.35 }}
+                    />
+                  </span>
+                  <span className="w-9 text-right tabular-nums text-scene-ink/80">{pct(t.similarity)}</span>
+                </li>
+              ))}
+            </ul>
+            {lens.passages.length > 0 && (
+              <div className="mt-2 border-t border-scene-ink/10 pt-2">
+                <p className="text-[0.625rem] uppercase tracking-wide text-scene-ink/40">Nearest passages</p>
+                {lens.passages.map((p) => (
+                  <p key={p.id} className="mt-1 line-clamp-2 text-[0.6875rem] text-scene-ink/60">
+                    <span className="text-scene-ink/85">{p.title}</span> · {pct(p.similarity)} — {p.excerpt}
+                  </p>
+                ))}
+              </div>
+            )}
+            <p className="mt-2 border-t border-scene-ink/10 pt-2 text-[0.625rem] text-scene-ink/40">
+              Measured with {lens.similarity.model} ({lens.similarity.measures}). A what-if: nothing was
+              stored. Your topics typically share {pct(lens.similarity.typical)}.
             </p>
-          ))}
+          </div>
         </div>
       )}
-      <p className="mt-2 border-t border-scene-ink/10 pt-2 text-[0.625rem] text-scene-ink/40">
-        Measured with {lens.similarity.model} ({lens.similarity.measures}). A what-if: nothing was
-        stored. Your topics typically share {pct(lens.similarity.typical)}.
-      </p>
-    </div>
+    </>
   );
 }
 
@@ -816,7 +906,9 @@ function HoverCard({
  * from the nodes beneath it.
  */
 function Legend({ graph }: { graph: CerebroGalaxy }) {
-  const [open, setOpen] = useState(true);
+  const [layout, arrange] = useGalaxyLayout();
+  const open = layout.legendOpen;
+  const startDrag = useWindowDrag(layout.legendX, layout.legendY, (x, y) => arrange({ legendX: x, legendY: y }));
   const space: SimilaritySpace | null | undefined = graph.similarity;
   const discovered = graph.edges.filter((e) => e.discovered).length;
   // Counted the way they are drawn: only a clear resemblance moves a passage out.
@@ -826,17 +918,27 @@ function Legend({ graph }: { graph: CerebroGalaxy }) {
   return (
     <div
       data-testid="galaxy-legend"
-      className="pointer-events-none absolute left-3 top-3 z-10 w-56 rounded-lg border border-scene-ink/10 bg-scene-raised/85 text-[0.6875rem] text-scene-ink/70 shadow-lg backdrop-blur"
+      data-floating
+      style={{ left: layout.legendX, top: layout.legendY }}
+      className="pointer-events-none absolute z-10 w-56 rounded-lg border border-scene-ink/10 bg-scene-raised/85 text-[0.6875rem] text-scene-ink/70 shadow-lg backdrop-blur"
     >
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="pointer-events-auto flex w-full items-center justify-between px-3 py-2 text-left font-semibold text-scene-ink/85"
+      {/* The header moves it; the button folds it. */}
+      <div
+        onPointerDown={startDrag}
+        className="pointer-events-auto flex cursor-move items-center gap-1 pl-2.5 pr-1"
+        title="Drag to move"
       >
-        Reading the Galaxy
-        <span aria-hidden="true" className="text-scene-ink/40">{open ? "−" : "+"}</span>
-      </button>
+        <span aria-hidden="true" className="text-scene-ink/30">⠿</span>
+        <button
+          type="button"
+          onClick={() => arrange({ legendOpen: !open })}
+          aria-expanded={open}
+          className="flex flex-1 items-center justify-between py-2 pl-1 pr-2 text-left font-semibold text-scene-ink/85"
+        >
+          Reading the Galaxy
+          <span aria-hidden="true" className="text-scene-ink/40">{open ? "−" : "+"}</span>
+        </button>
+      </div>
       {open && (
         <div className="space-y-2 border-t border-scene-ink/10 px-3 pb-3 pt-2">
           <LegendRow

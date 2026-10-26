@@ -12,8 +12,10 @@ import { Button } from "@/components/ui/Button";
 import { ErrorMessage } from "@/components/ui/ErrorMessage";
 import { ApiError, api } from "@/lib/api";
 import { cn } from "@/lib/cn";
+import { useGalaxyLayout } from "@/lib/galaxyLayoutState";
 import type {
   CerebroGalaxy,
+  CerebroLens,
   CerebroNodeDetails,
   CerebroTimelineEvent,
   GraphNode,
@@ -50,13 +52,40 @@ export function GalaxyView() {
     cited: Set<string>;
     retrieved: Set<string>;
   } | null>(null);
-  const [panelOpen, setPanelOpen] = useState(true);
   const [maximized, setMaximized] = useState(false);
-  const [timelineOpen, setTimelineOpen] = useState(true);
-  // A quarter of the viewport, which is enough for the axis and one row of
-  // cards. The galaxy keeps the rest.
-  const [timelineHeight, setTimelineHeight] = useState(240);
+  // The arrangement — timeline open and how tall, details panel — is
+  // remembered, so it is as the user left it rather than reset on every visit.
+  const [arrangement, arrange] = useGalaxyLayout();
+  const { panelOpen, timelineOpen, timelineHeight } = arrangement;
+  const setPanelOpen = (open: boolean) => arrange({ panelOpen: open });
+  const toggleTimeline = () => arrange({ timelineOpen: !timelineOpen });
   const resize = useRef<{ y: number; start: number } | null>(null);
+
+  // The what-if lens: typed text placed among the topics by the library's
+  // own model. Nothing is stored.
+  const [lens, setLens] = useState<CerebroLens | null>(null);
+  const [lensText, setLensText] = useState("");
+  const [lensBusy, setLensBusy] = useState(false);
+  const [lensError, setLensError] = useState<string | null>(null);
+  async function placeText(event: React.FormEvent) {
+    event.preventDefault();
+    const text = lensText.trim();
+    if (text.length < 2) return;
+    setLensBusy(true);
+    setLensError(null);
+    try {
+      setLens(await api.lens(text));
+    } catch (e) {
+      setLensError(e instanceof ApiError ? e.message : "Could not place that text.");
+    } finally {
+      setLensBusy(false);
+    }
+  }
+  function clearLens() {
+    setLens(null);
+    setLensText("");
+    setLensError(null);
+  }
 
   // Details are cached per node, so revisiting one costs nothing.
   const cache = useRef(new Map<string, CerebroNodeDetails>());
@@ -168,7 +197,7 @@ export function GalaxyView() {
     if (!start) return;
     // Dragging up grows the timeline, down shrinks it: the galaxy takes
     // whatever is left.
-    setTimelineHeight(Math.min(520, Math.max(120, start.start - (event.clientY - start.y))));
+    arrange({ timelineHeight: Math.min(520, Math.max(120, start.start - (event.clientY - start.y))) });
   }
 
   return (
@@ -180,15 +209,47 @@ export function GalaxyView() {
         maximized && "fixed inset-0 z-50 h-dvh bg-canvas p-3",
       )}
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* Title, the what-if lens centred on the bar, then the view controls. */}
+      <div className="grid grid-cols-1 items-center gap-3 lg:grid-cols-[1fr_minmax(18rem,30rem)_1fr]">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-ink">Knowledge Galaxy</h1>
           <p className="text-xs text-ink-muted">Explore the connections in your knowledge.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <form
+          onSubmit={placeText}
+          className="flex w-full items-center gap-1.5 rounded-full border border-line bg-surface py-1 pl-3.5 pr-1"
+        >
+          <span aria-hidden="true" className="shrink-0 text-xs text-ink-muted">What if…</span>
+          <input
+            value={lensText}
+            onChange={(e) => setLensText(e.target.value)}
+            placeholder="type an idea to see where it would land"
+            aria-label="Place an idea in your Galaxy"
+            maxLength={1000}
+            className="min-w-0 flex-1 bg-transparent py-1 text-xs text-ink outline-none placeholder:text-ink-subtle"
+          />
+          {lens ? (
+            <button
+              type="button"
+              onClick={clearLens}
+              className="rounded-full px-3 py-1 text-xs text-ink-muted hover:text-ink"
+            >
+              Clear
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={lensBusy || lensText.trim().length < 2}
+              className="rounded-full bg-accent px-3 py-1 text-xs font-medium text-accent-ink transition-colors hover:bg-accent-hover disabled:opacity-40"
+            >
+              {lensBusy ? "Placing…" : "Place"}
+            </button>
+          )}
+        </form>
+        <div className="flex items-center gap-2 lg:justify-self-end">
           <button
             type="button"
-            onClick={() => setTimelineOpen((v) => !v)}
+            onClick={toggleTimeline}
             className="rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:border-line-strong hover:text-ink"
           >
             {timelineOpen ? "Hide timeline" : "Show timeline"}
@@ -203,7 +264,7 @@ export function GalaxyView() {
         </div>
       </div>
 
-      <ErrorMessage>{error}</ErrorMessage>
+      <ErrorMessage>{error ?? lensError}</ErrorMessage>
 
       {/*
         One surface, not three cards. Galaxy, details and Timeline share a
@@ -220,6 +281,8 @@ export function GalaxyView() {
               onSelect={onSelectNode}
               onExpand={(topic) => void expand(topic)}
               answerMap={answerMap}
+              lens={lens}
+              onClearLens={clearLens}
             />
 
             {/* What the answer was built from, and the way back. */}
@@ -362,7 +425,7 @@ export function GalaxyView() {
             selectedArtifactId={selectedArtifactId}
             onSelect={onTimelineSelect}
             collapsed={!timelineOpen}
-            onToggleCollapsed={() => setTimelineOpen((v) => !v)}
+            onToggleCollapsed={toggleTimeline}
           />
         </div>
       </div>

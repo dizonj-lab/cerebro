@@ -473,11 +473,14 @@ async function openAlike(page: import("@playwright/test").Page, prefix: string) 
   await expect(page.getByRole("application", { name: "Knowledge Galaxy" })).toBeVisible();
 }
 
-test("the legend is pinned left and states this library's own yardstick", async ({ page }) => {
+test("the legend starts folded, top left, and states this library's own yardstick", async ({ page }) => {
   await openAlike(page, "g-legend");
   const legend = page.getByTestId("galaxy-legend");
 
   await expect(legend).toBeVisible();
+  // Folded by default: the map is what the screen is for.
+  await expect(legend).not.toContainText("typical here");
+  await legend.getByRole("button", { name: "Reading the Galaxy" }).click();
   const box = (await legend.boundingBox())!;
   const canvas = (await page.getByRole("application", { name: "Knowledge Galaxy" }).boundingBox())!;
   expect(box.x - canvas.x).toBeLessThan(24);
@@ -508,12 +511,15 @@ test("a passage reaches out to the topic it resembles, or orbits its own", async
   await openAlike(page, "g-orbit");
   const legend = page.getByTestId("galaxy-legend");
 
+  await legend.getByRole("button", { name: "Reading the Galaxy" }).click();
   await page.getByRole("button", { name: "Audio, cluster" }).click();
   await expect(legend).toContainText("1 reach out, 0 orbit");
   // Faint or bold by strength, never hidden: the line is there with a strength.
   const reaching = page.locator('path[data-kind="similar_words"][data-strength]');
   await expect(reaching.first()).toBeAttached();
 
+  // Away from Audio first, so its hover card is not over the next topic.
+  await page.mouse.move(1, 1);
   await page.getByRole("button", { name: "Gardening, cluster" }).click();
   await expect(legend).toContainText("0 reach out, 1 orbit");
 });
@@ -547,16 +553,96 @@ test("what if: an idea is placed among the topics and nothing is stored", async 
 
   await page.getByLabel("Place an idea in your Galaxy").fill("acoustic speech recognition of spoken audio");
   await page.getByRole("button", { name: "Place", exact: true }).click();
-
-  const card = page.getByTestId("lens-card");
-  await expect(card).toContainText("closest to");
-  await expect(card).toContainText("Audio");
-  await expect(card).toContainText("nothing was stored");
   await expect(page.getByTestId("lens-mark")).toBeAttached();
   expect(await (await page.request.get("/api/artifacts")).json()).toEqual(before);
 
-  await page.getByRole("button", { name: "Clear", exact: true }).click();
+  // Folded to a tab on the left; hovering the placed idea brings the details out.
+  const card = page.getByTestId("lens-card");
+  await expect(page.getByTestId("lens-tab")).toBeVisible();
   await expect(card).toBeHidden();
+  await page.getByTestId("lens-node").hover({ force: true });
+  await expect(card).toContainText("closest to");
+  await expect(card).toContainText("Audio");
+  await expect(card).toContainText("nothing was stored");
+
+  await page.getByRole("button", { name: "Clear", exact: true }).click();
+  await expect(page.getByTestId("lens-mark")).toHaveCount(0);
+});
+
+test("the what-if window can be kept open, moved, and folded back to the left", async ({ page }) => {
+  await openAlike(page, "g-lens-window");
+  await page.getByLabel("Place an idea in your Galaxy").fill("speech audio");
+  await page.getByRole("button", { name: "Place", exact: true }).click();
+
+  await page.getByTestId("lens-tab").click();
+  const card = page.getByTestId("lens-card");
+  await expect(card).toBeVisible();
+  await expect(page.getByTestId("lens-tab")).toHaveCount(0);
+
+  const header = card.locator("div").first();
+  const before = (await card.boundingBox())!;
+  const grip = (await header.boundingBox())!;
+  await page.mouse.move(grip.x + 30, grip.y + grip.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(grip.x + 230, grip.y + 120, { steps: 6 });
+  await page.mouse.up();
+  const after = (await card.boundingBox())!;
+  expect(after.x - before.x).toBeGreaterThan(150);
+
+  await card.getByRole("button", { name: "Minimise the what-if window" }).click();
+  await expect(page.getByTestId("lens-tab")).toBeVisible();
+});
+
+test("the legend can be moved", async ({ page }) => {
+  await openAlike(page, "g-legend-move");
+  const legend = page.getByTestId("galaxy-legend");
+  const before = (await legend.boundingBox())!;
+  await page.mouse.move(before.x + 10, before.y + 15);
+  await page.mouse.down();
+  await page.mouse.move(before.x + 260, before.y + 180, { steps: 6 });
+  await page.mouse.up();
+  const after = (await legend.boundingBox())!;
+  expect(after.x - before.x).toBeGreaterThan(200);
+  expect(after.y - before.y).toBeGreaterThan(130);
+});
+
+test("a dragged topic carries its passages with it", async ({ page }) => {
+  await openAlike(page, "g-carry");
+  const parent = page.getByRole("button", { name: "Gardening, cluster" });
+  await parent.click();
+  const fragment = page.getByRole("button", { name: /, fragment$/ }).first();
+  await expect(fragment).toBeAttached();
+  const where = async (el: import("@playwright/test").Locator) => {
+    const [, x, y] = ((await el.getAttribute("transform")) ?? "").match(/translate\(([-\d.]+) ([-\d.]+)\)/) ?? [];
+    return { x: Number(x), y: Number(y) };
+  };
+  const p0 = await where(parent);
+  const f0 = await where(fragment);
+
+  const box = (await parent.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 120, box.y + box.height / 2 + 60, { steps: 8 });
+  await page.mouse.up();
+
+  const p1 = await where(parent);
+  const f1 = await where(fragment);
+  expect(p1.x - p0.x).toBeGreaterThan(40);
+  // The passage moved by exactly as much as its topic did.
+  expect(Math.abs(f1.x - f0.x - (p1.x - p0.x))).toBeLessThan(0.5);
+  expect(Math.abs(f1.y - f0.y - (p1.y - p0.y))).toBeLessThan(0.5);
+});
+
+test("the workspace arrangement is remembered across visits", async ({ page }) => {
+  await openGalaxy(page, "g-remember");
+  // Hidden, then a reload: it stays hidden. Shown again, it stays shown.
+  await page.getByRole("button", { name: "Hide timeline" }).click();
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Show timeline" })).toBeVisible();
+  await page.getByRole("button", { name: "Show timeline" }).click();
+  await page.goto("/construct");
+  await page.goto("/construct/galaxy");
+  await expect(page.getByRole("button", { name: "Hide timeline" })).toBeVisible();
 });
 
 test("an opened topic's passages surround it rather than the middle of the map", async ({ page }) => {
