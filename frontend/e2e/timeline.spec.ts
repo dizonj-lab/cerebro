@@ -84,10 +84,12 @@ test("a library with no topics falls back to the named lanes", async ({ page }) 
   });
 
   await page.goto("/construct/timeline");
-  for (const lane of ["Strategy", "Architecture", "Governance", "Technology", "Projects", "People"]) {
-    await expect(page.getByTestId(`lane-${lane}`)).toBeVisible();
-  }
   await expect(page.getByTestId("lane-Governance")).toContainText(/[1-9]\d* event/);
+  // Only lanes with something in them are drawn: an empty row is noise.
+  const lanes = page.locator('[data-testid^="lane-"]');
+  for (const lane of await lanes.all()) {
+    await expect(lane).toContainText(/[1-9]\d* event/);
+  }
 });
 
 test("selecting an event shows its evidence and source", async ({ page }) => {
@@ -118,16 +120,39 @@ test("related events explain what they share", async ({ page }) => {
   await expect(panel).toContainText(/Both mention|same document|Both in/);
 });
 
-test("zoom and fit change the visible span", async ({ page }) => {
+test("zoom and the span presets say what is on screen", async ({ page }) => {
   await openTimeline(page, "tl-zoom");
 
-  const level = page.getByTestId("zoom-level");
-  const before = await level.textContent();
+  // The visible window is stated in words, not as a percentage.
+  const span = page.getByTestId("zoom-level");
+  await expect(span).toContainText(/year|month/);
+  const before = await span.textContent();
   await page.getByRole("button", { name: "Zoom in" }).click();
-  await expect(level).not.toHaveText(before ?? "");
+  await expect(span).not.toHaveText(before ?? "");
 
-  await page.getByRole("button", { name: "Fit" }).click();
+  // The most recent year of the library, not an empty stretch in the middle.
+  await page.getByRole("button", { name: "1 y", exact: true }).click();
+  await expect(span).toContainText("1 year");
+  await expect(page.getByTestId("timeline-event").filter({ hasText: "Q3 2024" })).toBeVisible();
+  await page.getByRole("button", { name: "All", exact: true }).click();
   await expect(page.getByTestId("timeline-event").first()).toBeVisible();
+});
+
+test("axis labels never run together", async ({ page }) => {
+  await openTimeline(page, "tl-axis");
+
+  for (const preset of ["All", "10 y", "1 y"]) {
+    await page.getByRole("button", { name: preset, exact: true }).click();
+    const boxes = await page
+      .getByTestId("timeline-axis")
+      .locator("span")
+      .evaluateAll((els) => els.map((el) => el.getBoundingClientRect()).map((r) => [r.left, r.right]));
+    expect(boxes.length).toBeGreaterThan(1);
+    for (let i = 1; i < boxes.length; i++) {
+      // Each label ends before the next begins, with room to spare.
+      expect(boxes[i][0] - boxes[i - 1][1]).toBeGreaterThan(8);
+    }
+  }
 });
 
 test("the navigator shows density and moves the window", async ({ page }) => {
@@ -228,21 +253,19 @@ test("hovering a card shows the document's dates and where each came from", asyn
   await expect(card).toContainText("Registered");
 });
 
-test("the navigator shows volume in pages, coloured by category", async ({ page }) => {
+test("the overview counts events per period and says so", async ({ page }) => {
   await openTimeline(page, "tl-volume");
 
-  const bars = page.getByTestId("timeline-navigator").locator("[data-pages]");
-  await expect(bars.first()).toBeVisible();
-
-  // Height is pages of document, not a count of dates, and it is stated.
-  await expect(page.getByTestId("timeline-navigator")).toContainText("Height is pages");
-  const pages = await bars.first().getAttribute("data-pages");
-  expect(Number(pages)).toBeGreaterThan(0);
-
-  // Segments carry the lane's own colour rather than one flat blue.
-  const segment = bars.first().locator("span").first();
-  const colour = await segment.evaluate((el) => getComputedStyle(el).backgroundColor);
-  expect(colour).not.toBe("rgba(0, 0, 0, 0)");
+  const navigator = page.getByTestId("timeline-navigator");
+  // The fixture spans March 2021 to Q3 2024: too few years for yearly bars
+  // to show a shape, so there is one bar per month, empty months included.
+  await expect(navigator).toContainText("Events per month");
+  const counts = await navigator
+    .locator("[data-count]")
+    .evaluateAll((els) => els.map((el) => Number(el.getAttribute("data-count"))));
+  expect(counts).toHaveLength(41);
+  expect(counts.reduce((a, b) => a + b, 0)).toBe(4);
+  await expect(navigator.getByTestId("period-2021-03")).toHaveAttribute("data-count", "1");
 });
 
 test("the timeline drags from anywhere that is not a card", async ({ page }) => {
@@ -262,4 +285,45 @@ test("the timeline drags from anywhere that is not a card", async ({ page }) => 
   await expect(canvas).toBeVisible();
   const after = await page.getByTestId("timeline-event").first().evaluate((el) => el.getBoundingClientRect().x);
   expect(Math.abs(after - before)).toBeGreaterThan(4);
+});
+
+test.describe("east of Greenwich", () => {
+  // Dates were read as local midnight and printed in UTC, which in Singapore
+  // is the day before: every year and quarter showed one step early.
+  test.use({ timezoneId: "Asia/Singapore" });
+
+  test("a stated date reads as stated", async ({ page }) => {
+    await openTimeline(page, "tl-tz");
+    const events = page.getByTestId("timeline-event");
+    await expect(events.filter({ hasText: "Q3 2024" })).toHaveCount(1);
+    await expect(events.filter({ hasText: "Mar 2021" })).toHaveCount(1);
+  });
+});
+
+test("cited dates are hidden, counted, and shown on request", async ({ page }) => {
+  await signUp(page, makeAccount("tl-refs"));
+  await page.waitForURL(/\/construct$/);
+  const text =
+    "The vision pipeline went live in March 2024. " +
+    "It builds on the classic account of Marr (1982). " +
+    "See example.com/2019/05/edge-detection for a tutorial.\n";
+  const created = await page.request.post("/api/artifacts", {
+    multipart: { file: { name: "vision.txt", mimeType: "text/plain", buffer: Buffer.from(text) } },
+  });
+  const artifact = await created.json();
+  await page.request.patch(`/api/artifacts/${artifact.id}`, {
+    data: { metadata: { ...artifact.metadata, title: "Vision Notes", topics: ["Vision"] }, approve: true },
+  });
+  await page.goto("/construct/timeline");
+
+  const events = page.getByTestId("timeline-event");
+  await expect(events).toHaveCount(1);
+  await expect(page.getByTestId("timeline-references")).toHaveText("2 references hidden");
+  // The window opens on the document's own events, not on 1982.
+  await expect(page.getByTestId("timeline-window")).not.toContainText("1982");
+
+  await page.getByRole("button", { name: "Show", exact: true }).click();
+  await expect(events).toHaveCount(3);
+  await expect(events.filter({ hasText: "1982 · cited" })).toHaveCount(1);
+  await expect(page.getByTestId("timeline-references")).toHaveText("2 references shown");
 });

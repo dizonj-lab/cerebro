@@ -524,6 +524,10 @@ export interface CerebroTimelineEventDetail {
   precision: string;
   /** The date expression matched in the text, verbatim. */
   expression: string;
+  /** "event", or "reference" for a date the document cites (a paper, a link). */
+  kind: "event" | "reference";
+  /** Why it is a reference: citation | link | reference list | copyright. */
+  reference_basis: string | null;
   /** The sentence the event came from, verbatim. */
   evidence: string;
   source_location: Record<string, number | string>;
@@ -739,6 +743,8 @@ export interface CerebroTimeline {
     unknown_dates: number;
     took_ms: number;
   };
+  /** Cited dates: hidden unless asked for, and always counted. */
+  references: { included: boolean; hidden: number; total: number };
   total: number;
   took_ms: number;
 }
@@ -876,6 +882,8 @@ export const api = {
     entity?: string;
     start?: string;
     end?: string;
+    /** Include dates the documents cite rather than state as events. */
+    references?: boolean;
   }) => {
     const query = new URLSearchParams();
     for (const value of params?.categories ?? []) query.append("categories", value);
@@ -884,6 +892,7 @@ export const api = {
     if (params?.entity) query.set("entity", params.entity);
     if (params?.start) query.set("start", params.start);
     if (params?.end) query.set("end", params.end);
+    if (params?.references) query.set("references", "true");
     const suffix = query.toString();
     return request<CerebroTimeline>(`/api/timeline${suffix ? `?${suffix}` : ""}`);
   },

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { api } from "@/lib/api";
 import type { CerebroAnchor, CerebroCv } from "@/lib/api";
 import { cn } from "@/lib/cn";
+import { dateMs } from "@/components/timeline/lanes";
 
 /**
  * The CV, and the chronology CEREBRO reads from it.
@@ -310,12 +311,18 @@ export function describeRange(anchor: {
 }): string {
   const show = (iso: string | null) => {
     if (!iso) return null;
-    const date = new Date(`${iso}T00:00:00`);
+    // Read and shown as UTC: a calendar date, not an instant (see dateMs).
+    const date = new Date(dateMs(iso));
     if (anchor.date_precision === "year") return String(date.getUTCFullYear());
     if (anchor.date_precision === "month") {
-      return date.toLocaleDateString(undefined, { month: "short", year: "numeric" });
+      return date.toLocaleDateString(undefined, { month: "short", year: "numeric", timeZone: "UTC" });
     }
-    return date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+    return date.toLocaleDateString(undefined, {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    });
   };
   const from = show(anchor.start_date);
   const to = show(anchor.end_date);
