@@ -520,14 +520,21 @@ test("a passage reaches out to the topic it resembles, or orbits its own", async
 
 test("a similarity line explains its measurement on hover", async ({ page }) => {
   await openAlike(page, "g-measure");
-  const edges = page.getByTestId("galaxy-edge");
   const card = page.getByTestId("edge-card");
 
-  const total = await edges.count();
-  for (let index = 0; index < total; index += 1) {
-    await edges.nth(index).hover({ force: true });
-    if ((await card.isVisible()) && (await card.textContent())?.includes("Shares wording")) break;
-  }
+  // Hover a point that is on the curve itself, found from the path's own
+  // geometry: the centre of a curve's bounding box is often off the stroke.
+  const point = await page
+    .locator('path[data-kind="similar_words"] ~ path[data-testid="galaxy-edge"]')
+    .first()
+    .evaluate((el) => {
+      const path = el as SVGPathElement;
+      const p = path.getPointAtLength(path.getTotalLength() / 2);
+      const m = path.getScreenCTM()!;
+      return { x: p.x * m.a + p.y * m.c + m.e, y: p.x * m.b + p.y * m.d + m.f };
+    });
+  await page.mouse.move(point.x, point.y);
+
   await expect(card).toContainText("Shares wording");
   await expect(card).toContainText(/Similarity\s*\d+%/);
   await expect(card).toContainText("not a verified link");
@@ -550,4 +557,26 @@ test("what if: an idea is placed among the topics and nothing is stored", async 
 
   await page.getByRole("button", { name: "Clear", exact: true }).click();
   await expect(card).toBeHidden();
+});
+
+test("an opened topic's passages surround it rather than the middle of the map", async ({ page }) => {
+  await openAlike(page, "g-around");
+  const at = async (name: RegExp) => {
+    const transform = (await page.getByRole("button", { name }).first().getAttribute("transform")) ?? "";
+    const [, x, y] = transform.match(/translate\(([-\d.]+) ([-\d.]+)\)/) ?? [];
+    return { x: Number(x), y: Number(y) };
+  };
+
+  for (const topic of ["Gardening", "Audio"]) {
+    await page.getByRole("button", { name: `${topic}, cluster` }).click();
+    const parent = await at(new RegExp(`^${topic}, cluster$`));
+    const fragments = page.getByRole("button", { name: /, fragment$/ });
+    await expect(fragments.first()).toBeAttached();
+    for (const fragment of await fragments.all()) {
+      const transform = (await fragment.getAttribute("transform")) ?? "";
+      const [, x, y] = transform.match(/translate\(([-\d.]+) ([-\d.]+)\)/) ?? [];
+      // Within the parent's neighbourhood, whether orbiting or leaning out.
+      expect(Math.hypot(Number(x) - parent.x, Number(y) - parent.y)).toBeLessThan(110);
+    }
+  }
 });

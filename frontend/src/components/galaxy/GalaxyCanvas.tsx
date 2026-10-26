@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 
-import { layout, VIEWBOX } from "@/components/galaxy/layout";
+import { layout, reachOf, VIEWBOX } from "@/components/galaxy/layout";
 import { colorFor, hueFor } from "@/components/galaxy/palette";
 import { api } from "@/lib/api";
 import { ApiError } from "@/lib/api";
@@ -105,13 +105,13 @@ export function GalaxyCanvas({
   );
 
   const positions = useMemo(() => {
-    const base = layout(graph.nodes, expandedTopic);
+    const base = layout(graph.nodes, expandedTopic, graph.edges);
     for (const [id, point] of Object.entries(moved)) {
       const existing = base.get(id);
       if (existing) base.set(id, { ...existing, ...point });
     }
     return base;
-  }, [graph.nodes, expandedTopic, moved]);
+  }, [graph.nodes, graph.edges, expandedTopic, moved]);
 
   // What is "in focus" decides what stays bright and what dims. Hover is a
   // preview; selection persists.
@@ -303,10 +303,14 @@ export function GalaxyCanvas({
             // The curve's own midpoint, where its figure is written.
             const lx = (a.x + 2 * mx + b.x) / 4;
             const ly = (a.y + 2 * my + b.y) / 4;
+            // Figures only on lines that are a similarity link. A passage's
+            // fit to its own topic, written on the line to its parent, read
+            // as a score for a relationship; it is in the hover card instead.
             const showFigure =
+              measured &&
               typeof edge.similarity === "number" &&
               lit &&
-              ((measured && (edge.source.startsWith("fragment:") || edge.discovered)) || touches);
+              (edge.source.startsWith("fragment:") || edge.discovered || touches);
             return (
               <g key={edge.id}>
                 <path
@@ -317,7 +321,7 @@ export function GalaxyCanvas({
                   opacity={
                     measured
                       ? lit
-                        ? 0.14 + strength * 0.66
+                        ? 0.22 + strength * 0.6
                         : 0.05
                       : lit
                         ? edge.strong
@@ -815,8 +819,10 @@ function Legend({ graph }: { graph: CerebroGalaxy }) {
   const [open, setOpen] = useState(true);
   const space: SimilaritySpace | null | undefined = graph.similarity;
   const discovered = graph.edges.filter((e) => e.discovered).length;
-  const orbiting = graph.nodes.filter((n) => n.type === "fragment" && n.orbit).length;
-  const leaning = graph.nodes.filter((n) => n.type === "fragment" && n.orbit === false).length;
+  // Counted the way they are drawn: only a clear resemblance moves a passage out.
+  const fragments = graph.nodes.filter((n) => n.type === "fragment");
+  const leaning = fragments.filter((n) => reachOf(n, graph.edges)).length;
+  const orbiting = fragments.length - leaning;
   return (
     <div
       data-testid="galaxy-legend"
