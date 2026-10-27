@@ -7,7 +7,7 @@
 #   ./demo/run.sh samples    the same line in ten voices, to pick one by ear
 #   ./demo/run.sh down       stop the demo stack (its data is kept)
 #
-#   VOICE=am_michael ./demo/run.sh voice     another Kokoro voice (af_heart is the default)
+#   VOICE=am_michael ./demo/run.sh voice     another Kokoro voice (af_sarah is the default)
 #
 # Everything runs in the Compose project "cerebro-demo" and in throwaway
 # containers: the live CEREBRO, its database, uploads and Ollama are not
@@ -20,7 +20,7 @@ PORT="${DEMO_WEB_PORT:-3300}"
 BASE="http://127.0.0.1:$PORT"
 PLAYWRIGHT="${PLAYWRIGHT_VERSION:-1.63.0}"
 THEME="${THEME:-light}"
-VOICE="${VOICE:-af_heart}"
+VOICE="${VOICE:-af_sarah}"
 STEP="${1:-all}"
 
 case "$STEP" in

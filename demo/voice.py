@@ -7,7 +7,7 @@
 
 Voices, best first:
   kokoro     Kokoro-82M, an open neural voice that runs locally (used on Buddy, in a container).
-             VOICE=af_heart (default), af_bella, am_michael, bf_emma, bm_george …
+             VOICE=af_sarah (default), af_heart, af_bella, am_michael, bf_emma, bm_george …
   say        macOS system voices; the "Premium" ones are free downloads in System Settings →
              Accessibility → Spoken Content → Manage Voices. VOICE="Ava (Premium)".
   espeak-ng  robotic; only for checking timing.
@@ -91,7 +91,7 @@ def speak() -> None:
         import soundfile as sf
         from kokoro import KPipeline
 
-        voice = os.environ.get("VOICE", "af_heart")
+        voice = os.environ.get("VOICE", "af_sarah")
         pipeline = KPipeline(lang_code=voice[0], repo_id="hexgrad/Kokoro-82M")
         speed = float(os.environ.get("SPEED", "0.92"))  # a little slower than default reads warmer
     else:

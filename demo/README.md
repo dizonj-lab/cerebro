@@ -6,7 +6,7 @@ with the documents of a fictional company, Larkspur Logistics.
 | Step | Where | Command |
 |---|---|---|
 | Hear the voices | Buddy | `cd ~/cerebro && git pull && ./demo/run.sh samples` |
-| Make the video | Buddy | `VOICE=af_heart ./demo/run.sh` |
+| Make the video | Buddy | `./demo/run.sh` (voice af_sarah; `VOICE=…` for another) |
 | Copy it | Mac | `scp 'admin@<buddy>:~/cerebro-demo-*/CEREBRO-demo.mp4' ~/Downloads/` |
 
 Result: `~/cerebro-demo-<time>/CEREBRO-demo.mp4` (1080p, narration, music, subtitle track) and `.srt`.
