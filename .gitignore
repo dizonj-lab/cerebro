@@ -43,3 +43,7 @@ backend/var/
 # Evaluation
 evaluation/.venv/
 evaluation/evidence/
+
+# Demo recording
+demo/node_modules/
+demo/out/

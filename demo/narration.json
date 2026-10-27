@@ -1,0 +1,71 @@
+{
+  "voice_note": "Each scene lasts at least `seconds`; the recording logs when each actually started, and the voice script places each line there. About 2.3 words per second leaves room to breathe.",
+  "scenes": [
+    {
+      "id": "intro",
+      "title": "CEREBRO",
+      "seconds": 14,
+      "text": "This is CEREBRO, a private knowledge twin. It reads your documents, connects what they say, and answers questions from them. Everything in this demo belongs to a made-up company: Larkspur Logistics."
+    },
+    {
+      "id": "dashboard",
+      "title": "Dashboard",
+      "seconds": 18,
+      "text": "Here's Larkspur's library: fourteen documents from four years. Strategy memos, product specs, board decks, policies and meeting notes, in Word, PowerPoint, PDF and Markdown."
+    },
+    {
+      "id": "library",
+      "title": "Library",
+      "seconds": 17,
+      "text": "Every document is listed with its status. Nothing becomes searchable until it's registered, and every file is fingerprinted, so CEREBRO can show the source hasn't changed."
+    },
+    {
+      "id": "ingest",
+      "title": "Adding a document",
+      "seconds": 50,
+      "text": "Let's add something new: a proposal for a cold-storage pilot. CEREBRO reads the file and drafts its details. The title, author and date come from the document itself. Then a local language model suggests a summary and topics. Each field shows where it came from, so you can tell a fact from a suggestion. Nothing is trusted yet. I check the topics, and register it. Now it's part of the library."
+    },
+    {
+      "id": "search",
+      "title": "Search",
+      "seconds": 26,
+      "text": "Search combines keywords with meaning. Ask about robots that handle soft packaging, and CEREBRO finds the right documents even when they use different words, with the exact passage behind each result."
+    },
+    {
+      "id": "galaxy",
+      "title": "Knowledge Galaxy",
+      "seconds": 44,
+      "text": "The Knowledge Galaxy maps how topics connect. Each star is a topic. Lines show topics that share documents, or links CEREBRO found by comparing meaning, labelled with how similar they are. Open a topic, and its passages orbit around it. Hover over anything to see what it is, and why it's linked."
+    },
+    {
+      "id": "whatif",
+      "title": "What if",
+      "seconds": 20,
+      "text": "What if asks where a new idea would land. Type battery life in freezing warehouses, and CEREBRO places it on the map, beside the topics it's closest to."
+    },
+    {
+      "id": "timeline",
+      "title": "Timeline",
+      "seconds": 34,
+      "text": "The Timeline puts it all in order, using dates the documents state themselves, never guesses. Each lane is a topic. Drag the window along the overview to move through four years, from the founding memo in twenty twenty-two to the latest roadmap."
+    },
+    {
+      "id": "ask",
+      "title": "Ask CEREBRO",
+      "seconds": 55,
+      "text": "Now, Ask CEREBRO. How did picks per labour hour change from the pilot to FreshCart? The answer comes only from the library, with numbered citations to the exact passages. Each source gets its own colour. Show in Galaxy marks that passage on the map with a matching note. Show in Timeline does the same on the timeline. So you can always check where an answer came from."
+    },
+    {
+      "id": "local",
+      "title": "Runs locally",
+      "seconds": 13,
+      "text": "All of this runs in the CEREBRO environment, on local models. There's no cloud AI engine behind it."
+    },
+    {
+      "id": "outro",
+      "title": "CEREBRO",
+      "seconds": 9,
+      "text": "CEREBRO. Learn, connect, reason, recall."
+    }
+  ]
+}

@@ -1,0 +1,94 @@
+# A throwaway CEREBRO for recording the demo. Run it with ./demo/run.sh.
+#
+# Its own Compose project (cerebro-demo), database, uploads and network: the
+# live CEREBRO, its database and its Ollama are never touched. It reuses the
+# images the live stack already built (cerebro-api, cerebro-web), so nothing is
+# rebuilt, and its own Ollama with the models CEREBRO is designed for (qwen3,
+# mxbai-embed-large), from the volume the evaluation already filled.
+#
+# Only the web app is published, on 127.0.0.1:3300.
+name: cerebro-demo
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: cerebro
+      POSTGRES_USER: cerebro
+      POSTGRES_PASSWORD: cerebro_demo_password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cerebro -d cerebro"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    image: ${CEREBRO_API_IMAGE:-cerebro-api}
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      CEREBRO_DATABASE_URL: postgresql+psycopg://cerebro:cerebro_demo_password@postgres:5432/cerebro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    image: ${CEREBRO_API_IMAGE:-cerebro-api}
+    environment:
+      CEREBRO_DATABASE_URL: postgresql+psycopg://cerebro:cerebro_demo_password@postgres:5432/cerebro
+      CEREBRO_ENVIRONMENT: development
+      CEREBRO_STORAGE_BACKEND: filesystem
+      CEREBRO_STORAGE_PATH: /data/artifacts
+      CEREBRO_ENRICHMENT_LLM: auto
+      CEREBRO_RECALL_LLM: auto
+      CEREBRO_EMBEDDING_PROVIDER: auto
+      CEREBRO_OLLAMA_BASE_URL: http://ollama:11434
+      CEREBRO_OLLAMA_RECALL_MODEL: qwen3
+      CEREBRO_OLLAMA_ENRICHMENT_MODEL: qwen3
+      CEREBRO_OLLAMA_EMBEDDING_MODEL: mxbai-embed-large
+      CEREBRO_OLLAMA_EMBEDDING_DIMENSIONS: "1024"
+    volumes:
+      - artifact-data:/data/artifacts
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      ollama:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/health').status==200 else 1)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  web:
+    image: ${CEREBRO_WEB_IMAGE:-cerebro-web}
+    environment:
+      INTERNAL_API_BASE_URL: http://api:8000
+    ports:
+      - "127.0.0.1:${DEMO_WEB_PORT:-3300}:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - models:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+volumes:
+  postgres-data: {}
+  artifact-data: {}
+  # The evaluation's model volume, shared rather than downloaded again.
+  models:
+    external: true
+    name: cerebro-eval-ollama
