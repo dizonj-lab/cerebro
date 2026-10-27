@@ -127,7 +127,9 @@ class Run:
                 "smoke": self.smoke,
                 "created_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 "cerebro_commit": _git("rev-parse", "HEAD"),
-                "cerebro_dirty": bool(_git("status", "--porcelain")),
+                # Edited tracked files only: an untracked local file (the server's
+                # compose override, say) does not change the code that ran.
+                "cerebro_dirty": bool(_git("status", "--porcelain", "--untracked-files=no")),
                 "environment": environment(),
                 "datasets": self.datasets,
                 "timings_s": self.timings,

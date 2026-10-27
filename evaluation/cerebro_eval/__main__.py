@@ -134,7 +134,10 @@ def main(argv: list[str] | None = None) -> int:
                 "url": args.ollama,
                 "chat_model": chat,
                 "embedding_model": embed,
-                "installed": [m for m in installed if m["name"] in {chat, embed}],
+                # By family too: "qwen3" asked for is "qwen3:latest" installed.
+                "installed": [
+                    m for m in installed if digest_of([m], chat) or digest_of([m], embed)
+                ],
             },
             "embedders": {k: e.describe() for k, e in embedders.items()},
             "settings": {

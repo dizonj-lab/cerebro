@@ -37,6 +37,26 @@ from .engines import Embedder, LocalModel, save_json_lines
 
 PASSAGES = 6
 
+# A reply that states the passages lack the information, in the many ways
+# models say it. The product's own check (recall._abstained) looks for a few
+# exact phrases and misses common ones ("do not specify", "there is no
+# mention"), so both are reported: the product's, and this wider rule —
+# on the first sentence ("declines") and anywhere ("flags missing").
+MISSING = re.compile(
+    r"\b(do(es)? not|don't|doesn't|did not|is not|are not|isn't|aren't|no)\s+"
+    r"(specif\w*|mention\w*|provide\w*|contain\w*|state\w*|say|include\w*|indicate\w*|discuss\w*"
+    r"|address\w*|give\w*|offer\w*|detail\w*)"
+    r"|\bnot (mentioned|specified|stated|provided|given|included|discussed|addressed)"
+    r"|\bno (mention|information|specific information|details?|data|indication|reference)\b"
+    r"|\bcannot (be )?(determine|answer|find)|\bunable to (determine|answer|find)"
+    r"|\bnot (possible|able) to (determine|say|answer)|\binsufficient\b",
+    re.IGNORECASE,
+)
+
+
+def first_sentence(text: str) -> str:
+    return re.split(r"(?<=[.!?])\s", text, maxsplit=1)[0]
+
 
 def run(run_: Run, data: Squad, embedder: Embedder, llm: LocalModel, per_kind: int) -> dict:
     rng = np.random.default_rng(SEED)
@@ -89,6 +109,8 @@ def run(run_: Run, data: Squad, embedder: Embedder, llm: LocalModel, per_kind: i
             raw_cites = [int(x) for x in re.findall(r"\[(\d{1,2})\]", generated.text)]
             answer, cited = recall._cite_guard(recall._natural(generated.text), len(passages))
             declined = recall._abstained(answer)
+            declines_first = bool(MISSING.search(first_sentence(answer)))
+            flags_missing = bool(MISSING.search(answer))
             row = {
                 "id": q["id"],
                 "question": q["question"],
@@ -96,6 +118,8 @@ def run(run_: Run, data: Squad, embedder: Embedder, llm: LocalModel, per_kind: i
                 "gold": q["answers"],
                 "answer": answer,
                 "declined": declined,
+                "declines_first_sentence": declines_first,
+                "flags_missing_information": flags_missing,
                 "cited": cited,
                 "gold_passage": gold_index,
                 "invalid_citations_removed": sum(
@@ -153,6 +177,13 @@ def run(run_: Run, data: Squad, embedder: Embedder, llm: LocalModel, per_kind: i
             "squad_f1": metrics.bootstrap([r["squad_f1"] for r in ans]),
         },
         "abstention": {
+            "unanswerable_declined_first_sentence": sum(r["declines_first_sentence"] for r in una),
+            "unanswerable_flags_missing_information": sum(
+                r["flags_missing_information"] for r in una
+            ),
+            "answerable_flags_missing_information": sum(
+                r["flags_missing_information"] for r in ans
+            ),
             "confusion": confusion,
             "precision": precision,
             "recall": recall_,

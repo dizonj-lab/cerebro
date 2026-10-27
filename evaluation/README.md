@@ -6,8 +6,15 @@ the code, model weights and data that produced it.
 
 ```bash
 cd ~/cerebro && git pull
-./evaluation/run.sh            # about an hour; prints the evidence archive at the end
+./evaluation/run.sh                      # the models CEREBRO runs now ("deployed")
+MODELS=designed ./evaluation/run.sh      # qwen3 + mxbai-embed-large, in a separate Ollama
 ```
+
+Each prints its evidence archive at the end. "Designed" starts its own Ollama on
+127.0.0.1:11435 with its own volume: CEREBRO adopts any embedding model that
+appears in its Ollama, and switching embedder takes the existing library out
+of search until it is re-registered, so the designed models are never put
+where the live site would see them.
 
 The first run creates `evaluation/.venv` (PyTorch with CUDA 12.8, scikit-learn,
 and CEREBRO's backend package) and downloads the datasets into
@@ -81,6 +88,10 @@ person approves them.
 way Ask CEREBRO gives them — the paragraph it was written against plus the
 five most similar paragraphs of the same article — and the product's
 prompt.
+
+Declining is counted twice: by the product's own check (`_abstained`), and by
+a wider published rule (`MISSING` in `grounded.py`), because the product's
+check misses common phrasings such as "do not specify".
 
 Reports: whether the reply contains the gold answer; answer-word recall and
 SQuAD F1 (a prose reply depresses F1, so it is for comparison only); an
