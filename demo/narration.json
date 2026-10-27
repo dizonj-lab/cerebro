@@ -1,71 +1,71 @@
 {
-  "voice_note": "Each scene lasts at least `seconds`; the recording logs when each actually started, and the voice script places each line there. About 2.3 words per second leaves room to breathe.",
+  "voice_note": "About 700 words, roughly five minutes at a natural pace. The voice is made first (voice.py speak) and each scene lasts as long as its line.",
   "scenes": [
     {
       "id": "intro",
       "title": "CEREBRO",
-      "seconds": 14,
-      "text": "This is CEREBRO, a private knowledge twin. It reads your documents, connects what they say, and answers questions from them. Everything in this demo belongs to a made-up company: Larkspur Logistics."
+      "seconds": 28,
+      "text": "Every organisation has knowledge scattered across documents. Strategy memos, product specs, board decks, policies and meeting notes. It's all there, but it's hard to find, and harder to connect. This is CEREBRO, a private knowledge twin. It reads your documents, connects what they say, and answers your questions from them. Everything in this demo belongs to a made-up company, Larkspur Logistics."
     },
     {
       "id": "dashboard",
       "title": "Dashboard",
-      "seconds": 18,
-      "text": "Here's Larkspur's library: fourteen documents from four years. Strategy memos, product specs, board decks, policies and meeting notes, in Word, PowerPoint, PDF and Markdown."
+      "seconds": 24,
+      "text": "Larkspur builds warehouse robots. Its library holds fourteen documents written over four years, in Word, PowerPoint, PDF and Markdown. The dashboard gives a quick picture: how many documents there are, which topics they cover, and what was added most recently."
     },
     {
       "id": "library",
       "title": "Library",
-      "seconds": 17,
-      "text": "Every document is listed with its status. Nothing becomes searchable until it's registered, and every file is fingerprinted, so CEREBRO can show the source hasn't changed."
+      "seconds": 22,
+      "text": "The library lists every document with its status. Nothing becomes searchable until it's registered. Each file is fingerprinted when it arrives, so CEREBRO can always show that the source you're reading is the one that was approved."
     },
     {
       "id": "ingest",
       "title": "Adding a document",
       "seconds": 50,
-      "text": "Let's add something new: a proposal for a cold-storage pilot. CEREBRO reads the file and drafts its details. The title, author and date come from the document itself. Then a local language model suggests a summary and topics. Each field shows where it came from, so you can tell a fact from a suggestion. Nothing is trusted yet. I check the topics, and register it. Now it's part of the library."
+      "text": "Let's add something new: a proposal for a cold-storage pilot. CEREBRO reads the file and drafts its details. The title, the author and the date come straight from the document's own properties. Then I ask the local language model for suggestions, and it proposes a summary and topics. Every field is labelled with where it came from, so you can tell a fact from a guess at a glance. Nothing here is trusted yet. I check the topics, add one of my own, and register it. Now it's part of the library, and everything else can find it."
     },
     {
       "id": "search",
       "title": "Search",
-      "seconds": 26,
-      "text": "Search combines keywords with meaning. Ask about robots that handle soft packaging, and CEREBRO finds the right documents even when they use different words, with the exact passage behind each result."
+      "seconds": 30,
+      "text": "Search combines two ideas: matching the words you type, and matching what you mean. So when I search for robots that handle soft packaging, CEREBRO finds the right documents even when they use different words. Each result shows the exact passage it came from, so you never have to take a match on trust."
     },
     {
       "id": "galaxy",
       "title": "Knowledge Galaxy",
-      "seconds": 44,
-      "text": "The Knowledge Galaxy maps how topics connect. Each star is a topic. Lines show topics that share documents, or links CEREBRO found by comparing meaning, labelled with how similar they are. Open a topic, and its passages orbit around it. Hover over anything to see what it is, and why it's linked."
+      "seconds": 45,
+      "text": "The Knowledge Galaxy turns the library into a map. Each star is a topic. Lines show topics that share documents, and links CEREBRO found by comparing meaning, each labelled with how similar they are. Hover over a topic to see what it holds. Open one, and its passages orbit around it, so you can see how a single subject is spread across many documents. It's a quick way to spot connections nobody wrote down."
     },
     {
       "id": "whatif",
       "title": "What if",
       "seconds": 20,
-      "text": "What if asks where a new idea would land. Type battery life in freezing warehouses, and CEREBRO places it on the map, beside the topics it's closest to."
+      "text": "What if lets you test an idea before you write it. Type battery life in freezing warehouses, and CEREBRO places it on the map, right beside the topics it's closest to."
     },
     {
       "id": "timeline",
       "title": "Timeline",
-      "seconds": 34,
-      "text": "The Timeline puts it all in order, using dates the documents state themselves, never guesses. Each lane is a topic. Drag the window along the overview to move through four years, from the founding memo in twenty twenty-two to the latest roadmap."
+      "seconds": 32,
+      "text": "The Timeline puts everything in order. It only uses dates the documents state themselves. It never guesses. Each lane is a topic. Drag the window along the overview to travel through four years of Larkspur's history, from the founding memo in twenty twenty-two to the latest roadmap."
     },
     {
       "id": "ask",
       "title": "Ask CEREBRO",
-      "seconds": 55,
-      "text": "Now, Ask CEREBRO. How did picks per labour hour change from the pilot to FreshCart? The answer comes only from the library, with numbered citations to the exact passages. Each source gets its own colour. Show in Galaxy marks that passage on the map with a matching note. Show in Timeline does the same on the timeline. So you can always check where an answer came from."
+      "seconds": 50,
+      "text": "And now, the part I use most: Ask CEREBRO. I'll ask how picks per labour hour changed from the first pilot to FreshCart. The answer is written only from the library, with numbered citations to the exact passages it used. Each source has its own colour. Show in Galaxy marks that passage on the map with a matching note, and Show in Timeline does the same on the timeline. So you can always check where an answer came from, and judge it for yourself."
     },
     {
       "id": "local",
       "title": "Runs locally",
-      "seconds": 13,
-      "text": "All of this runs in the CEREBRO environment, on local models. There's no cloud AI engine behind it."
+      "seconds": 15,
+      "text": "All of this runs in the CEREBRO environment, on local models. There's no cloud AI engine behind it, and every suggestion waits for a person to approve it."
     },
     {
       "id": "outro",
       "title": "CEREBRO",
       "seconds": 9,
-      "text": "CEREBRO. Learn, connect, reason, recall."
+      "text": "CEREBRO. Learn, connect, reason, and recall. Your knowledge, working for you."
     }
   ]
 }

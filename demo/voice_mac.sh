@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
-# Add the narration on a Mac: ./voice_mac.sh   (needs ffmpeg: brew install ffmpeg)
-# Pick a voice with VOICE="Zoe (Premium)" ./voice_mac.sh. See voice.py for details.
+# Optional: rebuild the video on a Mac with a macOS voice instead of Kokoro.
+#   ./voice_mac.sh                      (in a cerebro-demo-<time> folder; needs: brew install ffmpeg)
+#   VOICE="Ava (Premium)" ./voice_mac.sh
+# The recording's scenes were timed to the Kokoro lines; build speeds up or
+# spaces scenes to fit whichever voice speaks.
 set -euo pipefail
 cd "$(dirname "$0")"
-exec python3 voice.py
+rm -rf clips
+ENGINE=say exec python3 "$(dirname "$0")/voice.py" all

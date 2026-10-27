@@ -21,6 +21,15 @@ const PASSWORD = "larkspur-demo-2026";
 const LIVE_FILE = join(here, "corpus/files/live/2026-04 Cold Storage Pilot Proposal.docx");
 const narration = JSON.parse(readFileSync(join(here, "narration.json"), "utf8")).scenes;
 const plan = Object.fromEntries(narration.map((s) => [s.id, s]));
+// When the voice was made first (voice.py speak), each scene lasts as long as
+// its line plus a breath, so the screen keeps pace with the narration.
+try {
+  const spoken = JSON.parse(readFileSync(join(here, "clips", "durations.json"), "utf8")).seconds;
+  for (const [id, secs] of Object.entries(spoken)) if (plan[id]) plan[id].seconds = Math.max(3, secs + 0.8);
+  console.log("scene lengths follow the narration (clips/durations.json)");
+} catch {
+  console.log("no clips/durations.json: using the planned scene lengths");
+}
 
 mkdirSync(OUT, { recursive: true });
 const W = 1920, H = 1080;
@@ -86,6 +95,11 @@ await context.addInitScript(overlay);
 // Signed in before the camera rolls; the login screen is not the story.
 const signIn = await context.request.post(`${BASE}/api/auth/login`, { data: { email: EMAIL, password: PASSWORD } });
 if (!signIn.ok()) throw new Error(`Demo sign-in failed (${signIn.status()}); run demo/seed.py first.`);
+// The document added on camera must be new each take: CEREBRO refuses a duplicate upload.
+const library = await (await context.request.get(`${BASE}/api/artifacts`)).json();
+for (const item of library.items ?? []) {
+  if (item.filename === LIVE_FILE.split("/").pop()) await context.request.delete(`${BASE}/api/artifacts/${item.id}`);
+}
 
 const page = await context.newPage();
 const t0 = Date.now();
@@ -138,7 +152,7 @@ await page.waitForLoadState("networkidle");
 
 await scene("intro", async () => {
   await card(`${brand}<p>Your private knowledge twin</p><small>Demo · Larkspur Logistics is a fictional company. All documents are invented.</small>`);
-  await pause(plan.intro.seconds * 1000 - 1200);
+  await pause(Math.max(1500, plan.intro.seconds * 1000 - 1200));
   await card("");
 });
 

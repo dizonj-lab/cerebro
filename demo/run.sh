@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
-# Record the CEREBRO demo on Buddy.
+# Make the CEREBRO demo video on Buddy, start to finish.
 #
-#   ./demo/run.sh            start the demo stack, load the Larkspur library, record the tour
-#   ./demo/run.sh record     record again (stack already up and seeded)
+#   ./demo/run.sh            demo stack + library, voice, recording, finished MP4
+#   ./demo/run.sh record     record and build again (stack already up; voice reused)
+#   ./demo/run.sh voice      remake the voice (after editing narration.json), then record and build
+#   ./demo/run.sh samples    the same line in ten voices, to pick one by ear
 #   ./demo/run.sh down       stop the demo stack (its data is kept)
 #
-# Everything runs in the separate Compose project "cerebro-demo": the live
-# CEREBRO, its database, uploads and Ollama are not touched. The result is a
-# folder ~/cerebro-demo-<time>/ with the silent video, the scene timings and
-# the narration; copy it to a Mac and run voice_mac.sh there to add the voice.
+#   VOICE=am_michael ./demo/run.sh voice     another Kokoro voice (af_heart is the default)
+#
+# Everything runs in the Compose project "cerebro-demo" and in throwaway
+# containers: the live CEREBRO, its database, uploads and Ollama are not
+# touched. The result is ~/cerebro-demo-<time>/CEREBRO-demo.mp4 (+ .srt).
 set -euo pipefail
 cd "$(dirname "$0")"
 HERE="$(pwd)"
@@ -17,18 +20,39 @@ PORT="${DEMO_WEB_PORT:-3300}"
 BASE="http://127.0.0.1:$PORT"
 PLAYWRIGHT="${PLAYWRIGHT_VERSION:-1.63.0}"
 THEME="${THEME:-light}"
+VOICE="${VOICE:-af_heart}"
+STEP="${1:-all}"
 
-case "${1:-all}" in
+case "$STEP" in
   down)
     "${COMPOSE[@]}" down
     echo "Stopped. Its data is kept; to delete the demo's own database and uploads as well:"
     echo "  docker volume rm cerebro-demo_postgres-data cerebro-demo_artifact-data"
     exit 0 ;;
-  all|record) ;;
-  *) echo "usage: $0 [all|record|down]"; exit 1 ;;
+  all|record|voice|samples) ;;
+  *) echo "usage: $0 [all|record|voice|samples|down]"; exit 1 ;;
 esac
 
-if [ "${1:-all}" = all ]; then
+voice_image() {
+  docker image inspect cerebro-demo-voice >/dev/null 2>&1 || {
+    echo "==> Building the voice image (Kokoro, once; a few minutes)"
+    docker build -q -t cerebro-demo-voice -f voice.Dockerfile . >/dev/null; }
+}
+in_voice() {  # run voice.py in the voice container, in folder $1
+  docker run --rm -v "$1:/work" -v "$HERE:/demo:ro" -v cerebro-demo-models:/root/.cache \
+    -e VOICE="$VOICE" -e ENGINE=kokoro -w /work cerebro-demo-voice python /demo/voice.py "$2"
+}
+
+if [ "$STEP" = samples ]; then
+  voice_image
+  mkdir -p "$HOME/cerebro-voice-samples"
+  docker run --rm -v "$HOME/cerebro-voice-samples:/work" -v "$HERE:/demo:ro" -v cerebro-demo-models:/root/.cache \
+    -w /work cerebro-demo-voice python /demo/voice.py samples
+  echo "==> Samples in ~/cerebro-voice-samples/voice-samples/. Listen, then: VOICE=<name> ./demo/run.sh"
+  exit 0
+fi
+
+if [ "$STEP" = all ]; then
   for image in "${CEREBRO_API_IMAGE:-cerebro-api}" "${CEREBRO_WEB_IMAGE:-cerebro-web}"; do
     docker image inspect "$image" >/dev/null 2>&1 || {
       echo "Image $image not found. Build the live stack first (cd ~/cerebro && docker compose build),"
@@ -42,24 +66,35 @@ if [ "${1:-all}" = all ]; then
     "${COMPOSE[@]}" exec -T ollama ollama list | grep -q "^$model" || {
       echo "==> Pulling $model (once)"; "${COMPOSE[@]}" exec -T ollama ollama pull "$model"; }
   done
-
   echo "==> Loading the Larkspur library (the local model reads each document; a few minutes)"
   python3 seed.py "$BASE"
 fi
 
-echo "==> Recording (about 5 minutes; the browser runs in a container)"
+# 1. The voice first, so every scene can be timed to its line.
+if [ "$STEP" != record ] || [ ! -f "$HERE/clips/durations.json" ]; then
+  voice_image
+  echo "==> Speaking the narration ($VOICE)"
+  rm -rf "$HERE/clips"
+  in_voice "$HERE" speak
+fi
+
+# 2. The recording, in a browser container.
+echo "==> Recording (about 5 minutes)"
 rm -rf "$HERE/out"
 docker run --rm --network host --ipc=host -v "$HERE:/demo" -w /demo \
   -e BASE="$BASE" -e OUT=/demo/out -e THEME="$THEME" \
   "mcr.microsoft.com/playwright:v$PLAYWRIGHT-noble" \
   bash -c "npm install --no-save --silent playwright@$PLAYWRIGHT >/dev/null && node record.mjs; chown -R $(id -u):$(id -g) /demo/out /demo/node_modules 2>/dev/null || true"
 
+# 3. Assembly: idle stretches tightened, voice, music, subtitles.
 STAMP="$(date +%Y%m%d-%H%M%S)"
 DEST="$HOME/cerebro-demo-$STAMP"
 mkdir -p "$DEST"
-cp "$HERE/out/demo.webm" "$HERE/out/scenes.json" "$HERE/narration.json" "$HERE/voice.py" "$HERE/voice_mac.sh" "$DEST/"
-tar -czf "$DEST.tar.gz" -C "$HOME" "$(basename "$DEST")"
+cp -r "$HERE/out/demo.webm" "$HERE/out/scenes.json" "$HERE/narration.json" "$HERE/clips" \
+  "$HERE/voice.py" "$HERE/music.py" "$HERE/voice_mac.sh" "$DEST/"
+voice_image
+echo "==> Building the video"
+in_voice "$DEST" build
 echo
-echo "==> Done: $DEST.tar.gz ($(du -h "$DEST.tar.gz" | cut -f1))"
-echo "    On your Mac:  scp 'admin@<buddy>:$DEST.tar.gz' ~/Downloads/ && cd ~/Downloads"
-echo "                  tar -xzf $(basename "$DEST").tar.gz && cd $(basename "$DEST") && ./voice_mac.sh"
+echo "==> Done: $DEST/CEREBRO-demo.mp4"
+echo "    On your Mac:  scp 'admin@<buddy>:$DEST/CEREBRO-demo.mp4' ~/Downloads/"
