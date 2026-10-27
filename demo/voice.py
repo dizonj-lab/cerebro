@@ -58,6 +58,18 @@ def lines() -> list[dict]:
 
 # --- Speaking ----------------------------------------------------------------------------------
 
+# How the voice should say a word, where the text's spelling misleads it. Kokoro
+# reads an all-capitals word as an acronym ("C-E-R-E-B-R-O"), so it gets the
+# phonemes; the other voices read the plain word. Subtitles keep the brand spelling.
+PRONOUNCE = {"CEREBRO": ("[Cerebro](/sˈɛɹəbɹO/)", "Cerebro")}
+
+
+def spoken_text(text: str, kind: str) -> str:
+    for word, (phonemes, plain) in PRONOUNCE.items():
+        text = re.sub(rf"\b{word}\b", phonemes if kind == "kokoro" else plain, text)
+    return text
+
+
 def engine() -> str:
     wanted = os.environ.get("ENGINE")
     if wanted:
@@ -99,19 +111,20 @@ def speak() -> None:
     print(f"voice: {voice} ({kind})")
     for i, line in enumerate(lines()):
         out = CLIPS / f"{i:02}.wav"
+        words = spoken_text(line["text"], kind)
         if kind == "kokoro":
-            parts = [np.asarray(audio) for _, _, audio in pipeline(line["text"], voice=voice, speed=speed)]
+            parts = [np.asarray(audio) for _, _, audio in pipeline(words, voice=voice, speed=speed)]
             sf.write(out.with_suffix(".raw.wav"), np.concatenate(parts), 24000)
             run("ffmpeg", "-y", "-loglevel", "error", "-i", str(out.with_suffix(".raw.wav")), "-ar", "48000", "-ac", "1", str(out))
             out.with_suffix(".raw.wav").unlink()
         elif kind == "say":
             aiff = out.with_suffix(".aiff")
-            run("say", "-v", voice, "-r", os.environ.get("RATE", "180"), "-o", str(aiff), line["text"])
+            run("say", "-v", voice, "-r", os.environ.get("RATE", "180"), "-o", str(aiff), words)
             run("ffmpeg", "-y", "-loglevel", "error", "-i", str(aiff), "-ar", "48000", "-ac", "1", str(out))
             aiff.unlink()
         else:
             raw = out.with_suffix(".raw.wav")
-            run("espeak-ng", "-v", voice, "-s", os.environ.get("RATE", "165"), "-w", str(raw), line["text"])
+            run("espeak-ng", "-v", voice, "-s", os.environ.get("RATE", "165"), "-w", str(raw), words)
             run("ffmpeg", "-y", "-loglevel", "error", "-i", str(raw), "-ar", "48000", "-ac", "1", str(out))
             raw.unlink()
         durations[line["id"]] = round(duration(out), 2)
@@ -139,7 +152,7 @@ def samples() -> None:
     pipelines = {}
     for voice in os.environ.get("VOICES", " ".join(SAMPLE_VOICES)).split():
         pipe = pipelines.setdefault(voice[0], KPipeline(lang_code=voice[0], repo_id="hexgrad/Kokoro-82M"))
-        audio = np.concatenate([np.asarray(a) for _, _, a in pipe(SAMPLE, voice=voice, speed=speed)])
+        audio = np.concatenate([np.asarray(a) for _, _, a in pipe(spoken_text(SAMPLE, "kokoro"), voice=voice, speed=speed)])
         wav = out / f"{voice}.wav"
         sf.write(wav, audio, 24000)
         run("ffmpeg", "-y", "-loglevel", "error", "-i", str(wav), "-b:a", "128k", str(wav.with_suffix(".mp3")))
