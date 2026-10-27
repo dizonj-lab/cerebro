@@ -267,7 +267,15 @@ test("a tablet gets the icon rail rather than a drawer over the workspace", asyn
 
 test("the landing page offers the demo beside Create Account, in a dialog that closes", async ({ page }) => {
   // The video is served by the portfolio site; the test only needs the player, not the file.
-  await page.route("https://folio.xtangent.ai/**", (route) => route.fulfill({ status: 204 }));
+  // The video request is left pending (as a slow network would); the subtitles are answered.
+  await page.route("https://folio.xtangent.ai/**/*.mp4", () => {});
+  await page.route("https://folio.xtangent.ai/**/*.vtt", (route) =>
+    route.fulfill({
+      status: 200,
+      headers: { "Content-Type": "text/vtt", "Access-Control-Allow-Origin": "*" },
+      body: "WEBVTT\n\n1\n00:00:00.000 --> 00:00:02.000\nHello\n",
+    }),
+  );
   await page.goto("/");
   const hero = page.locator("main section").first();
   const buttons = hero.getByRole("button", { name: "Watch demo" });
@@ -279,8 +287,25 @@ test("the landing page offers the demo beside Create Account, in a dialog that c
   await buttons.click();
   const dialog = page.getByRole("dialog", { name: "CEREBRO demo" });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByTestId("demo-video")).toHaveAttribute("src", /cerebro-demo\.mp4$/);
+  const video = dialog.getByTestId("demo-video");
+  await expect(video).toHaveAttribute("src", /cerebro-demo\.mp4$/);
+  // Plain cross-origin media: playing must not depend on the CDN passing CORS headers through.
+  await expect(video).not.toHaveAttribute("crossorigin", /.*/);
+  // The subtitles arrive as a same-origin blob.
+  await expect(video.locator("track")).toHaveAttribute("src", /^blob:/);
   await expect(page.getByRole("button", { name: "Close the demo" })).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
+});
+
+test("when the demo video cannot load, the dialog offers folio's player instead", async ({ page }) => {
+  await page.route("https://folio.xtangent.ai/**", (route) => route.fulfill({ status: 404 }));
+  await page.goto("/");
+  await page.locator("main section").first().getByRole("button", { name: "Watch demo" }).click();
+  const dialog = page.getByRole("dialog", { name: "CEREBRO demo" });
+  await expect(dialog.getByText("The video could not load here.")).toBeVisible();
+  await expect(dialog.getByRole("link", { name: "Watch it on folio.xtangent.ai" })).toHaveAttribute(
+    "href",
+    "https://folio.xtangent.ai/demo/cerebro/",
+  );
 });

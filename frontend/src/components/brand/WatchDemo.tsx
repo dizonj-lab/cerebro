@@ -10,10 +10,38 @@ import { DEMO_VIDEO } from "@/lib/demo";
  *
  * The video loads only when opened, starts playing, and stops when closed
  * (the element is removed). Escape, the close button or a click outside closes it.
+ *
+ * The video carries no `crossOrigin`: as plain cross-origin media it plays
+ * whatever headers the host or its CDN send. The subtitles are fetched
+ * separately and handed to the track as a same-origin blob; if that fails
+ * the video plays without them. If the video itself cannot load, folio's
+ * player is offered instead.
  */
 export function WatchDemo({ size = "lg" }: { size?: "md" | "lg" }) {
   const [open, setOpen] = useState(false);
   const close = useRef<HTMLButtonElement>(null);
+  const [captions, setCaptions] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    let url: string | null = null;
+    let cancelled = false;
+    fetch(DEMO_VIDEO.captions)
+      .then((r) => (r.ok ? r.text() : Promise.reject(new Error(String(r.status)))))
+      .then((text) => {
+        if (cancelled) return;
+        url = URL.createObjectURL(new Blob([text], { type: "text/vtt" }));
+        setCaptions(url);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      if (url) URL.revokeObjectURL(url);
+      setCaptions(null);
+      setFailed(false);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -55,18 +83,32 @@ export function WatchDemo({ size = "lg" }: { size?: "md" | "lg" }) {
                 ✕
               </button>
             </div>
-            <video
-              data-testid="demo-video"
-              src={DEMO_VIDEO.src}
-              controls
-              autoPlay
-              playsInline
-              preload="metadata"
-              crossOrigin="anonymous"
-              className="aspect-video w-full bg-ink"
-            >
-              <track kind="captions" src={DEMO_VIDEO.captions} srcLang="en" label="English" />
-            </video>
+            {failed ? (
+              <div className="flex aspect-video w-full flex-col items-center justify-center gap-3 bg-surface-subtle p-6 text-center">
+                <p className="text-sm text-ink-muted">The video could not load here.</p>
+                <a
+                  href={DEMO_VIDEO.page}
+                  target="_blank"
+                  rel="noopener"
+                  className="text-sm font-medium text-accent underline underline-offset-4"
+                >
+                  Watch it on folio.xtangent.ai
+                </a>
+              </div>
+            ) : (
+              <video
+                data-testid="demo-video"
+                src={DEMO_VIDEO.src}
+                controls
+                autoPlay
+                playsInline
+                preload="metadata"
+                onError={() => setFailed(true)}
+                className="aspect-video w-full bg-ink"
+              >
+                {captions && <track kind="captions" src={captions} srcLang="en" label="English" default />}
+              </video>
+            )}
           </div>
         </div>
       )}
