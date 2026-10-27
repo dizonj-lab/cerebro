@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { BRAND, Logo, LogoLockup } from "@/components/brand/Logo";
+import { WatchDemo } from "@/components/brand/WatchDemo";
 import { Button } from "@/components/ui/Button";
 
 const PILLARS = [
@@ -56,6 +57,7 @@ export default function LandingPage() {
                 Create Account
               </Button>
             </Link>
+            <WatchDemo />
             <Link href="/login">
               <Button variant="secondary" size="lg">
                 Sign In

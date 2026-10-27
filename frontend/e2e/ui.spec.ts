@@ -264,3 +264,23 @@ test("a tablet gets the icon rail rather than a drawer over the workspace", asyn
   );
   expect(overflows).toBe(false);
 });
+
+test("the landing page offers the demo beside Create Account, in a dialog that closes", async ({ page }) => {
+  // The video is served by the portfolio site; the test only needs the player, not the file.
+  await page.route("https://folio.xtangent.ai/**", (route) => route.fulfill({ status: 204 }));
+  await page.goto("/");
+  const hero = page.locator("main section").first();
+  const buttons = hero.getByRole("button", { name: "Watch demo" });
+  await expect(buttons).toBeVisible();
+  // Beside Create Account: the next control after it in the hero.
+  const order = await hero.getByRole("button").allInnerTexts();
+  expect(order.findIndex((t) => /Watch demo/.test(t))).toBe(order.findIndex((t) => /Create Account/.test(t)) + 1);
+
+  await buttons.click();
+  const dialog = page.getByRole("dialog", { name: "CEREBRO demo" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByTestId("demo-video")).toHaveAttribute("src", /cerebro-demo\.mp4$/);
+  await expect(page.getByRole("button", { name: "Close the demo" })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+});
