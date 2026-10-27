@@ -60,6 +60,7 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="synthetic data: checks the code runs, measures nothing",
     )
+    parser.add_argument("--label", default="", help="what this run is, e.g. 'as deployed'")
     args = parser.parse_args(argv)
 
     chosen = [x.strip() for x in args.only.split(",") if x.strip()]
@@ -84,9 +85,17 @@ def main(argv: list[str] | None = None) -> int:
         else (None, None)
     )
     run.log(f"chat model: {chat or 'none'} · embedding model: {embed or 'none'}")
-    if not args.smoke and (chat is None or embed is None):
-        run.log("A real run needs Ollama with a chat model and an embedding model. Stopping.")
+    if not args.smoke and chat is None:
+        run.log("A real run needs Ollama with a chat model. Stopping.")
         return 2
+    if not args.smoke and embed is None:
+        # What CEREBRO itself does without an embedding model: it falls back
+        # to the hashing embedder. Measured as deployed, and said so.
+        run.notes.append(
+            "No embedding model in this Ollama: CEREBRO falls back to the hashing embedder, "
+            "so only hashing was measured as the semantic space."
+        )
+        run.log("No embedding model: measuring the hashing fallback CEREBRO uses in that case.")
 
     embedders = {"hashing": Embedder(run, "hashing")}
     if embed:
@@ -120,6 +129,7 @@ def main(argv: list[str] | None = None) -> int:
     run.manifest(
         {
             "experiments": chosen,
+            "label": args.label,
             "ollama": {
                 "url": args.ollama,
                 "chat_model": chat,

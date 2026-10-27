@@ -5,12 +5,14 @@ for every code path to execute. Its embeddings are hashed words and its
 answers are canned, so nothing it produces is a measurement.
 
     python tests/stub_ollama.py 11500
+    STUB_NO_EMBEDDER=1 python tests/stub_ollama.py 11501   # chat model only
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -39,24 +41,23 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):  # noqa: N802
         if self.path == "/api/tags":
-            self._json(
+            models = [
                 {
-                    "models": [
-                        {
-                            "name": "qwen3:stub",
-                            "digest": "stub-chat",
-                            "size": 1,
-                            "details": {"family": "qwen3"},
-                        },
-                        {
-                            "name": "mxbai-embed-large:stub",
-                            "digest": "stub-embed",
-                            "size": 1,
-                            "details": {"family": "bert"},
-                        },
-                    ]
-                }
-            )
+                    "name": "qwen3:stub",
+                    "digest": "stub-chat",
+                    "size": 1,
+                    "details": {"family": "qwen3"},
+                },
+                {
+                    "name": "mxbai-embed-large:stub",
+                    "digest": "stub-embed",
+                    "size": 1,
+                    "details": {"family": "bert"},
+                },
+            ]
+            if os.environ.get("STUB_NO_EMBEDDER"):
+                models = models[:1]
+            self._json({"models": models})
 
     def do_POST(self):  # noqa: N802
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
